@@ -83,6 +83,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Extensions/DateExtensions.swift,
+				"Extensions/Double+Extensions.swift",
 				Extensions/NumberFomatterExtensions.swift,
 			);
 			target = D7B2B7932C31F8A2005E0906 /* Brandon's Budget */;
@@ -91,6 +92,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Extensions/DateExtensions.swift,
+				"Extensions/Double+Extensions.swift",
 				Extensions/NumberFomatterExtensions.swift,
 			);
 			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
@@ -126,6 +128,7 @@
 			buildPhase = D7B2B7922C31F8A2005E0906 /* Resources */;
 			membershipExceptions = (
 				Extensions/DateExtensions.swift,
+				"Extensions/Double+Extensions.swift",
 				Extensions/NumberFomatterExtensions.swift,
 			);
 		};
@@ -134,6 +137,7 @@
 			buildPhase = D7B2B8042C36655A005E0906 /* Resources */;
 			membershipExceptions = (
 				Extensions/DateExtensions.swift,
+				"Extensions/Double+Extensions.swift",
 				Extensions/NumberFomatterExtensions.swift,
 			);
 		};

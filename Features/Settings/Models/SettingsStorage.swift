@@ -83,7 +83,7 @@ public struct SettingsStorage<T: Codable> {
     
     // MARK: - Projected Value
     public var projectedValue: SettingsStorageProjection<T> {
-        SettingsStorageProjection>(storage: self)
+        SettingsStorageProjection<T>(storage: self)
     }
     
     // MARK: - Private Methods
@@ -151,7 +151,7 @@ extension UserDefaults {
         public static let isFirstLaunch = "isFirstLaunch"
         
         // Constants for key prefixes
-        private static let prefix = "com.brandonsbudget.settings."
+        public static let prefix = "com.brandonsbudget.settings."
         
         /// Generate prefixed key
         /// - Parameter key: Base key

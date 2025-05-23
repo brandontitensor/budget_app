@@ -5,6 +5,7 @@
 //  Created by Brandon Titensor on 11/8/24.
 //
 import SwiftUI
+import Foundation
 
 /// A reusable row component for displaying budget category information
 struct BudgetCategoryRow: View {

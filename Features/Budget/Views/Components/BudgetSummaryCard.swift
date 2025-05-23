@@ -5,6 +5,7 @@
 //  Created by Brandon Titensor on 11/8/24.
 //
 import SwiftUI
+import Foundation
 
 /// A reusable card component for displaying budget summary information
 struct BudgetSummaryCard: View {

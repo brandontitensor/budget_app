@@ -5,6 +5,7 @@
 //  Created by Brandon Titensor on 11/8/24.
 //
 import SwiftUI
+import Foundation
 
 /// A view component for displaying transaction entries in a list
 struct TransactionRowView: View {

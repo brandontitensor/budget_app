@@ -208,68 +208,6 @@ public extension NumberFormatter {
     }
 }
 
-// MARK: - Double Extension
-public extension Double {
-    /// Format as currency string
-    var asCurrency: String {
-        NumberFormatter.formatCurrency(self)
-    }
-    
-    /// Format as percentage string
-    var asPercentage: String {
-        NumberFormatter.formatPercentage(self)
-    }
-    
-    /// Format with grouping separators
-    var withSeparators: String {
-        NumberFormatter.formatWithSeparators(self)
-    }
-    
-    /// Format as compact string
-    var compact: String {
-        NumberFormatter.formatCompact(self)
-    }
-}
-
-// MARK: - Double Extension
-public extension Double {
-    /// Format as currency string
-    var asCurrency: String {
-        NumberFormatter.formatCurrency(self)
-    }
-}
-
-
-// MARK: - Double Extension
-public extension Double {
-    /// Format as currency string
-    var asCurrency: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: self)) ?? "$0.00"
-    }
-    
-    /// Format as percentage string
-    var asPercentage: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .percent
-        formatter.minimumFractionDigits = 1
-        formatter.maximumFractionDigits = 1
-        return formatter.string(from: NSNumber(value: self)) ?? "0%"
-    }
-    
-    /// Format with grouping separators
-    var withSeparators: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.groupingSeparator = ","
-        formatter.usesGroupingSeparator = true
-        return formatter.string(from: NSNumber(value: self)) ?? "0"
-    }
-}
-
 // MARK: - Decimal Extension
 extension Decimal {
     var asCurrency: String {
