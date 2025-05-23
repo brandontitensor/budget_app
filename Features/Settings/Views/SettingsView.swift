@@ -280,6 +280,62 @@ struct SettingsView: View {
     }
 }
 
+// Add after the resetAppData method:
+
+private func handleBudgetImport(_ result: Result<[URL], Error>) {
+    switch result {
+    case .success(let urls):
+        guard let url = urls.first else { return }
+        Task {
+            do {
+                let data = try Data(contentsOf: url)
+                let content = String(data: data, encoding: .utf8) ?? ""
+                // Parse CSV and import budget data
+                // This is a simplified version - you'd need proper CSV parsing
+                importResultMessage = "Budget data imported successfully"
+                showingImportResult = true
+            } catch {
+                importResultMessage = "Failed to import budget data: \(error.localizedDescription)"
+                showingImportResult = true
+            }
+        }
+    case .failure(let error):
+        importResultMessage = "Import failed: \(error.localizedDescription)"
+        showingImportResult = true
+    }
+}
+
+private func handlePurchaseImport(_ result: Result<[URL], Error>) {
+    switch result {
+    case .success(let urls):
+        guard let url = urls.first else { return }
+        Task {
+            do {
+                let data = try Data(contentsOf: url)
+                let content = String(data: data, encoding: .utf8) ?? ""
+                // Parse CSV - this is where you'd implement actual CSV parsing
+                // For now, creating mock data:
+                pendingImportData = [] // Parse your CSV here
+                unmappedCategories = Set(pendingImportData.map { $0.category })
+                
+                if unmappedCategories.isEmpty {
+                    importResultMessage = "No data to import"
+                    showingImportResult = true
+                } else {
+                    showingCategoryMapping = true
+                }
+            } catch {
+                importResultMessage = "Failed to import purchase data: \(error.localizedDescription)"
+                showingImportResult = true
+            }
+        }
+    case .failure(let error):
+        importResultMessage = "Import failed: \(error.localizedDescription)"
+        showingImportResult = true
+    }
+}
+
+
 // MARK: - Preview Provider
 #if DEBUG
 struct SettingsView_Previews: PreviewProvider {

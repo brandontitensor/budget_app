@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 /// A property wrapper for type-safe settings storage with error handling and validation
 @propertyWrapper
@@ -82,7 +83,7 @@ public struct SettingsStorage<T: Codable> {
     
     // MARK: - Projected Value
     public var projectedValue: SettingsStorageProjection<T> {
-        SettingsStorageProjection(storage: self)
+        SettingsStorageProjection>(storage: self)
     }
     
     // MARK: - Private Methods

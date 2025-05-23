@@ -531,6 +531,168 @@ struct YearPickerView: View {
     }
 }
 
+// In Core/Models/SharedTypes.swift - Add these missing methods to BudgetManager:
+
+extension BudgetManager {
+    // MARK: - Data Loading
+    func loadData() {
+        Task {
+            do {
+                self.entries = try await coreDataManager.getAllEntries()
+                self.monthlyBudgets = try await coreDataManager.getAllMonthlyBudgets()
+            } catch {
+                print("Failed to load data: \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Entry Management
+    func getEntries(for timePeriod: TimePeriod) async throws -> [BudgetEntry] {
+        let dateInterval = timePeriod.dateInterval()
+        return entries.filter { entry in
+            entry.date >= dateInterval.start && entry.date <= dateInterval.end
+        }
+    }
+    
+    func addEntry(_ entry: BudgetEntry) async throws {
+        try await coreDataManager.addEntry(entry)
+        await MainActor.run {
+            self.entries.append(entry)
+            self.objectWillChange.send()
+        }
+    }
+    
+    func updateEntry(_ entry: BudgetEntry) async throws {
+        try await coreDataManager.updateEntry(entry)
+        await MainActor.run {
+            if let index = self.entries.firstIndex(where: { $0.id == entry.id }) {
+                self.entries[index] = entry
+                self.objectWillChange.send()
+            }
+        }
+    }
+    
+    func deleteEntry(_ entry: BudgetEntry) async throws {
+        try await coreDataManager.deleteEntry(entry)
+        await MainActor.run {
+            self.entries.removeAll { $0.id == entry.id }
+            self.objectWillChange.send()
+        }
+    }
+    
+    // MARK: - Budget Management
+    func getCurrentMonthBudget() -> Double {
+        let now = Date()
+        let month = calendar.component(.month, from: now)
+        let year = calendar.component(.year, from: now)
+        return getMonthlyBudgets(for: month, year: year)
+            .reduce(0) { $0 + $1.amount }
+    }
+    
+    func getMonthlyBudgets(for month: Int, year: Int) -> [MonthlyBudget] {
+        return monthlyBudgets.filter { budget in
+            budget.month == month && budget.year == year
+        }
+    }
+    
+    func updateMonthlyBudgets(_ budgets: [String: Double], for month: Int, year: Int) async throws {
+        for (category, amount) in budgets {
+            let budget = try MonthlyBudget(
+                category: category,
+                amount: amount,
+                month: month,
+                year: year
+            )
+            try await coreDataManager.addOrUpdateMonthlyBudget(budget)
+        }
+        loadData() // Reload data after update
+    }
+    
+    func addCategory(_ category: String, amount: Double, month: Int, year: Int, includeFutureMonths: Bool) async throws {
+        if includeFutureMonths {
+            for m in month...12 {
+                let budget = try MonthlyBudget(
+                    category: category,
+                    amount: amount,
+                    month: m,
+                    year: year
+                )
+                try await coreDataManager.addOrUpdateMonthlyBudget(budget)
+            }
+        } else {
+            let budget = try MonthlyBudget(
+                category: category,
+                amount: amount,
+                month: month,
+                year: year
+            )
+            try await coreDataManager.addOrUpdateMonthlyBudget(budget)
+        }
+        loadData()
+    }
+    
+    func deleteMonthlyBudget(category: String, fromMonth: Int, year: Int, includeFutureMonths: Bool) async throws {
+        try await coreDataManager.deleteMonthlyBudget(
+            category: category,
+            fromMonth: fromMonth,
+            year: year,
+            includeFutureMonths: includeFutureMonths
+        )
+        loadData()
+    }
+    
+    func getAvailableCategories() -> [String] {
+        let currentMonth = calendar.component(.month, from: Date())
+        let currentYear = calendar.component(.year, from: Date())
+        let currentBudgets = getMonthlyBudgets(for: currentMonth, year: currentYear)
+        return currentBudgets.map { $0.category }.sorted()
+    }
+    
+    // MARK: - Import/Export
+    func processMappedImport(data: [PurchaseImportData], categoryMappings: [String: String]) async {
+        for item in data {
+            do {
+                let mappedCategory = categoryMappings[item.category] ?? item.category
+                let entry = try BudgetEntry(
+                    amount: item.amount,
+                    category: mappedCategory,
+                    date: ISO8601DateFormatter().date(from: item.date) ?? Date(),
+                    note: item.note
+                )
+                try await addEntry(entry)
+            } catch {
+                print("Failed to import entry: \(error)")
+            }
+        }
+    }
+    
+    func resetAllData() async throws {
+        try await coreDataManager.deleteAllData()
+        await MainActor.run {
+            self.entries = []
+            self.monthlyBudgets = []
+            self.objectWillChange.send()
+        }
+    }
+    
+    // MARK: - Widget Support
+    private func updateRemainingBudget() {
+        let currentMonthBudget = getCurrentMonthBudget()
+        let currentMonthSpent = entries
+            .filter { $0.date.isInCurrentMonth }
+            .reduce(0) { $0 + $1.amount }
+        let remaining = currentMonthBudget - currentMonthSpent
+        
+        SharedDataManager.shared.setMonthlyBudget(currentMonthBudget)
+        SharedDataManager.shared.setRemainingBudget(remaining)
+    }
+    
+    private func checkAndUpdateMonthlyBudgets() async {
+        // Implementation for checking and updating monthly budgets
+        // This would handle any necessary monthly budget updates
+    }
+}
+
 // MARK: - Preview Provider
 #if DEBUG
 struct YearPickerView_Previews: PreviewProvider {
