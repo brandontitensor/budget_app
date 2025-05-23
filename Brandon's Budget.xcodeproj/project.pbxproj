@@ -3,38 +3,13 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 73;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D7B2B7982C31F8A2005E0906 /* Brandon_s_BudgetApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7972C31F8A2005E0906 /* Brandon_s_BudgetApp.swift */; };
-		D7B2B79A2C31F8A2005E0906 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7992C31F8A2005E0906 /* ContentView.swift */; };
-		D7B2B79C2C31F8A4005E0906 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D7B2B79B2C31F8A4005E0906 /* Assets.xcassets */; };
-		D7B2B7A02C31F8A4005E0906 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D7B2B79F2C31F8A4005E0906 /* Preview Assets.xcassets */; };
-		D7B2B7A92C32038C005E0906 /* OverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7A82C32038C005E0906 /* OverviewView.swift */; };
-		D7B2B7AB2C3203C3005E0906 /* BudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7AA2C3203C3005E0906 /* BudgetView.swift */; };
-		D7B2B7AD2C3203F6005E0906 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7AC2C3203F6005E0906 /* SettingsView.swift */; };
-		D7B2B7AF2C320466005E0906 /* BudgetManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7AE2C320466005E0906 /* BudgetManager.swift */; };
-		D7B2B7B12C32105C005E0906 /* PurchaseEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7B02C32105C005E0906 /* PurchaseEntryView.swift */; };
-		D7B2B7B62C3212D5005E0906 /* CoreDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7B52C3212D5005E0906 /* CoreDataManager.swift */; };
-		D7B2B7BC2C321FC4005E0906 /* PurchasesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7BB2C321FC4005E0906 /* PurchasesView.swift */; };
-		D7B2B7E22C32255D005E0906 /* BudgetModel.xcdatamodeld in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7E02C32255D005E0906 /* BudgetModel.xcdatamodeld */; };
-		D7B2B7E42C322B2D005E0906 /* BudgetEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7E32C322B2D005E0906 /* BudgetEntry.swift */; };
-		D7B2B7E62C322B51005E0906 /* CSVExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7E52C322B51005E0906 /* CSVExport.swift */; };
-		D7B2B7E82C322D4F005E0906 /* TimePeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7E72C322D4F005E0906 /* TimePeriod.swift */; };
-		D7B2B7EC2C3250D2005E0906 /* UpdatedBudgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7EB2C3250D2005E0906 /* UpdatedBudgetView.swift */; };
-		D7B2B7EE2C327FF4005E0906 /* UpdatePurchaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7ED2C327FF4005E0906 /* UpdatePurchaseView.swift */; };
-		D7B2B7F22C333244005E0906 /* BudgetHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7F12C333244005E0906 /* BudgetHistoryView.swift */; };
-		D7B2B7F62C35E228005E0906 /* EditCategoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7F52C35E228005E0906 /* EditCategoryView.swift */; };
-		D7B2B7F82C35F925005E0906 /* WelcomePopupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B7F72C35F925005E0906 /* WelcomePopupView.swift */; };
-		D7B2B8012C3662D7005E0906 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B8002C3662D7005E0906 /* NotificationManager.swift */; };
 		D7B2B8092C36655A005E0906 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7B2B8082C36655A005E0906 /* WidgetKit.framework */; };
 		D7B2B80B2C36655A005E0906 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7B2B80A2C36655A005E0906 /* SwiftUI.framework */; };
-		D7B2B8102C36655A005E0906 /* Budget_Widget.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B80F2C36655A005E0906 /* Budget_Widget.swift */; };
-		D7B2B8122C36655B005E0906 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D7B2B8112C36655B005E0906 /* Assets.xcassets */; };
 		D7B2B8162C36655B005E0906 /* Budget WidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D7B2B8062C36655A005E0906 /* Budget WidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		D7B2B81C2C366B70005E0906 /* SharedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B81B2C366B70005E0906 /* SharedData.swift */; };
-		D7B2B8202C366ED3005E0906 /* SharedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7B2B81B2C366B70005E0906 /* SharedData.swift */; };
 		D7B2B8282C388CFC005E0906 /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = D7B2B8272C388CFC005E0906 /* AppIntents.framework */; };
 /* End PBXBuildFile section */
 
@@ -64,40 +39,122 @@
 
 /* Begin PBXFileReference section */
 		D7B2B7942C31F8A2005E0906 /* Brandon's Budget.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Brandon's Budget.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		D7B2B7972C31F8A2005E0906 /* Brandon_s_BudgetApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Brandon_s_BudgetApp.swift; sourceTree = "<group>"; };
-		D7B2B7992C31F8A2005E0906 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		D7B2B79B2C31F8A4005E0906 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		D7B2B79D2C31F8A4005E0906 /* Brandon_s_Budget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Brandon_s_Budget.entitlements; sourceTree = "<group>"; };
-		D7B2B79F2C31F8A4005E0906 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		D7B2B7A82C32038C005E0906 /* OverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverviewView.swift; sourceTree = "<group>"; };
-		D7B2B7AA2C3203C3005E0906 /* BudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetView.swift; sourceTree = "<group>"; };
-		D7B2B7AC2C3203F6005E0906 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		D7B2B7AE2C320466005E0906 /* BudgetManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BudgetManager.swift; sourceTree = "<group>"; };
-		D7B2B7B02C32105C005E0906 /* PurchaseEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PurchaseEntryView.swift; sourceTree = "<group>"; };
-		D7B2B7B52C3212D5005E0906 /* CoreDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreDataManager.swift; sourceTree = "<group>"; };
-		D7B2B7BB2C321FC4005E0906 /* PurchasesView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PurchasesView.swift; sourceTree = "<group>"; };
-		D7B2B7E12C32255D005E0906 /* BudgetModel.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = BudgetModel.xcdatamodel; sourceTree = "<group>"; };
-		D7B2B7E32C322B2D005E0906 /* BudgetEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetEntry.swift; sourceTree = "<group>"; };
-		D7B2B7E52C322B51005E0906 /* CSVExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVExport.swift; sourceTree = "<group>"; };
-		D7B2B7E72C322D4F005E0906 /* TimePeriod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimePeriod.swift; sourceTree = "<group>"; };
-		D7B2B7EB2C3250D2005E0906 /* UpdatedBudgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatedBudgetView.swift; sourceTree = "<group>"; };
-		D7B2B7ED2C327FF4005E0906 /* UpdatePurchaseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdatePurchaseView.swift; sourceTree = "<group>"; };
-		D7B2B7F12C333244005E0906 /* BudgetHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BudgetHistoryView.swift; sourceTree = "<group>"; };
-		D7B2B7F52C35E228005E0906 /* EditCategoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditCategoryView.swift; sourceTree = "<group>"; };
-		D7B2B7F72C35F925005E0906 /* WelcomePopupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomePopupView.swift; sourceTree = "<group>"; };
-		D7B2B7F92C360A06005E0906 /* Brandon-s-Budget-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "Brandon-s-Budget-Info.plist"; sourceTree = SOURCE_ROOT; };
-		D7B2B8002C3662D7005E0906 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		D7B2B8062C36655A005E0906 /* Budget WidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "Budget WidgetExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D7B2B8082C36655A005E0906 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		D7B2B80A2C36655A005E0906 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		D7B2B80F2C36655A005E0906 /* Budget_Widget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Budget_Widget.swift; sourceTree = "<group>"; };
-		D7B2B8112C36655B005E0906 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		D7B2B8132C36655B005E0906 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		D7B2B81B2C366B70005E0906 /* SharedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedData.swift; sourceTree = "<group>"; };
-		D7B2B81F2C366E7B005E0906 /* Budget WidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Budget WidgetExtension.entitlements"; sourceTree = "<group>"; };
-		D7B2B8232C368975005E0906 /* BrandonsBudget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BrandonsBudget.entitlements; sourceTree = "<group>"; };
 		D7B2B8272C388CFC005E0906 /* AppIntents.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppIntents.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/AppIntents.framework; sourceTree = DEVELOPER_DIR; };
+		D7B9B7D62CEBAF0F00334D04 /* Brandon's BudgetDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Brandon's BudgetDebug.entitlements"; sourceTree = "<group>"; };
+		D7B9B7D72CEBAF2000334D04 /* Budget WidgetExtensionDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Budget WidgetExtensionDebug.entitlements"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D71742612CDE9833000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BrandonsBudgetApp.swift,
+				ContentView.swift,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+		D717426B2CDE98E1000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Budget/Views/BudgetView.swift,
+				History/Views/BudgetHistoryView.swift,
+				Onboarding/Views/WelcomePopupView.swift,
+				Overview/Views/BudgetOverviewView.swift,
+				Purchases/Views/PurchaseEntryView.swift,
+				Purchases/Views/PurchasesView.swift,
+				Purchases/Views/UpdatePurchaseView.swift,
+				Settings/Views/SettingsView.swift,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+		D71742812CDE9A00000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Managers/NotificationManager.swift,
+				Managers/SettingsManager.swift,
+				Services/CSVExport.swift,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+		D71742CC2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Extensions/DateExtensions.swift,
+				Extensions/NumberFomatterExtensions.swift,
+			);
+			target = D7B2B7932C31F8A2005E0906 /* Brandon's Budget */;
+		};
+		D71742CE2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Extensions/DateExtensions.swift,
+				Extensions/NumberFomatterExtensions.swift,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+		D71742DD2CDEA91B000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets.xcassets,
+				Budget_Widget.swift,
+				Info.plist,
+			);
+			target = D7B2B7932C31F8A2005E0906 /* Brandon's Budget */;
+		};
+		D71742E12CDEA955000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+		D7B9B89F2CEBDBBB00334D04 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets.xcassets,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+		D71742CD2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = D7B2B7922C31F8A2005E0906 /* Resources */;
+			membershipExceptions = (
+				Extensions/DateExtensions.swift,
+				Extensions/NumberFomatterExtensions.swift,
+			);
+		};
+		D71742CF2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = D7B2B8042C36655A005E0906 /* Resources */;
+			membershipExceptions = (
+				Extensions/DateExtensions.swift,
+				Extensions/NumberFomatterExtensions.swift,
+			);
+		};
+		D7B9B7DC2CEBB38600334D04 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
+			buildPhase = D7B2B8042C36655A005E0906 /* Resources */;
+			membershipExceptions = (
+				"Budget WidgetExtensionDebug.entitlements",
+			);
+		};
+/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		D71742602CDE981E000DE4F8 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742612CDE9833000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
+		D71742622CDE984C000DE4F8 /* Features */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D717426B2CDE98E1000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Features; sourceTree = "<group>"; };
+		D71742632CDE985D000DE4F8 /* Core */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742812CDE9A00000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Core; sourceTree = "<group>"; };
+		D71742642CDE9863000DE4F8 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742CC2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D71742CD2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, D71742CE2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D71742CF2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
+		D71742662CDE9886000DE4F8 /* Widget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742DD2CDEA91B000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D71742E12CDEA955000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D7B9B7DC2CEBB38600334D04 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Widget; sourceTree = "<group>"; };
+		D71742ED2CDEABD2000DE4F8 /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D7B9B89F2CEBDBBB00334D04 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Resources; sourceTree = "<group>"; };
+		D7B9B7E02CEBD5EE00334D04 /* Preview Content */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "Preview Content"; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		D7B2B7912C31F8A2005E0906 /* Frameworks */ = {
@@ -123,10 +180,15 @@
 		D7B2B78B2C31F8A2005E0906 = {
 			isa = PBXGroup;
 			children = (
-				D7B2B81F2C366E7B005E0906 /* Budget WidgetExtension.entitlements */,
-				D7B2B81B2C366B70005E0906 /* SharedData.swift */,
-				D7B2B7962C31F8A2005E0906 /* Brandon's Budget */,
-				D7B2B80C2C36655A005E0906 /* Budget Widget */,
+				D7B9B7E02CEBD5EE00334D04 /* Preview Content */,
+				D7B9B7D72CEBAF2000334D04 /* Budget WidgetExtensionDebug.entitlements */,
+				D7B9B7D62CEBAF0F00334D04 /* Brandon's BudgetDebug.entitlements */,
+				D71742602CDE981E000DE4F8 /* App */,
+				D71742622CDE984C000DE4F8 /* Features */,
+				D71742632CDE985D000DE4F8 /* Core */,
+				D71742642CDE9863000DE4F8 /* Utils */,
+				D71742ED2CDEABD2000DE4F8 /* Resources */,
+				D71742662CDE9886000DE4F8 /* Widget */,
 				D7B2B8072C36655A005E0906 /* Frameworks */,
 				D7B2B7952C31F8A2005E0906 /* Products */,
 			);
@@ -141,45 +203,6 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		D7B2B7962C31F8A2005E0906 /* Brandon's Budget */ = {
-			isa = PBXGroup;
-			children = (
-				D7B2B7F92C360A06005E0906 /* Brandon-s-Budget-Info.plist */,
-				D7B2B7972C31F8A2005E0906 /* Brandon_s_BudgetApp.swift */,
-				D7B2B7E32C322B2D005E0906 /* BudgetEntry.swift */,
-				D7B2B7F12C333244005E0906 /* BudgetHistoryView.swift */,
-				D7B2B7AE2C320466005E0906 /* BudgetManager.swift */,
-				D7B2B7F72C35F925005E0906 /* WelcomePopupView.swift */,
-				D7B2B7992C31F8A2005E0906 /* ContentView.swift */,
-				D7B2B7A82C32038C005E0906 /* OverviewView.swift */,
-				D7B2B7AC2C3203F6005E0906 /* SettingsView.swift */,
-				D7B2B8002C3662D7005E0906 /* NotificationManager.swift */,
-				D7B2B7E52C322B51005E0906 /* CSVExport.swift */,
-				D7B2B7BB2C321FC4005E0906 /* PurchasesView.swift */,
-				D7B2B7B02C32105C005E0906 /* PurchaseEntryView.swift */,
-				D7B2B7ED2C327FF4005E0906 /* UpdatePurchaseView.swift */,
-				D7B2B7EB2C3250D2005E0906 /* UpdatedBudgetView.swift */,
-				D7B2B7AA2C3203C3005E0906 /* BudgetView.swift */,
-				D7B2B7B52C3212D5005E0906 /* CoreDataManager.swift */,
-				D7B2B7F52C35E228005E0906 /* EditCategoryView.swift */,
-				D7B2B7E72C322D4F005E0906 /* TimePeriod.swift */,
-				D7B2B7E02C32255D005E0906 /* BudgetModel.xcdatamodeld */,
-				D7B2B79B2C31F8A4005E0906 /* Assets.xcassets */,
-				D7B2B79D2C31F8A4005E0906 /* Brandon_s_Budget.entitlements */,
-				D7B2B8232C368975005E0906 /* BrandonsBudget.entitlements */,
-				D7B2B79E2C31F8A4005E0906 /* Preview Content */,
-			);
-			path = "Brandon's Budget";
-			sourceTree = "<group>";
-		};
-		D7B2B79E2C31F8A4005E0906 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				D7B2B79F2C31F8A4005E0906 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
-			sourceTree = "<group>";
-		};
 		D7B2B8072C36655A005E0906 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -188,16 +211,6 @@
 				D7B2B80A2C36655A005E0906 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		D7B2B80C2C36655A005E0906 /* Budget Widget */ = {
-			isa = PBXGroup;
-			children = (
-				D7B2B80F2C36655A005E0906 /* Budget_Widget.swift */,
-				D7B2B8112C36655B005E0906 /* Assets.xcassets */,
-				D7B2B8132C36655B005E0906 /* Info.plist */,
-			);
-			path = "Budget Widget";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -216,6 +229,15 @@
 			);
 			dependencies = (
 				D7B2B8152C36655B005E0906 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D71742602CDE981E000DE4F8 /* App */,
+				D71742622CDE984C000DE4F8 /* Features */,
+				D71742632CDE985D000DE4F8 /* Core */,
+				D71742642CDE9863000DE4F8 /* Utils */,
+				D71742662CDE9886000DE4F8 /* Widget */,
+				D71742ED2CDEABD2000DE4F8 /* Resources */,
+				D7B9B7E02CEBD5EE00334D04 /* Preview Content */,
 			);
 			name = "Brandon's Budget";
 			packageProductDependencies = (
@@ -236,6 +258,15 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				D71742602CDE981E000DE4F8 /* App */,
+				D71742622CDE984C000DE4F8 /* Features */,
+				D71742632CDE985D000DE4F8 /* Core */,
+				D71742642CDE9863000DE4F8 /* Utils */,
+				D71742662CDE9886000DE4F8 /* Widget */,
+				D71742ED2CDEABD2000DE4F8 /* Resources */,
+				D7B9B7E02CEBD5EE00334D04 /* Preview Content */,
+			);
 			name = "Budget WidgetExtension";
 			productName = "Budget WidgetExtension";
 			productReference = D7B2B8062C36655A005E0906 /* Budget WidgetExtension.appex */;
@@ -249,7 +280,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1540;
-				LastUpgradeCheck = 1540;
+				LastUpgradeCheck = 1610;
 				TargetAttributes = {
 					D7B2B7932C31F8A2005E0906 = {
 						CreatedOnToolsVersion = 15.4;
@@ -260,7 +291,6 @@
 				};
 			};
 			buildConfigurationList = D7B2B78F2C31F8A2005E0906 /* Build configuration list for PBXProject "Brandon's Budget" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -271,6 +301,7 @@
 			packageReferences = (
 				D7B2B7B22C3212A7005E0906 /* XCRemoteSwiftPackageReference "SQLite.swift" */,
 			);
+			preferredProjectObjectVersion = 56;
 			productRefGroup = D7B2B7952C31F8A2005E0906 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -286,8 +317,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D7B2B7A02C31F8A4005E0906 /* Preview Assets.xcassets in Resources */,
-				D7B2B79C2C31F8A4005E0906 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -295,7 +324,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D7B2B8122C36655B005E0906 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,26 +334,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D7B2B7B62C3212D5005E0906 /* CoreDataManager.swift in Sources */,
-				D7B2B7A92C32038C005E0906 /* OverviewView.swift in Sources */,
-				D7B2B7F82C35F925005E0906 /* WelcomePopupView.swift in Sources */,
-				D7B2B7E22C32255D005E0906 /* BudgetModel.xcdatamodeld in Sources */,
-				D7B2B7BC2C321FC4005E0906 /* PurchasesView.swift in Sources */,
-				D7B2B79A2C31F8A2005E0906 /* ContentView.swift in Sources */,
-				D7B2B7F62C35E228005E0906 /* EditCategoryView.swift in Sources */,
-				D7B2B7AF2C320466005E0906 /* BudgetManager.swift in Sources */,
-				D7B2B81C2C366B70005E0906 /* SharedData.swift in Sources */,
-				D7B2B7E62C322B51005E0906 /* CSVExport.swift in Sources */,
-				D7B2B7EC2C3250D2005E0906 /* UpdatedBudgetView.swift in Sources */,
-				D7B2B7EE2C327FF4005E0906 /* UpdatePurchaseView.swift in Sources */,
-				D7B2B7982C31F8A2005E0906 /* Brandon_s_BudgetApp.swift in Sources */,
-				D7B2B7F22C333244005E0906 /* BudgetHistoryView.swift in Sources */,
-				D7B2B7B12C32105C005E0906 /* PurchaseEntryView.swift in Sources */,
-				D7B2B7E42C322B2D005E0906 /* BudgetEntry.swift in Sources */,
-				D7B2B8012C3662D7005E0906 /* NotificationManager.swift in Sources */,
-				D7B2B7E82C322D4F005E0906 /* TimePeriod.swift in Sources */,
-				D7B2B7AD2C3203F6005E0906 /* SettingsView.swift in Sources */,
-				D7B2B7AB2C3203C3005E0906 /* BudgetView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -333,8 +341,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D7B2B8202C366ED3005E0906 /* SharedData.swift in Sources */,
-				D7B2B8102C36655A005E0906 /* Budget_Widget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -383,6 +389,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -444,6 +451,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -466,17 +474,17 @@
 		D7B2B7A42C31F8A4005E0906 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Brandon's Budget/Brandon_s_Budget.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Brandon's BudgetDebug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Brandon's Budget/Preview Content\"";
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = PN22YHBJDB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Brandon-s-Budget-Info.plist";
+				INFOPLIST_FILE = "App/Brandon-s-Budget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Budget;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -515,17 +523,17 @@
 		D7B2B7A52C31F8A4005E0906 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Brandon's Budget/Brandon_s_Budget.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"Brandon's Budget/Preview Content\"";
+				DEAD_CODE_STRIPPING = YES;
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = PN22YHBJDB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Brandon-s-Budget-Info.plist";
+				INFOPLIST_FILE = "App/Brandon-s-Budget-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Budget;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.finance";
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
@@ -566,12 +574,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Budget WidgetExtension.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Widget/Budget WidgetExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PN22YHBJDB;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Budget Widget/Info.plist";
+				INFOPLIST_FILE = Widget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Budget Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
@@ -596,12 +604,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = "Budget WidgetExtension.entitlements";
+				CODE_SIGN_ENTITLEMENTS = "Widget/Budget WidgetExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PN22YHBJDB;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "Budget Widget/Info.plist";
+				INFOPLIST_FILE = Widget/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Budget Widget";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 17.5;
@@ -664,19 +672,6 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCVersionGroup section */
-		D7B2B7E02C32255D005E0906 /* BudgetModel.xcdatamodeld */ = {
-			isa = XCVersionGroup;
-			children = (
-				D7B2B7E12C32255D005E0906 /* BudgetModel.xcdatamodel */,
-			);
-			currentVersion = D7B2B7E12C32255D005E0906 /* BudgetModel.xcdatamodel */;
-			path = BudgetModel.xcdatamodeld;
-			sourceTree = "<group>";
-			versionGroupType = wrapper.xcdatamodel;
-		};
-/* End XCVersionGroup section */
 	};
 	rootObject = D7B2B78C2C31F8A2005E0906 /* Project object */;
 }

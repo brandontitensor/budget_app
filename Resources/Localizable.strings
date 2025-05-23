@@ -1,0 +1,149 @@
+//
+//  Localizable.strings
+//  Brandon's Budget
+//
+//  Created by Brandon Titensor on 11/8/24.
+//
+
+
+/* 
+  Localizable.strings
+  Brandon's Budget
+  
+  Created by Brandon Titensor on 6/30/24.
+*/
+
+// MARK: - Common
+"common.ok" = "OK";
+"common.cancel" = "Cancel";
+"common.save" = "Save";
+"common.delete" = "Delete";
+"common.edit" = "Edit";
+"common.done" = "Done";
+"common.error" = "Error";
+"common.success" = "Success";
+"common.loading" = "Loading...";
+"common.currency_symbol" = "$";
+
+// MARK: - Navigation
+"nav.overview" = "Overview";
+"nav.purchases" = "Purchases";
+"nav.budget" = "Budget";
+"nav.history" = "History";
+"nav.settings" = "Settings";
+
+// MARK: - Overview
+"overview.welcome" = "Welcome, %@";
+"overview.total_spent" = "Total Spent";
+"overview.monthly_budget" = "Monthly Budget";
+"overview.recent_transactions" = "Recent Transactions";
+"overview.spending_by_category" = "Spending by Category";
+"overview.no_transactions" = "No recent transactions";
+
+// MARK: - Purchases
+"purchases.add_purchase" = "Add Purchase";
+"purchases.update_purchase" = "Update Purchase";
+"purchases.amount" = "Amount";
+"purchases.category" = "Category";
+"purchases.date" = "Date";
+"purchases.note" = "Note";
+"purchases.no_transactions" = "No transactions found";
+"purchases.add_first" = "Add your first purchase to get started";
+"purchases.filter_sort" = "Filter & Sort";
+"purchases.invalid_amount" = "Please enter a valid amount";
+"purchases.delete_confirm" = "Are you sure you want to delete this purchase?";
+
+// MARK: - Budget
+"budget.update" = "Update Budget";
+"budget.total" = "Total Budget";
+"budget.remaining" = "Remaining";
+"budget.category_breakdown" = "Category Breakdown";
+"budget.add_category" = "Add Category";
+"budget.edit_category" = "Edit Category";
+"budget.delete_category" = "Delete Category";
+"budget.category_name" = "Category Name";
+"budget.budgeted_amount" = "Budgeted Amount";
+"budget.spent_amount" = "Spent Amount";
+"budget.delete_category_confirm" = "Are you sure you want to delete this category?";
+"budget.delete_category_note" = "All purchases in this category will be moved to 'Uncategorized'";
+"budget.future_months" = "Apply to Future Months";
+
+// MARK: - History
+"history.title" = "Budget History";
+"history.time_period" = "Time Period";
+"history.no_data" = "No data available for the selected period";
+"history.try_different" = "Try selecting a different time period";
+"history.total_budget" = "Total Budget";
+"history.total_spent" = "Total Spent";
+"history.budget_overview" = "Budget Overview";
+
+// MARK: - Settings
+"settings.user" = "User Settings";
+"settings.name" = "Your Name";
+"settings.currency" = "Default Currency";
+"settings.appearance" = "Appearance";
+"settings.theme" = "Theme Color";
+"settings.dark_mode" = "Dark Mode";
+"settings.notifications" = "Notifications";
+"settings.purchase_reminders" = "Purchase Reminders";
+"settings.budget_updates" = "Budget Updates";
+"settings.reminder_frequency" = "Reminder Frequency";
+"settings.update_frequency" = "Update Frequency";
+"settings.data" = "Data Management";
+"settings.export" = "Export Data";
+"settings.import" = "Import Data";
+"settings.reset" = "Reset App Data";
+"settings.reset_confirm" = "Are you sure you want to reset all app data?";
+"settings.reset_warning" = "This action cannot be undone";
+"settings.about" = "About";
+"settings.version" = "Version";
+"settings.build" = "Build";
+"settings.privacy" = "Privacy Policy";
+"settings.terms" = "Terms of Service";
+
+// MARK: - Onboarding
+"onboarding.welcome" = "Welcome to Budget!";
+"onboarding.intro" = "Let's get started by personalizing your experience.";
+"onboarding.enter_name" = "What should we call you?";
+"onboarding.get_started" = "Get Started";
+"onboarding.enable_notifications" = "Enable Notifications";
+"onboarding.notifications_message" = "Would you like to receive notifications about your budget and purchases?";
+"onboarding.notifications_yes" = "Yes";
+"onboarding.notifications_no" = "Not Now";
+
+// MARK: - Time Periods
+"time.today" = "Today";
+"time.this_week" = "This Week";
+"time.this_month" = "This Month";
+"time.this_year" = "This Year";
+"time.last_7_days" = "Last 7 Days";
+"time.last_30_days" = "Last 30 Days";
+"time.last_12_months" = "Last 12 Months";
+"time.all_time" = "All Time";
+"time.custom_range" = "Custom Range";
+
+// MARK: - Export/Import
+"export.select_period" = "Select Time Period";
+"export.format_note" = "Data will be exported as CSV";
+"export.includes" = "Includes: Date, Amount, Category, and Notes";
+"export.success" = "Export successful!";
+"export.failed" = "Export failed";
+"import.select_file" = "Select File to Import";
+"import.format_info" = "CSV Format Information";
+"import.budget_format" = "Budget Data Format";
+"import.purchase_format" = "Purchase Data Format";
+"import.success" = "Successfully imported %d items";
+"import.failed" = "Import failed";
+"import.notes" = "Important Notes";
+"import.no_overwrite" = "Existing data will not be overwritten";
+"import.file_size" = "Maximum file size: 10MB";
+"import.encoding" = "UTF-8 encoding required";
+
+// MARK: - Errors
+"error.generic" = "An unexpected error occurred. Please try again.";
+"error.network" = "Unable to connect. Please check your internet connection.";
+"error.import" = "Unable to import data. Please check the file format.";
+"error.export" = "Unable to export data. Please try again.";
+"error.invalid_amount" = "Please enter a valid amount.";
+"error.invalid_category" = "Please select a valid category.";
+"error.max_categories" = "Maximum number of categories reached.";
