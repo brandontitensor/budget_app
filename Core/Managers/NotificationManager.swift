@@ -93,7 +93,7 @@ public final class NotificationManager {
     // MARK: - Scheduling Methods
     /// Schedule purchase reminder notifications
     /// - Parameter frequency: How often the reminder should be shown
-    public func schedulePurchaseNotifications(
+    internal func schedulePurchaseNotifications(
         frequency: SettingsManager.PurchaseNotificationFrequency
     ) async throws {
         // Remove existing notifications first

@@ -6,6 +6,7 @@
 //
 import SwiftUI
 import Charts
+import Foundation
 
 /// Main dashboard view showing budget overview and recent transactions
 struct BudgetOverviewView: View {

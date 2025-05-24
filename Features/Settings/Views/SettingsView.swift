@@ -4,6 +4,7 @@
 //
 //  Created by Brandon Titensor on 6/30/24.
 //
+
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -115,11 +116,17 @@ struct SettingsView: View {
     // MARK: - View Sections
     private var userSection: some View {
         Section(header: Text("User Settings")) {
-            TextField("Your Name", text: $settingsManager.userName)
-                .textInputAutocapitalization(.words)
-                .autocorrectionDisabled()
+            TextField("Your Name", text: Binding(
+                get: { settingsManager.userName },
+                set: { settingsManager.updateUserName($0) }
+            ))
+            .textInputAutocapitalization(.words)
+            .autocorrectionDisabled()
             
-            Picker("Default Currency", selection: $settingsManager.defaultCurrency) {
+            Picker("Default Currency", selection: Binding(
+                get: { settingsManager.defaultCurrency },
+                set: { settingsManager.updateDefaultCurrency($0) }
+            )) {
                 ForEach(["USD", "EUR", "GBP", "JPY"], id: \.self) { currency in
                     Text(currency).tag(currency)
                 }
@@ -145,7 +152,10 @@ struct SettingsView: View {
     
     private var appearanceSection: some View {
         Section(header: Text("Appearance")) {
-            Picker("Theme Color", selection: $themeManager.primaryColor) {
+            Picker("Theme Color", selection: Binding(
+                get: { themeManager.primaryColor },
+                set: { themeManager.primaryColor = $0 }
+            )) {
                 ForEach(ThemeManager.availableColors, id: \.self) { colorOption in
                     HStack {
                         Circle()
@@ -163,20 +173,64 @@ struct SettingsView: View {
     
     private var notificationsSection: some View {
         Section(header: Text("Notifications")) {
-            Toggle("Purchase Reminders", isOn: $settingsManager.purchaseNotificationsEnabled)
+            Toggle("Purchase Reminders", isOn: Binding(
+                get: { settingsManager.purchaseNotificationsEnabled },
+                set: { enabled in
+                    settingsManager.updateNotificationSettings(
+                        allowed: settingsManager.notificationsAllowed,
+                        purchaseEnabled: enabled,
+                        purchaseFrequency: settingsManager.purchaseNotificationFrequency,
+                        budgetEnabled: settingsManager.budgetTotalNotificationsEnabled,
+                        budgetFrequency: settingsManager.budgetTotalNotificationFrequency
+                    )
+                }
+            ))
             
             if settingsManager.purchaseNotificationsEnabled {
-                Picker("Reminder Frequency", selection: $settingsManager.purchaseNotificationFrequency) {
+                Picker("Reminder Frequency", selection: Binding(
+                    get: { settingsManager.purchaseNotificationFrequency },
+                    set: { frequency in
+                        settingsManager.updateNotificationSettings(
+                            allowed: settingsManager.notificationsAllowed,
+                            purchaseEnabled: settingsManager.purchaseNotificationsEnabled,
+                            purchaseFrequency: frequency,
+                            budgetEnabled: settingsManager.budgetTotalNotificationsEnabled,
+                            budgetFrequency: settingsManager.budgetTotalNotificationFrequency
+                        )
+                    }
+                )) {
                     ForEach(SettingsManager.PurchaseNotificationFrequency.allCases, id: \.self) { frequency in
                         Text(frequency.rawValue).tag(frequency)
                     }
                 }
             }
             
-            Toggle("Budget Updates", isOn: $settingsManager.budgetTotalNotificationsEnabled)
+            Toggle("Budget Updates", isOn: Binding(
+                get: { settingsManager.budgetTotalNotificationsEnabled },
+                set: { enabled in
+                    settingsManager.updateNotificationSettings(
+                        allowed: settingsManager.notificationsAllowed,
+                        purchaseEnabled: settingsManager.purchaseNotificationsEnabled,
+                        purchaseFrequency: settingsManager.purchaseNotificationFrequency,
+                        budgetEnabled: enabled,
+                        budgetFrequency: settingsManager.budgetTotalNotificationFrequency
+                    )
+                }
+            ))
             
             if settingsManager.budgetTotalNotificationsEnabled {
-                Picker("Update Frequency", selection: $settingsManager.budgetTotalNotificationFrequency) {
+                Picker("Update Frequency", selection: Binding(
+                    get: { settingsManager.budgetTotalNotificationFrequency },
+                    set: { frequency in
+                        settingsManager.updateNotificationSettings(
+                            allowed: settingsManager.notificationsAllowed,
+                            purchaseEnabled: settingsManager.purchaseNotificationsEnabled,
+                            purchaseFrequency: settingsManager.purchaseNotificationFrequency,
+                            budgetEnabled: settingsManager.budgetTotalNotificationsEnabled,
+                            budgetFrequency: frequency
+                        )
+                    }
+                )) {
                     ForEach(SettingsManager.BudgetTotalNotificationFrequency.allCases, id: \.self) { frequency in
                         Text(frequency.rawValue).tag(frequency)
                     }
@@ -252,11 +306,12 @@ struct SettingsView: View {
             )
             
             await MainActor.run {
+                let totalAmount = pendingImportData.reduce(0) { $0 + $1.amount }
                 importResultMessage = """
                 Successfully imported:
                 • \(pendingImportData.count) transactions
                 • \(Set(pendingImportData.map { mappings[$0.category] ?? $0.category }).count) categories
-                • Total amount: \(pendingImportData.reduce(0) { $0 + $1.amount }.asCurrency)
+                • Total amount: \(NumberFormatter.formatCurrency(totalAmount))
                 """
                 showingImportResult = true
             }
@@ -278,63 +333,60 @@ struct SettingsView: View {
         
         isProcessing = false
     }
-}
-
-// Add after the resetAppData method:
-
-private func handleBudgetImport(_ result: Result<[URL], Error>) {
-    switch result {
-    case .success(let urls):
-        guard let url = urls.first else { return }
-        Task {
-            do {
-                let data = try Data(contentsOf: url)
-                let content = String(data: data, encoding: .utf8) ?? ""
-                // Parse CSV and import budget data
-                // This is a simplified version - you'd need proper CSV parsing
-                importResultMessage = "Budget data imported successfully"
-                showingImportResult = true
-            } catch {
-                importResultMessage = "Failed to import budget data: \(error.localizedDescription)"
-                showingImportResult = true
-            }
-        }
-    case .failure(let error):
-        importResultMessage = "Import failed: \(error.localizedDescription)"
-        showingImportResult = true
-    }
-}
-
-private func handlePurchaseImport(_ result: Result<[URL], Error>) {
-    switch result {
-    case .success(let urls):
-        guard let url = urls.first else { return }
-        Task {
-            do {
-                let data = try Data(contentsOf: url)
-                let content = String(data: data, encoding: .utf8) ?? ""
-                // Parse CSV - this is where you'd implement actual CSV parsing
-                // For now, creating mock data:
-                pendingImportData = [] // Parse your CSV here
-                unmappedCategories = Set(pendingImportData.map { $0.category })
-                
-                if unmappedCategories.isEmpty {
-                    importResultMessage = "No data to import"
+    
+    private func handleBudgetImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            Task {
+                do {
+                    let data = try Data(contentsOf: url)
+                    let content = String(data: data, encoding: .utf8) ?? ""
+                    // Parse CSV and import budget data
+                    // This is a simplified version - you'd need proper CSV parsing
+                    importResultMessage = "Budget data imported successfully"
                     showingImportResult = true
-                } else {
-                    showingCategoryMapping = true
+                } catch {
+                    importResultMessage = "Failed to import budget data: \(error.localizedDescription)"
+                    showingImportResult = true
                 }
-            } catch {
-                importResultMessage = "Failed to import purchase data: \(error.localizedDescription)"
-                showingImportResult = true
             }
+        case .failure(let error):
+            importResultMessage = "Import failed: \(error.localizedDescription)"
+            showingImportResult = true
         }
-    case .failure(let error):
-        importResultMessage = "Import failed: \(error.localizedDescription)"
-        showingImportResult = true
+    }
+    
+    private func handlePurchaseImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            Task {
+                do {
+                    let data = try Data(contentsOf: url)
+                    let content = String(data: data, encoding: .utf8) ?? ""
+                    // Parse CSV - this is where you'd implement actual CSV parsing
+                    // For now, creating mock data:
+                    pendingImportData = [] // Parse your CSV here
+                    unmappedCategories = Set(pendingImportData.map { $0.category })
+                    
+                    if unmappedCategories.isEmpty {
+                        importResultMessage = "No data to import"
+                        showingImportResult = true
+                    } else {
+                        showingCategoryMapping = true
+                    }
+                } catch {
+                    importResultMessage = "Failed to import purchase data: \(error.localizedDescription)"
+                    showingImportResult = true
+                }
+            }
+        case .failure(let error):
+            importResultMessage = "Import failed: \(error.localizedDescription)"
+            showingImportResult = true
+        }
     }
 }
-
 
 // MARK: - Preview Provider
 #if DEBUG

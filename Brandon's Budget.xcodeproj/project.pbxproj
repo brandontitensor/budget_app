@@ -48,37 +48,6 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		D71742612CDE9833000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				BrandonsBudgetApp.swift,
-				ContentView.swift,
-			);
-			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
-		};
-		D717426B2CDE98E1000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Budget/Views/BudgetView.swift,
-				History/Views/BudgetHistoryView.swift,
-				Onboarding/Views/WelcomePopupView.swift,
-				Overview/Views/BudgetOverviewView.swift,
-				Purchases/Views/PurchaseEntryView.swift,
-				Purchases/Views/PurchasesView.swift,
-				Purchases/Views/UpdatePurchaseView.swift,
-				Settings/Views/SettingsView.swift,
-			);
-			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
-		};
-		D71742812CDE9A00000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Managers/NotificationManager.swift,
-				Managers/SettingsManager.swift,
-				Services/CSVExport.swift,
-			);
-			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
-		};
 		D71742CC2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -106,10 +75,40 @@
 			);
 			target = D7B2B7932C31F8A2005E0906 /* Brandon's Budget */;
 		};
-		D71742E12CDEA955000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		D7AAA3E02DE0E25900D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info.plist,
+				Budget/Views/BudgetView.swift,
+				Budget/Views/Components/BudgetCategoryRow.swift,
+				Budget/Views/Components/BudgetSummaryCard.swift,
+				History/Views/BudgetHistoryView.swift,
+				Onboarding/Views/WelcomePopupView.swift,
+				Overview/Views/BudgetOverviewView.swift,
+				Purchases/Views/PurchaseEntryView.swift,
+				Purchases/Views/PurchasesView.swift,
+				Purchases/Views/UpdatePurchaseView.swift,
+				Settings/Models/SettingsStorage.swift,
+				Settings/Views/CategoryMappingView.swift,
+				Settings/Views/ExportOptionsView.swift,
+				Settings/Views/ImportOptionsView.swift,
+				Settings/Views/SettingsView.swift,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+		D7AAA3E12DE0E30900D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Managers/NotificationManager.swift,
+				Managers/SettingsManager.swift,
+			);
+			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
+		};
+		D7AAA3E22DE0E34E00D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Brandon-s-Budget-Info.plist",
+				BrandonsBudgetApp.swift,
+				ContentView.swift,
 			);
 			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
 		};
@@ -151,11 +150,11 @@
 /* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		D71742602CDE981E000DE4F8 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742612CDE9833000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
-		D71742622CDE984C000DE4F8 /* Features */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D717426B2CDE98E1000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Features; sourceTree = "<group>"; };
-		D71742632CDE985D000DE4F8 /* Core */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742812CDE9A00000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Core; sourceTree = "<group>"; };
+		D71742602CDE981E000DE4F8 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D7AAA3E22DE0E34E00D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
+		D71742622CDE984C000DE4F8 /* Features */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D7AAA3E02DE0E25900D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Features; sourceTree = "<group>"; };
+		D71742632CDE985D000DE4F8 /* Core */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D7AAA3E12DE0E30900D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Core; sourceTree = "<group>"; };
 		D71742642CDE9863000DE4F8 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742CC2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D71742CD2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, D71742CE2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D71742CF2CDEA65A000DE4F8 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
-		D71742662CDE9886000DE4F8 /* Widget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742DD2CDEA91B000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D71742E12CDEA955000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D7B9B7DC2CEBB38600334D04 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Widget; sourceTree = "<group>"; };
+		D71742662CDE9886000DE4F8 /* Widget */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D71742DD2CDEA91B000DE4F8 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, D7B9B7DC2CEBB38600334D04 /* PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Widget; sourceTree = "<group>"; };
 		D71742ED2CDEABD2000DE4F8 /* Resources */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (D7B9B89F2CEBDBBB00334D04 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = Resources; sourceTree = "<group>"; };
 		D7B9B7E02CEBD5EE00334D04 /* Preview Content */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "Preview Content"; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */

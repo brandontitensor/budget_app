@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 /// Main view for displaying and managing purchases with filtering and sorting capabilities
 struct PurchasesView: View {

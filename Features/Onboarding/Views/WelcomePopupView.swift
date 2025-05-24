@@ -5,6 +5,7 @@
 //  Created by Brandon Titensor on 7/3/24.
 //
 import SwiftUI
+import Foundation
 
 /// View for handling initial app onboarding and setup
 struct WelcomePopupView: View {

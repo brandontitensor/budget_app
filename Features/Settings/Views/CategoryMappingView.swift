@@ -5,6 +5,8 @@
 //  Created by Brandon Titensor on 11/29/24.
 //
 import SwiftUI
+import Foundation
+
 
 /// View for mapping imported categories to existing categories or creating new ones
 struct CategoryMappingView: View {
@@ -165,16 +167,18 @@ struct CategoryMappingView: View {
     }
     
     private var previewSection: some View {
-        Section(header: Text("Import Preview")) {
+        Section {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(categories.count) categories to map")
                     .foregroundColor(.secondary)
                 Text("\(importedData.count) transactions to import")
                     .foregroundColor(.secondary)
-                Text("Total amount: \(totalImportAmount.asCurrency)")
+                Text("Total amount: \(NumberFormatter.formatCurrency(totalImportAmount))")
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 4)
+        } header: {
+            Text("Import Preview")
         }
     }
     

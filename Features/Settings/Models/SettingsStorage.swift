@@ -11,7 +11,7 @@ import Combine
 
 /// A property wrapper for type-safe settings storage with error handling and validation
 @propertyWrapper
-public struct SettingsStorage<T: Codable> {
+public struct SettingsStorage<T: Codable> where T: Codable {
     // MARK: - Types
     public enum StorageError: LocalizedError {
         case encodingFailed

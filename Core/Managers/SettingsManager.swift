@@ -10,7 +10,10 @@ import Combine
 
 /// Manages the app's user settings and preferences with proper state management and data consistency
 @MainActor
-final class SettingsManager: ObservableObject {
+public final class SettingsManager: ObservableObject {
+    // MARK: - Singleton
+    public static let shared = SettingsManager()
+    
     // MARK: - Types
     public enum PurchaseNotificationFrequency: String, Codable, CaseIterable {
         case daily = "Daily"
@@ -38,50 +41,50 @@ final class SettingsManager: ObservableObject {
     }
     
     // MARK: - Published Properties
-    @Published private(set) var userName: String {
+    @Published public var userName: String {
         didSet { save(userName, for: .userName) }
     }
     
-    @Published private(set) var defaultCurrency: String {
+    @Published public var defaultCurrency: String {
         didSet { save(defaultCurrency, for: .defaultCurrency) }
     }
     
-    @Published private(set) var notificationsAllowed: Bool {
+    @Published public var notificationsAllowed: Bool {
         didSet {
             save(notificationsAllowed, for: .notificationsAllowed)
             notificationStateChanged()
         }
     }
     
-    @Published private(set) var purchaseNotificationsEnabled: Bool {
+    @Published public var purchaseNotificationsEnabled: Bool {
         didSet {
             save(purchaseNotificationsEnabled, for: .purchaseNotificationsEnabled)
             notificationStateChanged()
         }
     }
     
-    @Published private(set) var purchaseNotificationFrequency: PurchaseNotificationFrequency {
+    @Published public var purchaseNotificationFrequency: PurchaseNotificationFrequency {
         didSet {
             save(purchaseNotificationFrequency, for: .purchaseNotificationFrequency)
             notificationStateChanged()
         }
     }
     
-    @Published private(set) var budgetTotalNotificationsEnabled: Bool {
+    @Published public var budgetTotalNotificationsEnabled: Bool {
         didSet {
             save(budgetTotalNotificationsEnabled, for: .budgetTotalNotificationsEnabled)
             notificationStateChanged()
         }
     }
     
-    @Published private(set) var budgetTotalNotificationFrequency: BudgetTotalNotificationFrequency {
+    @Published public var budgetTotalNotificationFrequency: BudgetTotalNotificationFrequency {
         didSet {
             save(budgetTotalNotificationFrequency, for: .budgetTotalNotificationFrequency)
             notificationStateChanged()
         }
     }
     
-    @Published private(set) var isFirstLaunch: Bool {
+    @Published public var isFirstLaunch: Bool {
         didSet { save(isFirstLaunch, for: .isFirstLaunch) }
     }
     
@@ -107,7 +110,7 @@ final class SettingsManager: ObservableObject {
     public let objectWillChange = PassthroughSubject<Void, Never>()
     
     // MARK: - Initialization
-    init(
+    private init(
         userDefaults: UserDefaults = .standard,
         notificationManager: NotificationManager = .shared
     ) {
@@ -128,11 +131,12 @@ final class SettingsManager: ObservableObject {
         ) ?? .monthly
         
         // Handle first launch
-        if !userDefaults.bool(forKey: Keys.isFirstLaunch.key) {
+        if !userDefaults.bool(forKey: Keys.isFirstLaunch.key + "_set") {
             self.isFirstLaunch = true
             userDefaults.set(true, forKey: Keys.isFirstLaunch.key)
+            userDefaults.set(true, forKey: Keys.isFirstLaunch.key + "_set")
         } else {
-            self.isFirstLaunch = false
+            self.isFirstLaunch = userDefaults.bool(forKey: Keys.isFirstLaunch.key)
         }
         
         // Setup notification state observation
@@ -222,7 +226,13 @@ final class SettingsManager: ObservableObject {
     
     // MARK: - Private Methods
     private func save<T: Encodable>(_ value: T, for key: Keys) {
-        userDefaults.set(value, forKey: key.key)
+        if let stringValue = value as? String {
+            userDefaults.set(stringValue, forKey: key.key)
+        } else if let boolValue = value as? Bool {
+            userDefaults.set(boolValue, forKey: key.key)
+        } else if let data = try? JSONEncoder().encode(value) {
+            userDefaults.set(data, forKey: key.key)
+        }
         objectWillChange.send()
     }
     
@@ -246,9 +256,7 @@ final class SettingsManager: ObservableObject {
 #if DEBUG
 extension SettingsManager {
     static func createMock() -> SettingsManager {
-        let mockDefaults = UserDefaults(suiteName: "mock_settings")!
-        mockDefaults.removePersistentDomain(forName: "mock_settings")
-        return SettingsManager(userDefaults: mockDefaults)
+        return SettingsManager()
     }
 }
 #endif

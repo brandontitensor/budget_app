@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 /// A reusable row component for displaying transaction information
 struct TransactionRow: View {

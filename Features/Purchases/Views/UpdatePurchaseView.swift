@@ -253,10 +253,9 @@ struct EditableBudgetEntry {
         self.amount = entry.amount
         self.category = entry.category
         self.date = entry.date
-        self.note = entry.note ?? ""
+        self.note = entry.note ?? "" 
     }
 }
-
 // MARK: - Preview Provider
 #if DEBUG
 struct UpdatePurchaseView_Previews: PreviewProvider {

@@ -5,7 +5,43 @@
 //  Created by Brandon Titensor on 11/8/24.
 //
 
+// Fix for SharedTypes.swift - Add this extension at the top of the file
+
 import SwiftUI
+
+// MARK: - Color Extension Fix
+extension Color {
+    init(_ components: ColorComponents) {
+        self.init(
+            red: components.red,
+            green: components.green,
+            blue: components.blue,
+            opacity: components.opacity
+        )
+    }
+}
+
+// MARK: - ColorComponents struct
+public struct ColorComponents: Codable {
+    let red: Double
+    let green: Double
+    let blue: Double
+    let opacity: Double
+    
+    init(from color: Color) {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        
+        self.red = Double(r)
+        self.green = Double(g)
+        self.blue = Double(b)
+        self.opacity = Double(a)
+    }
+}
 
 // MARK: - Color Extensions
 public extension Color {

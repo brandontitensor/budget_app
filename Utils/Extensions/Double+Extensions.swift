@@ -1,22 +1,17 @@
 //
-//  DoubleExtensions.swift
+//  Double+Extensions.swift
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 5/23/25.
-//
 //
 
 import Foundation
 
 // MARK: - Double Extensions for Currency Formatting
 public extension Double {
-    /// Format as currency string
+    /// Format as currency string using default locale
     var asCurrency: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: self)) ?? "$0.00"
+        NumberFormatter.formatCurrency(self)
     }
     
     /// Format as percentage string
@@ -60,11 +55,19 @@ public extension Double {
     
     /// Format as currency with specific locale
     func asCurrency(locale: Locale = .current) -> String {
+        NumberFormatter.formatCurrency(self, locale: locale)
+    }
+}
+
+// MARK: - NumberFormatter Extension for Consistency
+public extension NumberFormatter {
+    /// Format currency with default locale
+    static func formatCurrency(_ value: Double, locale: Locale = .current) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = locale
         formatter.minimumFractionDigits = 2
         formatter.maximumFractionDigits = 2
-        return formatter.string(from: NSNumber(value: self)) ?? "$0.00"
+        return formatter.string(from: NSNumber(value: value)) ?? "$0.00"
     }
 }
