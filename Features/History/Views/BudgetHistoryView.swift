@@ -240,8 +240,7 @@ struct BudgetHistoryView: View {
     
     // MARK: - Helper Methods
     private var filteredAndSortedBudgetData: [BudgetHistoryData] {
-        let data = calculateBudgetHistoryData()
-        return data.sorted { a, b in
+        calculateBudgetHistoryDataSync().sorted { a, b in
             let result: Bool
             switch sortOption {
             case .category:
@@ -259,9 +258,12 @@ struct BudgetHistoryView: View {
         }
     }
     
-    private func calculateBudgetHistoryData() -> [BudgetHistoryData] {
+    private func calculateBudgetHistoryDataSync() -> [BudgetHistoryData] {
         let dateInterval = selectedTimePeriod.dateInterval()
-        let entries = budgetManager.getEntries(for: selectedTimePeriod)
+        // Use the synchronous entries property instead of the async method
+        let filteredEntries = budgetManager.entries.filter { entry in
+            entry.date >= dateInterval.start && entry.date <= dateInterval.end
+        }
         let month = Calendar.current.component(.month, from: dateInterval.start)
         let year = Calendar.current.component(.year, from: dateInterval.start)
         let budgets = budgetManager.getMonthlyBudgets(for: month, year: year)
@@ -279,7 +281,7 @@ struct BudgetHistoryView: View {
         }
         
         // Process entries
-        for entry in entries {
+        for entry in filteredEntries {
             let category = entry.category
             if let existingData = budgetDataDict[category] {
                 budgetDataDict[category] = BudgetHistoryData(
@@ -319,12 +321,9 @@ struct BudgetHistoryView: View {
         isLoading = true
         errorMessage = nil
         
-        do {
-            try await budgetManager.loadData()
-            filterAndSortEntries()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        // Since budgetManager.loadData() is not async and doesn't throw, we just call it
+        budgetManager.loadData()
+        filterAndSortEntries()
         
         isLoading = false
     }

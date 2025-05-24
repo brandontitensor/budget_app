@@ -82,11 +82,8 @@ struct PurchasesView: View {
         .task {
             await loadInitialData()
         }
-        
-        .onChange(of: budgetManager.entries) {
-            Task {
-                    await filterAndSortEntries()
-                }
+        .onChange(of: budgetManager.entries) { oldValue, newValue in
+            filterAndSortEntries()
         }
     }
     
@@ -113,10 +110,8 @@ struct PurchasesView: View {
             .textFieldStyle(RoundedBorderTextFieldStyle())
             .padding(.horizontal)
             .padding(.vertical, 10)
-            .onChange(of: searchText) { _ in
-                Task {
-                    await filterAndSortEntries()
-                }
+            .onChange(of: searchText) { oldValue, newValue in
+                filterAndSortEntries()
             }
     }
     
@@ -215,12 +210,19 @@ struct PurchasesView: View {
         isLoading = true
         errorMessage = nil
         
-        await filterAndSortEntries()
+        // Load data and then filter/sort
+        budgetManager.loadData()
         
-        isLoading = false
+        // Add a small delay to ensure data is loaded
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        
+        await MainActor.run {
+            filterAndSortEntries()
+            isLoading = false
+        }
     }
     
-    private func filterAndSortEntries() async {
+    private func filterAndSortEntries() {
         let dateInterval = selectedTimePeriod.dateInterval()
         
         filteredEntries = budgetManager.entries.filter { entry in
@@ -253,19 +255,15 @@ struct PurchasesView: View {
     }
     
     private func refreshData() async {
-        await filterAndSortEntries()
+        await loadInitialData()
     }
     
     private func handleTransactionUpdate(_ transaction: BudgetEntry) {
-        Task {
-            await filterAndSortEntries()
-        }
+        filterAndSortEntries()
     }
     
     private func handleTransactionDelete(_ transaction: BudgetEntry) {
-        Task {
-            await filterAndSortEntries()
-        }
+        filterAndSortEntries()
     }
     
     private func formatDate(_ date: Date) -> String {

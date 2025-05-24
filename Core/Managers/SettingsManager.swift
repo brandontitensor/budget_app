@@ -106,9 +106,6 @@ public final class SettingsManager: ObservableObject {
     private let notificationManager: NotificationManager
     private var cancellables = Set<AnyCancellable>()
     
-    // MARK: - Public Properties
-    public let objectWillChange = PassthroughSubject<Void, Never>()
-    
     // MARK: - Initialization
     private init(
         userDefaults: UserDefaults = .standard,
@@ -233,7 +230,6 @@ public final class SettingsManager: ObservableObject {
         } else if let data = try? JSONEncoder().encode(value) {
             userDefaults.set(data, forKey: key.key)
         }
-        objectWillChange.send()
     }
     
     private func setupNotificationStateObservation() {

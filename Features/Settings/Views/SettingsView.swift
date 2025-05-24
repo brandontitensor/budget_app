@@ -341,7 +341,7 @@ struct SettingsView: View {
             Task {
                 do {
                     let data = try Data(contentsOf: url)
-                    let content = String(data: data, encoding: .utf8) ?? ""
+                    _ = String(data: data, encoding: .utf8) ?? ""
                     // Parse CSV and import budget data
                     // This is a simplified version - you'd need proper CSV parsing
                     importResultMessage = "Budget data imported successfully"
@@ -364,7 +364,7 @@ struct SettingsView: View {
             Task {
                 do {
                     let data = try Data(contentsOf: url)
-                    let content = String(data: data, encoding: .utf8) ?? ""
+                    _ = String(data: data, encoding: .utf8) ?? ""
                     // Parse CSV - this is where you'd implement actual CSV parsing
                     // For now, creating mock data:
                     pendingImportData = [] // Parse your CSV here

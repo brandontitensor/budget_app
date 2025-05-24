@@ -55,7 +55,7 @@ struct BrandonsBudgetApp: App {
     private func setupNotifications() {
         Task {
             do {
-                try await NotificationManager.shared.requestAuthorization()
+                _ = try await NotificationManager.shared.requestAuthorization()
                 await NotificationManager.shared.updateNotificationSchedule(settings: settingsManager)
             } catch {
                 print("Failed to setup notifications: \(error.localizedDescription)")
@@ -80,7 +80,7 @@ struct BrandonsBudgetApp: App {
             // Load fresh data from Core Data storage
             Task {
                 do {
-                    let entries = try await CoreDataManager.shared.getAllEntries()
+                    _ = try await CoreDataManager.shared.getAllEntries()
                     // Core Data will automatically merge changes into the main context
                 } catch {
                     print("Failed to reload data: \(error.localizedDescription)")

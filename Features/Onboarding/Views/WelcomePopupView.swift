@@ -103,7 +103,7 @@ struct WelcomePopupView: View {
                 .textFieldStyle(RoundedBorderTextFieldStyle())
                 .autocapitalization(.words)
                 .disableAutocorrection(true)
-                .onChange(of: name) { newValue in
+                .onChange(of: name) { oldValue, newValue in
                     if newValue.count > maxNameLength {
                         name = String(newValue.prefix(maxNameLength))
                     }

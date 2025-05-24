@@ -229,208 +229,206 @@ struct BudgetView: View {
     }
     
     // MARK: - Add Category Sheet
-        private var addCategorySheet: some View {
-            NavigationView {
-                Form {
-                    Section(header: Text("New Category Details")) {
-                        TextField("Category Name", text: $newCategoryName)
-                            .autocapitalization(.words)
-                            .disableAutocorrection(true)
-                            .onChange(of: newCategoryName) { newValue in
-                                if newValue.count > AppConstants.Validation.maxCategoryNameLength {
-                                    newCategoryName = String(newValue.prefix(AppConstants.Validation.maxCategoryNameLength))
-                                }
-                            }
-                        
-                        HStack {
-                            Text(newCategoryAmount.asCurrency)
-                                .foregroundColor(newCategoryAmount > 0 ? .primary : .secondary)
-                            Spacer()
-                            Button("Edit") {
-                                showingCalculator = true
+    private var addCategorySheet: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("New Category Details")) {
+                    TextField("Category Name", text: $newCategoryName)
+                        .autocapitalization(.words)
+                        .disableAutocorrection(true)
+                        .onChange(of: newCategoryName) { oldValue, newValue in
+                            if newValue.count > AppConstants.Validation.maxCategoryNameLength {
+                                newCategoryName = String(newValue.prefix(AppConstants.Validation.maxCategoryNameLength))
                             }
                         }
-                    }
                     
-                    Section(
-                        header: Text("Note"),
-                        footer: Text("This budget will apply starting from the current month")
-                    ) {
-                        Text("The category will be created and added to your budget categories.")
-                            .foregroundColor(.secondary)
+                    HStack {
+                        Text(newCategoryAmount.asCurrency)
+                            .foregroundColor(newCategoryAmount > 0 ? .primary : .secondary)
+                        Spacer()
+                        Button("Edit") {
+                            showingCalculator = true
+                        }
                     }
                 }
-                .navigationTitle("Add Category")
-                .navigationBarItems(
-                    leading: Button("Cancel") {
-                        resetNewCategoryFields()
-                        showingAddCategory = false
-                    },
-                    trailing: Button("Add") {
-                        validateAndAddCategory()
-                    }
-                    .disabled(!isValidNewCategory)
-                )
-            }
-        }
-        
-        // MARK: - Helper Methods
-        private func monthName(_ month: Int) -> String {
-            calendar.monthSymbols[month - 1]
-        }
-        
-        private var totalYearlyBudget: Double {
-            monthlyBudgets.values.reduce(0) { total, categoryBudgets in
-                total + categoryBudgets.values.reduce(0, +)
-            }
-        }
-        
-        private func totalMonthlyBudget(for month: Int) -> Double {
-            monthlyBudgets[month, default: [:]].values.reduce(0, +)
-        }
-        
-        private var isValidNewCategory: Bool {
-            !newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            newCategoryAmount > 0 &&
-            newCategoryAmount <= AppConstants.Validation.maximumTransactionAmount
-        }
-        
-        private func loadCurrentBudgets() {
-            isProcessing = true
-            monthlyBudgets = [:]
-            
-            for month in 1...12 {
-                let budgets = budgetManager.getMonthlyBudgets(for: month, year: selectedYear)
-                monthlyBudgets[month] = Dictionary(
-                    uniqueKeysWithValues: budgets.map { ($0.category, $0.amount) }
-                )
-            }
-            
-            isProcessing = false
-        }
-        
-        private func validateAndAddCategory() {
-            let trimmedName = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            guard !trimmedName.isEmpty else {
-                alertMessage = "Please enter a category name."
-                showingAlert = true
-                return
-            }
-            
-            guard newCategoryAmount > 0 else {
-                alertMessage = "Please enter a valid amount."
-                showingAlert = true
-                return
-            }
-            
-            if monthlyBudgets[selectedMonth]?[trimmedName] != nil {
-                alertMessage = "This category already exists."
-                showingAlert = true
-                return
-            }
-            
-            showingFutureAddAlert = true
-        }
-        
-        private func addCategory(includeFutureMonths: Bool) async {
-            isProcessing = true
-            
-            do {
-                try await budgetManager.addCategory(
-                    newCategoryName,
-                    amount: newCategoryAmount,
-                    month: selectedMonth,
-                    year: selectedYear,
-                    includeFutureMonths: includeFutureMonths
-                )
                 
-                await MainActor.run {
-                    if includeFutureMonths {
-                        for month in selectedMonth...12 {
-                            monthlyBudgets[month, default: [:]][newCategoryName] = newCategoryAmount
-                        }
-                    } else {
-                        monthlyBudgets[selectedMonth, default: [:]][newCategoryName] = newCategoryAmount
-                    }
-                    
+                Section(
+                    header: Text("Note"),
+                    footer: Text("This budget will apply starting from the current month")
+                ) {
+                    Text("The category will be created and added to your budget categories.")
+                        .foregroundColor(.secondary)
+                }
+            }
+            .navigationTitle("Add Category")
+            .navigationBarItems(
+                leading: Button("Cancel") {
                     resetNewCategoryFields()
                     showingAddCategory = false
+                },
+                trailing: Button("Add") {
+                    validateAndAddCategory()
+                }
+                .disabled(!isValidNewCategory)
+            )
+        }
+    }
+    
+    // MARK: - Helper Methods
+    private func monthName(_ month: Int) -> String {
+        calendar.monthSymbols[month - 1]
+    }
+    
+    private var totalYearlyBudget: Double {
+        monthlyBudgets.values.reduce(0) { total, categoryBudgets in
+            total + categoryBudgets.values.reduce(0, +)
+        }
+    }
+    
+    private func totalMonthlyBudget(for month: Int) -> Double {
+        monthlyBudgets[month, default: [:]].values.reduce(0, +)
+    }
+    
+    private var isValidNewCategory: Bool {
+        !newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        newCategoryAmount > 0 &&
+        newCategoryAmount <= AppConstants.Validation.maximumTransactionAmount
+    }
+    
+    private func loadCurrentBudgets() {
+        isProcessing = true
+        monthlyBudgets = [:]
+        
+        for month in 1...12 {
+            let budgets = budgetManager.getMonthlyBudgets(for: month, year: selectedYear)
+            monthlyBudgets[month] = Dictionary(
+                uniqueKeysWithValues: budgets.map { ($0.category, $0.amount) }
+            )
+        }
+        
+        isProcessing = false
+    }
+    
+    private func validateAndAddCategory() {
+        let trimmedName = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        guard !trimmedName.isEmpty else {
+            alertMessage = "Please enter a category name."
+            showingAlert = true
+            return
+        }
+        
+        guard newCategoryAmount > 0 else {
+            alertMessage = "Please enter a valid amount."
+            showingAlert = true
+            return
+        }
+        
+        if monthlyBudgets[selectedMonth]?[trimmedName] != nil {
+            alertMessage = "This category already exists."
+            showingAlert = true
+            return
+        }
+        
+        showingFutureAddAlert = true
+    }
+    
+    private func addCategory(includeFutureMonths: Bool) async {
+        isProcessing = true
+        
+        do {
+            try await budgetManager.addCategory(
+                newCategoryName,
+                amount: newCategoryAmount,
+                month: selectedMonth,
+                year: selectedYear,
+                includeFutureMonths: includeFutureMonths
+            )
+            
+            await MainActor.run {
+                if includeFutureMonths {
+                    for month in selectedMonth...12 {
+                        monthlyBudgets[month, default: [:]][newCategoryName] = newCategoryAmount
+                    }
+                } else {
+                    monthlyBudgets[selectedMonth, default: [:]][newCategoryName] = newCategoryAmount
+                }
+                
+                resetNewCategoryFields()
+                showingAddCategory = false
+            }
+        } catch {
+            await MainActor.run {
+                alertMessage = error.localizedDescription
+                showingAlert = true
+            }
+        }
+        
+        isProcessing = false
+    }
+    
+    private func updateCategory(oldCategory: String, newCategory: String, newAmount: Double) {
+        var updatedBudget = monthlyBudgets[selectedMonth] ?? [:]
+        updatedBudget[oldCategory] = nil
+        updatedBudget[newCategory] = newAmount
+        monthlyBudgets[selectedMonth] = updatedBudget
+        
+        changedCategory = newCategory
+        changedAmount = newAmount
+        showingFutureChangeAlert = true
+    }
+    
+    private func updateFutureMonths() {
+        for month in selectedMonth...12 {
+            var updatedBudget = monthlyBudgets[month] ?? [:]
+            if changedAmount == 0 {
+                updatedBudget[changedCategory] = nil
+            } else {
+                updatedBudget[changedCategory] = changedAmount
+            }
+            monthlyBudgets[month] = updatedBudget
+        }
+    }
+    
+    private func loadCurrentYearBudget() {
+        let currentYear = calendar.component(.year, from: Date())
+        for month in 1...12 {
+            let currentYearBudgets = budgetManager.getMonthlyBudgets(for: month, year: currentYear)
+            monthlyBudgets[month] = Dictionary(
+                uniqueKeysWithValues: currentYearBudgets.map { ($0.category, $0.amount) }
+            )
+        }
+    }
+    
+    private func saveBudgets() {
+        isProcessing = true
+        
+        Task {
+            do {
+                // Update each month's budgets
+                for (month, budgets) in monthlyBudgets {
+                    try await budgetManager.updateMonthlyBudgets(
+                        budgets,
+                        for: month,
+                        year: selectedYear
+                    )
+                }
+                
+                await MainActor.run {
+                    dismiss()
                 }
             } catch {
                 await MainActor.run {
                     alertMessage = error.localizedDescription
                     showingAlert = true
+                    isProcessing = false
                 }
             }
-            
-            isProcessing = false
-        }
-        
-        private func updateCategory(oldCategory: String, newCategory: String, newAmount: Double) {
-            var updatedBudget = monthlyBudgets[selectedMonth] ?? [:]
-            updatedBudget[oldCategory] = nil
-            updatedBudget[newCategory] = newAmount
-            monthlyBudgets[selectedMonth] = updatedBudget
-            
-            changedCategory = newCategory
-            changedAmount = newAmount
-            showingFutureChangeAlert = true
-        }
-        
-        private func updateFutureMonths() {
-            for month in selectedMonth...12 {
-                var updatedBudget = monthlyBudgets[month] ?? [:]
-                if changedAmount == 0 {
-                    updatedBudget[changedCategory] = nil
-                } else {
-                    updatedBudget[changedCategory] = changedAmount
-                }
-                monthlyBudgets[month] = updatedBudget
-            }
-        }
-        
-        private func loadCurrentYearBudget() {
-            let currentYear = calendar.component(.year, from: Date())
-            for month in 1...12 {
-                let currentYearBudgets = budgetManager.getMonthlyBudgets(for: month, year: currentYear)
-                monthlyBudgets[month] = Dictionary(
-                    uniqueKeysWithValues: currentYearBudgets.map { ($0.category, $0.amount) }
-                )
-            }
-        }
-        
-        private func saveBudgets() {
-            isProcessing = true
-            
-            Task {
-                do {
-                    // Update each month's budgets
-                    for (month, budgets) in monthlyBudgets {
-                        try await budgetManager.updateMonthlyBudgets(
-                            budgets,
-                            for: month,
-                            year: selectedYear
-                        )
-                    }
-                    
-                    await MainActor.run {
-                        dismiss()
-                    }
-                } catch {
-                    await MainActor.run {
-                        alertMessage = error.localizedDescription
-                        showingAlert = true
-                        isProcessing = false
-                    }
-                }
-            }
-        }
-        
-        private func resetNewCategoryFields() {
-            newCategoryName = ""
-            newCategoryAmount = 0
         }
     }
-
-
+    
+    private func resetNewCategoryFields() {
+        newCategoryName = ""
+        newCategoryAmount = 0
+    }
+}

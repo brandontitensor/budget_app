@@ -104,7 +104,7 @@ struct EditCategoryView: View {
             TextField("Category Name", text: $categoryName)
                 .autocapitalization(.words)
                 .disableAutocorrection(true)
-                .onChange(of: categoryName) { newValue in
+                .onChange(of: categoryName) { oldValue, newValue in
                     if newValue.count > AppConstants.Validation.maxCategoryNameLength {
                         categoryName = String(newValue.prefix(AppConstants.Validation.maxCategoryNameLength))
                     }
