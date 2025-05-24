@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import FormatterKit
 
 // MARK: - NumberFormatter Extensions with Thread Safety
 public extension NumberFormatter {
@@ -161,7 +160,7 @@ public extension Decimal {
 
 // MARK: - Double Extension
 public extension Double {
-    public var asCurrency: String {
+     var asCurrency: String {
         return NumberFormatter.formatCurrency(self)
     }
 }

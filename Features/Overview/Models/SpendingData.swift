@@ -109,39 +109,7 @@ extension SpendingData: Comparable {
     }
 }
 
-// MARK: - Color Components
-private struct ColorComponents: Codable {
-    let red: Double
-    let green: Double
-    let blue: Double
-    let opacity: Double
-    
-    init(from color: Color) {
-        var red: CGFloat = 0
-        var green: CGFloat = 0
-        var blue: CGFloat = 0
-        var opacity: CGFloat = 0
-        
-        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &opacity)
-        
-        self.red = Double(red)
-        self.green = Double(green)
-        self.blue = Double(blue)
-        self.opacity = Double(opacity)
-    }
-}
 
-// MARK: - Color Extension
-private extension Color {
-    init(_ components: ColorComponents) {
-        self.init(
-            red: components.red,
-            green: components.green,
-            blue: components.blue,
-            opacity: components.opacity
-        )
-    }
-}
 
 // MARK: - Decimal Extension
 private extension Decimal {
