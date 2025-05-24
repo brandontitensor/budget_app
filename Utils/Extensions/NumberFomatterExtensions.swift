@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import FormatterKit
 
 // MARK: - NumberFormatter Extensions with Thread Safety
 public extension NumberFormatter {
@@ -155,6 +156,13 @@ public extension Decimal {
     var asCurrency: String {
         let nsDecimal = self as NSDecimalNumber
         return NumberFormatter.formatCurrency(nsDecimal.doubleValue)
+    }
+}
+
+// MARK: - Double Extension
+public extension Double {
+    public var asCurrency: String {
+        return NumberFormatter.formatCurrency(self)
     }
 }
 

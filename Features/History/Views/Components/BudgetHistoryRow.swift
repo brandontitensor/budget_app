@@ -6,6 +6,7 @@
 //
 import SwiftUI
 
+
 /// A view component for displaying budget history entries
 struct BudgetHistoryRow: View {
     // MARK: - Properties

@@ -6,6 +6,8 @@
 //
 
 import Foundation
+import FormatterKit
+
 
 // MARK: - Double Extensions for Currency Formatting
 public extension Double {
