@@ -37,7 +37,7 @@ public struct SettingsStorage<T: Codable> where T: Codable {
     private let transformer: ((T) -> T)?
     
     // Publisher for value changes
-    private let publisher = PassthroughSubject<T, Never>()
+    public let publisher = PassthroughSubject<T, Never>()
     
     // MARK: - Initialization
     /// Initialize settings storage
@@ -122,7 +122,7 @@ public struct SettingsStorage<T: Codable> where T: Codable {
 }
 
 // MARK: - Settings Storage Projection
-public struct SettingsStorageProjection<T> {
+public struct SettingsStorageProjection<T: Encodable & Decodable> {
     private let storage: SettingsStorage<T>
     
     init(storage: SettingsStorage<T>) {

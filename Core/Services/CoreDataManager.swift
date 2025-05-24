@@ -64,8 +64,9 @@ public final class CoreDataManager {
         }
         
         // Configure main context
-        mainContext.automaticallyMergesChangesFromParent = true
-        mainContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        let viewContext = persistentContainer.viewContext
+        viewContext.automaticallyMergesChangesFromParent = true
+        viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         
         // Create and configure background context
         backgroundContext = persistentContainer.newBackgroundContext()
@@ -307,7 +308,7 @@ public final class CoreDataManager {
         guard let coordinator = persistentContainer.persistentStoreCoordinator.persistentStores.first else {
             return nil
         }
-        return try persistentContainer.persistentStoreCoordinator.currentPersistentHistoryToken(fromStores: [coordinator])
+        return  persistentContainer.persistentStoreCoordinator.currentPersistentHistoryToken(fromStores: [coordinator])
     }
     
     /// Get changes since the last token

@@ -13,7 +13,8 @@ struct BrandonsBudgetApp: App {
     // MARK: - State Objects
     @StateObject private var budgetManager = BudgetManager.shared
     @StateObject private var themeManager = ThemeManager.shared
-    @StateObject private var settingsManager = SettingsManager(userDefaults: .standard, notificationManager: .shared)
+    @StateObject private var settingsManager = SettingsManager.shared
+
     
     // MARK: - Scene Configuration
     var body: some Scene {

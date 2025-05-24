@@ -166,9 +166,9 @@ struct SpendingPieChart_Previews: PreviewProvider {
             // With Data
             SpendingPieChart(
                 spendingData: [
-                    SpendingData(category: "Groceries", amount: 500, percentage: 50, color: .blue),
-                    SpendingData(category: "Entertainment", amount: 300, percentage: 30, color: .green),
-                    SpendingData(category: "Transport", amount: 200, percentage: 20, color: .orange)
+                    try! SpendingData(category: "Groceries", amount: 500, percentage: 50, color: .blue),
+                    try! SpendingData(category: "Entertainment", amount: 300, percentage: 30, color: .green),
+                    try! SpendingData(category: "Transport", amount: 200, percentage: 20, color: .orange)
                 ]
             )
             .environmentObject(ThemeManager.shared)
@@ -184,8 +184,8 @@ struct SpendingPieChart_Previews: PreviewProvider {
             // Dark Mode
             SpendingPieChart(
                 spendingData: [
-                    SpendingData(category: "Groceries", amount: 500, percentage: 50, color: .blue),
-                    SpendingData(category: "Entertainment", amount: 300, percentage: 30, color: .green)
+                    try! SpendingData(category: "Groceries", amount: 500, percentage: 50, color: .blue),
+                    try! SpendingData(category: "Entertainment", amount: 300, percentage: 30, color: .green)
                 ]
             )
             .environmentObject(ThemeManager.shared)
@@ -196,7 +196,7 @@ struct SpendingPieChart_Previews: PreviewProvider {
             // Many Categories
             SpendingPieChart(
                 spendingData: (1...8).map { index in
-                    SpendingData(
+                    try! SpendingData(
                         category: "Category \(index)",
                         amount: Double(100 * index),
                         percentage: Double(index) * 10,
