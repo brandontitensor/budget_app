@@ -8,7 +8,7 @@
 import Foundation
 
 /// Represents a budget entry with proper value types and validation
-public struct BudgetEntry: Identifiable, Codable, Equatable {
+public struct BudgetEntry: Identifiable, Codable, Equatable, Sendable {
     // MARK: - Properties
     public let id: UUID
     private let _amount: Decimal // Use Decimal for financial calculations

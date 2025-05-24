@@ -21,7 +21,12 @@ public final class ThemeManager: ObservableObject {
         let colorComponents: ColorComponents
         
         var color: Color {
-            Color(colorComponents)
+            Color(
+                red: colorComponents.red,
+                green: colorComponents.green,
+                blue: colorComponents.blue,
+                opacity: colorComponents.opacity
+            )
         }
         
         init(name: String, color: Color) {
@@ -73,7 +78,7 @@ public final class ThemeManager: ObservableObject {
     ]
     
     // MARK: - Published Properties
-    @Published public private(set) var primaryColor: Color {
+    @Published public var primaryColor: Color {
         didSet {
             UserDefaults.standard.set(colorOption.name, forKey: "primaryColorName")
             updateGlobalAppearance()
@@ -286,7 +291,7 @@ public enum TransactionStatus: String, Codable {
 }
 
 // MARK: - Time Period
-public enum TimePeriod: Equatable, Hashable, Codable {
+public enum TimePeriod: Equatable, Hashable, Codable, Sendable {
     case today
     case thisWeek
     case thisMonth

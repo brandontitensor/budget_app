@@ -11,78 +11,7 @@ import Combine
 
 /// Manages Core Data operations for the app with proper error handling, background operations, and thread safety
 public final class CoreDataManager {
-    // MARK: - History Tracking
-    
-    /// Get the last token for widget updates
-    public func lastHistoryToken() throws -> NSPersistentHistoryToken? {
-        guard let coordinator = persistentContainer.persistentStoreCoordinator.persistentStores.first else {
-            return nil
-        }
-        return try persistentContainer.persistentStoreCoordinator.currentPersistentHistoryToken(fromStores: [coordinator])
-    }
-    
-    /// Get changes since the last token
-    public func changesSinceToken(_ token: NSPersistentHistoryToken?) throws -> [NSPersistentHistoryChange] {
-        let request = NSPersistentHistoryChangeRequest.fetchHistory(after: token)
-        guard let result = try persistentContainer.persistentStoreCoordinator.execute(request, with: mainContext) as? NSPersistentHistoryResult,
-              let history = result.result as? [NSPersistentHistoryTransaction] else {
-            return []
-        }
-        return history.flatMap { $0.changes ?? [] }
-    }
-    
-    // MARK: - Cleanup
-    deinit {
-        NotificationCenter.default.removeObserver(self)
-    }
-}
-
-// MARK: - Managed Object Extensions
-private extension BudgetEntryMO {
-    func update(from entry: BudgetEntry) {
-        self.id = entry.id
-        self.amount = entry.amount
-        self.category = entry.category
-        self.date = entry.date
-        self.note = entry.note
-    }
-}
-
-private extension MonthlyBudgetMO {
-    func update(from budget: MonthlyBudget) {
-        self.id = budget.id
-        self.category = budget.category
-        self.amount = budget.amount
-        self.month = Int16(budget.month)
-        self.year = Int16(budget.year)
-        self.isHistorical = budget.isHistorical
-    }
-}
-
-// MARK: - Model Extensions
-extension BudgetEntry {
-    init(from managedObject: BudgetEntryMO) throws {
-        try self.init(
-            id: managedObject.id ?? UUID(),
-            amount: managedObject.amount,
-            category: managedObject.category ?? "Uncategorized",
-            date: managedObject.date ?? Date(),
-            note: managedObject.note
-        )
-    }
-}
-
-extension MonthlyBudget {
-    init(from managedObject: MonthlyBudgetMO) throws {
-        try self.init(
-            id: managedObject.id ?? UUID(),
-            category: managedObject.category ?? "Uncategorized",
-            amount: managedObject.amount,
-            month: Int(managedObject.month),
-            year: Int(managedObject.year),
-            isHistorical: managedObject.isHistorical
-        )
-    } - Error Types
+    // MARK: - Error Types
     public enum CoreDataError: LocalizedError {
         case saveError(Error)
         case fetchError(Error)
@@ -371,4 +300,76 @@ extension MonthlyBudget {
         }
     }
     
-    // MARK:
+    // MARK: - History Tracking
+    
+    /// Get the last token for widget updates
+    public func lastHistoryToken() throws -> NSPersistentHistoryToken? {
+        guard let coordinator = persistentContainer.persistentStoreCoordinator.persistentStores.first else {
+            return nil
+        }
+        return try persistentContainer.persistentStoreCoordinator.currentPersistentHistoryToken(fromStores: [coordinator])
+    }
+    
+    /// Get changes since the last token
+    public func changesSinceToken(_ token: NSPersistentHistoryToken?) throws -> [NSPersistentHistoryChange] {
+        let request = NSPersistentHistoryChangeRequest.fetchHistory(after: token)
+        guard let result = try persistentContainer.persistentStoreCoordinator.execute(request, with: mainContext) as? NSPersistentHistoryResult,
+              let history = result.result as? [NSPersistentHistoryTransaction] else {
+            return []
+        }
+        return history.flatMap { $0.changes ?? [] }
+    }
+    
+    // MARK: - Cleanup
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+}
+
+// MARK: - Managed Object Extensions
+private extension BudgetEntryMO {
+    func update(from entry: BudgetEntry) {
+        self.id = entry.id
+        self.amount = entry.amount
+        self.category = entry.category
+        self.date = entry.date
+        self.note = entry.note
+    }
+}
+
+private extension MonthlyBudgetMO {
+    func update(from budget: MonthlyBudget) {
+        self.id = budget.id
+        self.category = budget.category
+        self.amount = budget.amount
+        self.month = Int16(budget.month)
+        self.year = Int16(budget.year)
+        self.isHistorical = budget.isHistorical
+    }
+}
+
+// MARK: - Model Extensions
+extension BudgetEntry {
+    init(from managedObject: BudgetEntryMO) throws {
+        try self.init(
+            id: managedObject.id ?? UUID(),
+            amount: managedObject.amount,
+            category: managedObject.category ?? "Uncategorized",
+            date: managedObject.date ?? Date(),
+            note: managedObject.note
+        )
+    }
+}
+
+extension MonthlyBudget {
+    init(from managedObject: MonthlyBudgetMO) throws {
+        try self.init(
+            id: managedObject.id ?? UUID(),
+            category: managedObject.category ?? "Uncategorized",
+            amount: managedObject.amount,
+            month: Int(managedObject.month),
+            year: Int(managedObject.year),
+            isHistorical: managedObject.isHistorical
+        )
+    }
+}

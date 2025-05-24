@@ -77,7 +77,7 @@ struct FilterSortView: View {
                 in: ...customEndDate,
                 displayedComponents: .date
             )
-            .onChange(of: customStartDate) { newValue in
+            .onChange(of: customStartDate) { _, _ in
                 updateCustomDateRange()
             }
             
@@ -87,7 +87,7 @@ struct FilterSortView: View {
                 in: customStartDate...,
                 displayedComponents: .date
             )
-            .onChange(of: customEndDate) { newValue in
+            .onChange(of: customEndDate) { _, _ in
                 updateCustomDateRange()
             }
         }

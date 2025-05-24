@@ -62,7 +62,7 @@ struct ExportOptionsView: View {
                         .tag(period)
                 }
             }
-            .onChange(of: exportTimePeriod) { newValue in
+            .onChange(of: exportTimePeriod) { oldValue, newValue in
                 if case .custom = newValue {
                     resetCustomDates()
                 }

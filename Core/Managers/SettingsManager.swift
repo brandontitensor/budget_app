@@ -31,7 +31,7 @@ public final class SettingsManager: ObservableObject {
         case saveFailed
         case importFailed
         
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .invalidData: return "Invalid settings data"
             case .saveFailed: return "Failed to save settings"

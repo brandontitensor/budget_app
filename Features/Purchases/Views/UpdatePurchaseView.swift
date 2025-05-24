@@ -38,7 +38,7 @@ struct UpdatePurchaseView: View {
     private var isValidInput: Bool {
         editedEntry.amount > 0 &&
         !editedEntry.category.isEmpty &&
-        (editedEntry.note?.count ?? 0) <= AppConstants.Data.maxTransactionNoteLength
+        editedEntry.note.count <= AppConstants.Data.maxTransactionNoteLength
     }
     
     // MARK: - Initialization
@@ -133,7 +133,7 @@ struct UpdatePurchaseView: View {
             }
         ) {
             TextField("Optional note", text: $editedEntry.note)
-                .onChange(of: editedEntry.note) { newValue in
+                .onChange(of: editedEntry.note) { oldValue, newValue in
                     if newValue.count > AppConstants.Data.maxTransactionNoteLength {
                         editedEntry.note = String(newValue.prefix(AppConstants.Data.maxTransactionNoteLength))
                     }

@@ -167,7 +167,7 @@ struct CategoryMappingView: View {
     }
     
     private var previewSection: some View {
-        Section {
+        Section(header: Text("Import Preview")) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(categories.count) categories to map")
                     .foregroundColor(.secondary)
@@ -177,8 +177,6 @@ struct CategoryMappingView: View {
                     .foregroundColor(.secondary)
             }
             .padding(.vertical, 4)
-        } header: {
-            Text("Import Preview")
         }
     }
     

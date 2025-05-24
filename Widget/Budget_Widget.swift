@@ -139,6 +139,11 @@ struct SmallBudgetWidget: View {
         }
         .padding(.top, 8)
     }
+    
+    private func createAccessibilityLabel() -> String {
+        let status = entry.isOverBudget ? "Over budget" : "\(entry.percentageRemaining.formatted(.percent)) remaining"
+        return "Monthly budget: \(entry.monthlyBudget.asCurrency). \(status)"
+    }
 }
 
 // MARK: - Medium Widget
@@ -194,10 +199,7 @@ struct MediumBudgetWidget: View {
         }
     }
     
-    private func createAccessibilityLabel() -> String {
-        let status = entry.isOverBudget ? "Over budget" : "\(entry.percentageRemaining.formatted(.percent)) remaining"
-        return "Monthly budget: \(entry.monthlyBudget.asCurrency). \(status)"
-    }
+   
 }
 
 // MARK: - Preview Provider

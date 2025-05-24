@@ -79,15 +79,14 @@ struct PurchasesView: View {
         .sheet(isPresented: $showingAddPurchase) {
             PurchaseEntryView()
         }
-        .onAppear {
-            Task {
-                await loadInitialData()
-            }
+        .task {
+            await loadInitialData()
         }
-        .onChange(of: budgetManager.entries) { _ in
+        
+        .onChange(of: budgetManager.entries) {
             Task {
-                await filterAndSortEntries()
-            }
+                    await filterAndSortEntries()
+                }
         }
     }
     
@@ -216,11 +215,7 @@ struct PurchasesView: View {
         isLoading = true
         errorMessage = nil
         
-        do {
-            try await filterAndSortEntries()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+        await filterAndSortEntries()
         
         isLoading = false
     }

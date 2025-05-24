@@ -160,7 +160,7 @@ public final class NotificationManager {
     /// - Parameter settings: The app's settings manager
     public func updateNotificationSchedule(settings: SettingsManager) async {
         do {
-            if settings.purchaseNotificationsEnabled {
+            if await settings.purchaseNotificationsEnabled {
                 try await schedulePurchaseNotifications(
                     frequency: settings.purchaseNotificationFrequency
                 )
@@ -168,7 +168,7 @@ public final class NotificationManager {
                 await cancelNotifications(withIdentifier: NotificationIdentifiers.purchase)
             }
             
-            if settings.budgetTotalNotificationsEnabled {
+            if await settings.budgetTotalNotificationsEnabled {
                 try await scheduleBudgetTotalNotifications(
                     frequency: settings.budgetTotalNotificationFrequency
                 )
@@ -184,14 +184,14 @@ public final class NotificationManager {
     /// Cancel specific notifications
     /// - Parameter identifier: The identifier of notifications to cancel
     public func cancelNotifications(withIdentifier identifier: String) async {
-        await notificationCenter.removePendingNotificationRequests(
+        notificationCenter.removePendingNotificationRequests(
             withIdentifiers: [identifier]
         )
     }
     
     /// Cancel all pending notifications
     public func cancelAllNotifications() async {
-        await notificationCenter.removeAllPendingNotificationRequests()
+        notificationCenter.removeAllPendingNotificationRequests()
     }
     
     // MARK: - Private Methods

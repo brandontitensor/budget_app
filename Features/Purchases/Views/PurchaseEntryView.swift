@@ -124,7 +124,7 @@ struct PurchaseEntryView: View {
             }
         ) {
             TextField("Optional note", text: $note)
-                .onChange(of: note) { newValue in
+                .onChange(of: note) { oldValue, newValue in
                     if newValue.count > AppConstants.Data.maxTransactionNoteLength {
                         note = String(newValue.prefix(AppConstants.Data.maxTransactionNoteLength))
                     }
