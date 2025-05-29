@@ -7,7 +7,6 @@
 import SwiftUI
 import Foundation
 
-
 /// View for mapping imported categories to existing categories or creating new ones
 struct CategoryMappingView: View {
     // MARK: - Environment
@@ -17,7 +16,7 @@ struct CategoryMappingView: View {
     
     // MARK: - Properties
     let categories: Set<String>
-    let importedData: [BudgetManager.PurchaseImportData]
+    let importedData: [CSVImport.PurchaseImportData]
     let onComplete: ([String: String]) -> Void
     
     // MARK: - State
@@ -46,13 +45,32 @@ struct CategoryMappingView: View {
     
     private var isMappingComplete: Bool {
         categories.allSatisfy { category in
-            categoryMappings[category] != nil ||
-            (selectedCategoryToCreate == category && showingNewCategorySheet)
+            categoryMappings[category] != nil
         }
     }
     
     private var totalImportAmount: Double {
         importedData.reduce(0) { $0 + $1.amount }
+    }
+    
+    private var categoriesWithCounts: [(category: String, count: Int, totalAmount: Double)] {
+        let groupedData = Dictionary(grouping: importedData) { $0.category }
+        return categories.map { category in
+            let transactions = groupedData[category] ?? []
+            let totalAmount = transactions.reduce(0) { $0 + $1.amount }
+            return (category: category, count: transactions.count, totalAmount: totalAmount)
+        }.sorted { $0.category < $1.category }
+    }
+    
+    // MARK: - Initialization
+    init(
+        categories: Set<String>,
+        importedData: [CSVImport.PurchaseImportData],
+        onComplete: @escaping ([String: String]) -> Void
+    ) {
+        self.categories = categories
+        self.importedData = importedData
+        self.onComplete = onComplete
     }
     
     // MARK: - Body
@@ -65,25 +83,31 @@ struct CategoryMappingView: View {
                     loadingView
                 } else {
                     List {
-                        if existingCategories.isEmpty {
-                            newCategoriesSection
-                        } else {
-                            if !categories.isEmpty {
-                                mappingSection
-                                newCategoriesSection
-                            }
+                        importSummarySection
+                        
+                        if !existingCategories.isEmpty {
+                            mappingSection
                         }
                         
+                        newCategoriesSection
                         previewSection
                     }
                 }
             }
             .navigationTitle("Map Categories")
-            .navigationBarItems(
-                leading: Button("Cancel") { dismiss() },
-                trailing: Button("Import") { completeMapping() }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Import") {
+                        completeMapping()
+                    }
                     .disabled(!isMappingComplete || isProcessing)
-            )
+                    .fontWeight(.semibold)
+                }
+            }
             .sheet(isPresented: $showingNewCategorySheet) {
                 createNewCategorySheet
             }
@@ -111,33 +135,114 @@ struct CategoryMappingView: View {
     
     // MARK: - View Components
     private var instructionsHeader: some View {
-        VStack(spacing: 8) {
-            Text(existingCategories.isEmpty ?
-                "Create categories for your imported data" :
-                "Map your imported categories to existing ones or create new categories")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+        VStack(spacing: 12) {
+            HStack {
+                Image(systemName: "arrow.triangle.2.circlepath")
+                    .foregroundColor(themeManager.primaryColor)
+                    .font(.title2)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Category Mapping")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                    
+                    Text(existingCategories.isEmpty ?
+                        "Create categories for your imported data" :
+                        "Map imported categories to existing ones or create new categories")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                
+                Spacer()
+            }
             
             if !isMappingComplete {
-                Text("All categories must be mapped before importing")
-                    .font(.caption)
-                    .foregroundColor(.red)
+                HStack {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundColor(.orange)
+                    Text("All categories must be mapped before importing")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
             }
         }
         .padding()
         .background(Color(.systemBackground))
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color(.separator)),
+            alignment: .bottom
+        )
     }
     
     private var loadingView: some View {
-        ProgressView("Processing categories...")
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack(spacing: 16) {
+            ProgressView()
+                .scaleEffect(1.2)
+            Text("Processing categories...")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var importSummarySection: some View {
+        Section {
+            VStack(spacing: 12) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Import Summary")
+                            .font(.headline)
+                        Text("\(importedData.count) transactions")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text(totalImportAmount.asCurrency)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .foregroundColor(themeManager.primaryColor)
+                        Text("Total Amount")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Divider()
+                
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                    ForEach(categoriesWithCounts, id: \.category) { item in
+                        HStack {
+                            Text(item.category)
+                                .font(.caption)
+                                .lineLimit(1)
+                            Spacer()
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(item.count)")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                Text(item.totalAmount.asCurrency)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
     }
     
     private var mappingSection: some View {
         Section(header: Text("Map to Existing Categories")) {
-            ForEach(Array(categories), id: \.self) { category in
+            ForEach(Array(categories).sorted(), id: \.self) { category in
                 if categoryMappings[category] == nil {
                     mappingRow(for: category)
                 }
@@ -147,19 +252,33 @@ struct CategoryMappingView: View {
     
     private var newCategoriesSection: some View {
         Section(header: Text("Create New Categories")) {
-            ForEach(Array(categories), id: \.self) { category in
+            ForEach(Array(categories).sorted(), id: \.self) { category in
                 if categoryMappings[category] == nil {
                     Button(action: {
                         selectedCategoryToCreate = category
-                        newCategoryAmount = 0
+                        newCategoryAmount = estimateBudgetAmount(for: category)
                         showingNewCategorySheet = true
                     }) {
                         HStack {
-                            Text(category)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(category)
+                                    .foregroundColor(.primary)
+                                
+                                if let categoryData = categoriesWithCounts.first(where: { $0.category == category }) {
+                                    Text("\(categoryData.count) transactions • \(categoryData.totalAmount.asCurrency)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            
                             Spacer()
+                            
                             Text("Create New")
+                                .font(.subheadline)
                                 .foregroundColor(themeManager.primaryColor)
+                                .fontWeight(.medium)
                         }
+                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -167,34 +286,70 @@ struct CategoryMappingView: View {
     }
     
     private var previewSection: some View {
-        Section(header: Text("Import Preview")) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("\(categories.count) categories to map")
-                    .foregroundColor(.secondary)
-                Text("\(importedData.count) transactions to import")
-                    .foregroundColor(.secondary)
-                Text("Total amount: \(NumberFormatter.formatCurrency(totalImportAmount))")
-                    .foregroundColor(.secondary)
+        Section(header: Text("Mapping Preview")) {
+            ForEach(Array(categoryMappings.keys).sorted(), id: \.self) { originalCategory in
+                if let mappedCategory = categoryMappings[originalCategory] {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(originalCategory)
+                                .font(.subheadline)
+                                .strikethrough(originalCategory != mappedCategory)
+                                .foregroundColor(originalCategory != mappedCategory ? .secondary : .primary)
+                            
+                            if originalCategory != mappedCategory {
+                                Text("→ \(mappedCategory)")
+                                    .font(.subheadline)
+                                    .foregroundColor(themeManager.primaryColor)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Button("Change") {
+                            categoryMappings[originalCategory] = nil
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
+                    }
+                    .padding(.vertical, 2)
+                }
             }
-            .padding(.vertical, 4)
         }
     }
     
     private func mappingRow(for category: String) -> some View {
         HStack {
-            Text(category)
-            Spacer()
-            Picker("Select Category", selection: Binding(
-                get: { categoryMappings[category] ?? category },
-                set: { categoryMappings[category] = $0 }
-            )) {
-                Text("Select a category").tag(category)
-                ForEach(existingCategories, id: \.self) { existingCategory in
-                    Text(existingCategory).tag(existingCategory)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(category)
+                    .font(.subheadline)
+                
+                if let categoryData = categoriesWithCounts.first(where: { $0.category == category }) {
+                    Text("\(categoryData.count) transactions • \(categoryData.totalAmount.asCurrency)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
-            .pickerStyle(.menu)
+            
+            Spacer()
+            
+            Menu {
+                ForEach(existingCategories, id: \.self) { existingCategory in
+                    Button(existingCategory) {
+                        categoryMappings[category] = existingCategory
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("Select Category")
+                        .foregroundColor(themeManager.primaryColor)
+                    Image(systemName: "chevron.down")
+                        .foregroundColor(themeManager.primaryColor)
+                        .font(.caption)
+                }
+            }
         }
+        .padding(.vertical, 4)
     }
     
     private var createNewCategorySheet: some View {
@@ -202,37 +357,80 @@ struct CategoryMappingView: View {
             Form {
                 Section(header: Text("New Category Details")) {
                     if let category = selectedCategoryToCreate {
-                        Text("Category Name: \(category)")
-                            .foregroundColor(.secondary)
+                        HStack {
+                            Text("Category Name")
+                            Spacer()
+                            Text(category)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        if let categoryData = categoriesWithCounts.first(where: { $0.category == category }) {
+                            HStack {
+                                Text("Import Data")
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text("\(categoryData.count) transactions")
+                                        .font(.subheadline)
+                                    Text(categoryData.totalAmount.asCurrency)
+                                        .font(.subheadline)
+                                        .foregroundColor(themeManager.primaryColor)
+                                }
+                            }
+                        }
                     }
                     
                     HStack {
-                        Text(newCategoryAmount.asCurrency)
+                        Text("Budget Amount")
                         Spacer()
-                        Button("Edit Amount") {
+                        Button(newCategoryAmount.asCurrency) {
                             showingCalculator = true
                         }
+                        .foregroundColor(themeManager.primaryColor)
                     }
                 }
                 
                 Section(
-                    header: Text("Note"),
-                    footer: Text("This budget will apply starting from the current month")
+                    header: Text("Budget Settings"),
+                    footer: Text("This budget will apply starting from the current month (\(Calendar.current.monthSymbols[currentMonth - 1]) \(currentYear))")
                 ) {
-                    Text("The category will be created and added to your budget categories.")
+                    Text("The category will be created and added to your budget categories with the specified amount.")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
             }
             .navigationTitle("Create Category")
-            .navigationBarItems(
-                leading: Button("Cancel") { showingNewCategorySheet = false },
-                trailing: Button("Create") { showingFutureMonthsAlert = true }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        showingNewCategorySheet = false
+                        selectedCategoryToCreate = nil
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Create") {
+                        showingFutureMonthsAlert = true
+                    }
                     .disabled(newCategoryAmount <= 0)
-            )
+                    .fontWeight(.semibold)
+                }
+            }
         }
     }
     
     // MARK: - Helper Methods
+    private func estimateBudgetAmount(for category: String) -> Double {
+        guard let categoryData = categoriesWithCounts.first(where: { $0.category == category }) else {
+            return 100.0 // Default amount
+        }
+        
+        // Estimate monthly budget as 1.2x the imported amount (20% buffer)
+        let estimatedAmount = categoryData.totalAmount * 1.2
+        
+        // Round to nearest 50 for cleaner amounts
+        return (estimatedAmount / 50).rounded() * 50
+    }
+    
     private func createNewCategory(includeFutureMonths: Bool) {
         guard let category = selectedCategoryToCreate else { return }
         
@@ -272,8 +470,32 @@ struct CategoryMappingView: View {
             return
         }
         
-        onComplete(categoryMappings)
-        dismiss()
+        isProcessing = true
+        
+        Task {
+            let importResults = CSVImport.ImportResults(
+                data: importedData,
+                categories: categories,
+                existingCategories: Set(budgetManager.getAvailableCategories()).intersection(categories),
+                newCategories: categories.subtracting(Set(budgetManager.getAvailableCategories())),
+                totalAmount: totalImportAmount
+            )
+            
+            do {
+                try await budgetManager.processImportedPurchases(importResults, categoryMappings: categoryMappings)
+                
+                await MainActor.run {
+                    onComplete(categoryMappings)
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    alertMessage = error.localizedDescription
+                    showingAlert = true
+                    isProcessing = false
+                }
+            }
+        }
     }
 }
 
@@ -281,30 +503,36 @@ struct CategoryMappingView: View {
 #if DEBUG
 struct CategoryMappingView_Previews: PreviewProvider {
     static var previews: some View {
-        CategoryMappingView(
-            categories: ["Groceries", "Entertainment", "Transportation"],
-            importedData: [
-                .init(date: "2024-01-01", amount: 50.0, category: "Groceries", note: nil),
-                .init(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: nil)
-            ],
-            onComplete: { _ in }
-        )
-        .environmentObject(BudgetManager.shared)
-        .environmentObject(ThemeManager.shared)
-        .previewDisplayName("Light Mode")
-        
-        CategoryMappingView(
-            categories: ["Groceries", "Entertainment", "Transportation"],
-            importedData: [
-                .init(date: "2024-01-01", amount: 50.0, category: "Groceries", note: nil),
-                .init(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: nil)
-            ],
-            onComplete: { _ in }
-        )
-        .environmentObject(BudgetManager.shared)
-        .environmentObject(ThemeManager.shared)
-        .preferredColorScheme(.dark)
-        .previewDisplayName("Dark Mode")
+        Group {
+            // With existing categories
+            CategoryMappingView(
+                categories: ["Groceries", "Entertainment", "Transportation", "Dining Out"],
+                importedData: [
+                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 50.0, category: "Groceries", note: "Weekly shopping"),
+                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: "Movie tickets"),
+                    CSVImport.PurchaseImportData(date: "2024-01-03", amount: 25.0, category: "Transportation", note: "Gas"),
+                    CSVImport.PurchaseImportData(date: "2024-01-04", amount: 45.0, category: "Dining Out", note: "Restaurant")
+                ],
+                onComplete: { _ in }
+            )
+            .environmentObject(BudgetManager.shared)
+            .environmentObject(ThemeManager.shared)
+            .previewDisplayName("With Existing Categories")
+            
+            // Dark mode
+            CategoryMappingView(
+                categories: ["Groceries", "Entertainment"],
+                importedData: [
+                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 50.0, category: "Groceries", note: nil),
+                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: nil)
+                ],
+                onComplete: { _ in }
+            )
+            .environmentObject(BudgetManager.shared)
+            .environmentObject(ThemeManager.shared)
+            .preferredColorScheme(.dark)
+            .previewDisplayName("Dark Mode")
+        }
     }
 }
 #endif

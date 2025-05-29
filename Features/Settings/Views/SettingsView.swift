@@ -334,55 +334,153 @@ struct SettingsView: View {
         isProcessing = false
     }
     
+    // Replace the handleBudgetImport and handlePurchaseImport methods in SettingsView.swift
+
     private func handleBudgetImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
+            
+            isProcessing = true
+            
             Task {
                 do {
-                    let data = try Data(contentsOf: url)
-                    _ = String(data: data, encoding: .utf8) ?? ""
-                    // Parse CSV and import budget data
-                    // This is a simplified version - you'd need proper CSV parsing
-                    importResultMessage = "Budget data imported successfully"
-                    showingImportResult = true
+                    let importResults = try await budgetManager.importBudgets(from: url)
+                    
+                    if !importResults.warningMessages.isEmpty {
+                        let warnings = importResults.warningMessages.joined(separator: "\n")
+                        print("Import warnings: \(warnings)")
+                    }
+                    
+                    try await budgetManager.processImportedBudgets(importResults)
+                    
+                    await MainActor.run {
+                        importResultMessage = """
+                        Successfully imported:
+                        • \(importResults.data.count) budget entries
+                        • \(importResults.categories.count) categories
+                        • Total amount: \(NumberFormatter.formatCurrency(importResults.totalAmount))
+                        
+                        New categories: \(importResults.newCategories.count)
+                        """
+                        
+                        if !importResults.warningMessages.isEmpty {
+                            importErrorDetails = "Warnings:\n" + importResults.warningMessages.joined(separator: "\n")
+                        }
+                        
+                        showingImportResult = true
+                        isProcessing = false
+                    }
+                } catch CSVImport.ImportError.emptyFile {
+                    await MainActor.run {
+                        importResultMessage = "The selected file is empty or contains no data"
+                        showingImportResult = true
+                        isProcessing = false
+                    }
+                } catch CSVImport.ImportError.invalidFormat(let reason) {
+                    await MainActor.run {
+                        importResultMessage = "Invalid file format"
+                        importErrorDetails = reason
+                        showingImportResult = true
+                        isProcessing = false
+                    }
+                } catch CSVImport.ImportError.missingRequiredFields(let fields) {
+                    await MainActor.run {
+                        importResultMessage = "Missing required columns"
+                        importErrorDetails = "Required: \(fields.joined(separator: ", "))\nExpected format: Year,Month,Category,Amount,IsHistorical"
+                        showingImportResult = true
+                        isProcessing = false
+                    }
                 } catch {
-                    importResultMessage = "Failed to import budget data: \(error.localizedDescription)"
-                    showingImportResult = true
+                    await MainActor.run {
+                        importResultMessage = "Failed to import budget data"
+                        importErrorDetails = error.localizedDescription
+                        showingImportResult = true
+                        isProcessing = false
+                    }
                 }
             }
         case .failure(let error):
-            importResultMessage = "Import failed: \(error.localizedDescription)"
+            importResultMessage = "Failed to access file"
+            importErrorDetails = error.localizedDescription
             showingImportResult = true
         }
     }
-    
+
     private func handlePurchaseImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
+            
+            isProcessing = true
+            
             Task {
                 do {
-                    let data = try Data(contentsOf: url)
-                    _ = String(data: data, encoding: .utf8) ?? ""
-                    // Parse CSV - this is where you'd implement actual CSV parsing
-                    // For now, creating mock data:
-                    pendingImportData = [] // Parse your CSV here
-                    unmappedCategories = Set(pendingImportData.map { $0.category })
+                    let importResults = try await budgetManager.importPurchases(from: url)
                     
-                    if unmappedCategories.isEmpty {
-                        importResultMessage = "No data to import"
+                    await MainActor.run {
+                        pendingImportData = importResults.data
+                        unmappedCategories = importResults.newCategories
+                        
+                        if unmappedCategories.isEmpty {
+                            // No new categories, process directly
+                            Task {
+                                try await budgetManager.processImportedPurchases(importResults, categoryMappings: [:])
+                                
+                                await MainActor.run {
+                                    importResultMessage = """
+                                    Successfully imported:
+                                    • \(importResults.data.count) transactions
+                                    • \(importResults.categories.count) categories
+                                    • Total amount: \(NumberFormatter.formatCurrency(importResults.totalAmount))
+                                    """
+                                    
+                                    if !importResults.warningMessages.isEmpty {
+                                        importErrorDetails = "Warnings:\n" + importResults.warningMessages.joined(separator: "\n")
+                                    }
+                                    
+                                    showingImportResult = true
+                                    isProcessing = false
+                                }
+                            }
+                        } else {
+                            // Show category mapping interface
+                            showingCategoryMapping = true
+                            isProcessing = false
+                        }
+                    }
+                } catch CSVImport.ImportError.emptyFile {
+                    await MainActor.run {
+                        importResultMessage = "The selected file is empty or contains no data"
                         showingImportResult = true
-                    } else {
-                        showingCategoryMapping = true
+                        isProcessing = false
+                    }
+                } catch CSVImport.ImportError.invalidFormat(let reason) {
+                    await MainActor.run {
+                        importResultMessage = "Invalid file format"
+                        importErrorDetails = reason
+                        showingImportResult = true
+                        isProcessing = false
+                    }
+                } catch CSVImport.ImportError.missingRequiredFields(let fields) {
+                    await MainActor.run {
+                        importResultMessage = "Missing required columns"
+                        importErrorDetails = "Required: \(fields.joined(separator: ", "))\nExpected format: Date,Amount,Category,Note"
+                        showingImportResult = true
+                        isProcessing = false
                     }
                 } catch {
-                    importResultMessage = "Failed to import purchase data: \(error.localizedDescription)"
-                    showingImportResult = true
+                    await MainActor.run {
+                        importResultMessage = "Failed to import purchase data"
+                        importErrorDetails = error.localizedDescription
+                        showingImportResult = true
+                        isProcessing = false
+                    }
                 }
             }
         case .failure(let error):
-            importResultMessage = "Import failed: \(error.localizedDescription)"
+            importResultMessage = "Failed to access file"
+            importErrorDetails = error.localizedDescription
             showingImportResult = true
         }
     }
