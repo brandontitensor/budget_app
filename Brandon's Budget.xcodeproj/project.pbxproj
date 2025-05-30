@@ -91,6 +91,7 @@
 		D7AAA3E12DE0E30900D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Managers/BudgetManager.swift,
 				Managers/NotificationManager.swift,
 				Managers/SettingsManager.swift,
 				Managers/ThemeManager.swift,
