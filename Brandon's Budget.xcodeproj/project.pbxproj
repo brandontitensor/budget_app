@@ -60,19 +60,16 @@
 		D7AAA3E02DE0E25900D426CB /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Budget/Models/BudgetCategoryData.swift,
 				Budget/Views/BudgetView.swift,
 				Budget/Views/Components/BudgetCategoryRow.swift,
 				Budget/Views/Components/BudgetSummaryCard.swift,
 				Budget/Views/Components/MoneyCalculatorView.swift,
 				Budget/Views/EditCategoryView.swift,
-				History/Models/BudgetHistoryData.swift,
 				History/Views/BudgetHistoryView.swift,
 				History/Views/Components/BudgetHistoryRow.swift,
 				History/Views/Components/ChartLegend.swift,
 				History/Views/Components/FilterSortView.swift,
 				Onboarding/Views/WelcomePopupView.swift,
-				Overview/Models/SpendingData.swift,
 				Overview/Views/BudgetOverviewView.swift,
 				Overview/Views/Components/SpendingPieChart.swift,
 				Overview/Views/Components/TransactionRow.swift,
@@ -95,6 +92,9 @@
 				Managers/NotificationManager.swift,
 				Managers/SettingsManager.swift,
 				Managers/ThemeManager.swift,
+				Models/BudgetCategoryData.swift,
+				Models/BudgetHistoryData.swift,
+				Models/SpendingData.swift,
 				Services/CSVExport.swift,
 			);
 			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
