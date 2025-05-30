@@ -9,7 +9,7 @@ import CoreData
 import Foundation
 import Combine
 
-/// Manages Core Data operations for the app with proper error handling, background operations, and thread safety
+/// Manages Core Data operations for the app with proper error handling, background operations, thread safety, and data persistence
 public final class CoreDataManager {
     // MARK: - Error Types
     public enum CoreDataError: LocalizedError {
@@ -19,6 +19,7 @@ public final class CoreDataManager {
         case migrationError(Error)
         case invalidManagedObjectID
         case contextError(String)
+        case autoSaveSetupFailed
         
         public var errorDescription: String? {
             switch self {
@@ -28,6 +29,7 @@ public final class CoreDataManager {
             case .migrationError(let error): return "Failed to migrate data: \(error.localizedDescription)"
             case .invalidManagedObjectID: return "Invalid managed object ID"
             case .contextError(let message): return message
+            case .autoSaveSetupFailed: return "Failed to setup auto-save mechanism"
             }
         }
     }
@@ -38,6 +40,9 @@ public final class CoreDataManager {
     // MARK: - Properties
     private let persistentContainer: NSPersistentContainer
     private let backgroundContext: NSManagedObjectContext
+    private var autoSaveTimer: Timer?
+    private let autoSaveInterval: TimeInterval = 30 // Save every 30 seconds
+    private let saveQueue = DispatchQueue(label: "com.brandonsbudget.coredata.save", qos: .userInitiated)
     
     /// Publisher for CoreData changes
     public let objectWillChange = PassthroughSubject<Void, Never>()
@@ -74,6 +79,43 @@ public final class CoreDataManager {
         
         // Setup notification handling
         setupNotificationHandling()
+        
+        // Setup auto-save timer
+        setupAutoSaveTimer()
+    }
+    
+    // MARK: - Auto-Save Timer Management
+    private func setupAutoSaveTimer() {
+        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: autoSaveInterval, repeats: true) { [weak self] _ in
+            Task { [weak self] in
+                do {
+                    try await self?.autoSave()
+                } catch {
+                    print("Auto-save failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+    
+    private func invalidateAutoSaveTimer() {
+        autoSaveTimer?.invalidate()
+        autoSaveTimer = nil
+    }
+    
+    /// Performs auto-save if there are changes
+    private func autoSave() async throws {
+        let hasBackgroundChanges = await backgroundContext.perform {
+            return self.backgroundContext.hasChanges
+        }
+        
+        let hasMainChanges = await mainContext.perform {
+            return self.mainContext.hasChanges
+        }
+        
+        if hasBackgroundChanges || hasMainChanges {
+            try await forceSave()
+            print("Auto-save completed successfully")
+        }
     }
     
     // MARK: - Notification Handling
@@ -98,7 +140,59 @@ public final class CoreDataManager {
         }
     }
     
-    // MARK: - CRUD Operations
+    // MARK: - Save Operations
+    
+    /// Force save all contexts immediately (async version)
+    public func forceSave() async throws {
+        // Save background context first
+        try await backgroundContext.perform {
+            try self.saveContext(self.backgroundContext)
+        }
+        
+        // Then save main context
+        try await mainContext.perform {
+            try self.saveContext(self.mainContext)
+        }
+        
+        print("Force save completed successfully")
+    }
+    
+    /// Synchronous force save for app lifecycle events
+    public func forceSaveSync() throws {
+        var saveError: Error?
+        
+        // Save background context synchronously
+        backgroundContext.performAndWait {
+            do {
+                if self.backgroundContext.hasChanges {
+                    try self.backgroundContext.save()
+                }
+            } catch {
+                saveError = error
+            }
+        }
+        
+        if let error = saveError {
+            throw CoreDataError.saveError(error)
+        }
+        
+        // Save main context synchronously
+        mainContext.performAndWait {
+            do {
+                if self.mainContext.hasChanges {
+                    try self.mainContext.save()
+                }
+            } catch {
+                saveError = error
+            }
+        }
+        
+        if let error = saveError {
+            throw CoreDataError.saveError(error)
+        }
+        
+        print("Synchronous force save completed successfully")
+    }
     
     /// Perform operation on background context
     /// - Parameter operation: The operation to perform
@@ -308,7 +402,7 @@ public final class CoreDataManager {
         guard let coordinator = persistentContainer.persistentStoreCoordinator.persistentStores.first else {
             return nil
         }
-        return  persistentContainer.persistentStoreCoordinator.currentPersistentHistoryToken(fromStores: [coordinator])
+        return persistentContainer.persistentStoreCoordinator.currentPersistentHistoryToken(fromStores: [coordinator])
     }
     
     /// Get changes since the last token
@@ -321,8 +415,41 @@ public final class CoreDataManager {
         return history.flatMap { $0.changes ?? [] }
     }
     
+    // MARK: - Context Status
+    
+    /// Check if there are unsaved changes in any context
+    public func hasUnsavedChanges() async -> Bool {
+        let backgroundHasChanges = await backgroundContext.perform {
+            return self.backgroundContext.hasChanges
+        }
+        
+        let mainHasChanges = await mainContext.perform {
+            return self.mainContext.hasChanges
+        }
+        
+        return backgroundHasChanges || mainHasChanges
+    }
+    
+    /// Get count of unsaved changes in contexts
+    public func getUnsavedChangesCount() async -> (background: Int, main: Int) {
+        let backgroundCount = await backgroundContext.perform {
+            return self.backgroundContext.insertedObjects.count +
+                   self.backgroundContext.updatedObjects.count +
+                   self.backgroundContext.deletedObjects.count
+        }
+        
+        let mainCount = await mainContext.perform {
+            return self.mainContext.insertedObjects.count +
+                   self.mainContext.updatedObjects.count +
+                   self.mainContext.deletedObjects.count
+        }
+        
+        return (background: backgroundCount, main: mainCount)
+    }
+    
     // MARK: - Cleanup
     deinit {
+        invalidateAutoSaveTimer()
         NotificationCenter.default.removeObserver(self)
     }
 }
@@ -374,3 +501,25 @@ extension MonthlyBudget {
         )
     }
 }
+
+// MARK: - Testing Support
+#if DEBUG
+extension CoreDataManager {
+    /// Create a test instance with in-memory store
+    static func createTestManager() -> CoreDataManager {
+        let testManager = CoreDataManager()
+        return testManager
+    }
+    
+    /// Reset auto-save timer for testing
+    func resetAutoSaveTimerForTesting() {
+        invalidateAutoSaveTimer()
+        setupAutoSaveTimer()
+    }
+    
+    /// Get auto-save interval for testing
+    var autoSaveIntervalForTesting: TimeInterval {
+        return autoSaveInterval
+    }
+}
+#endif

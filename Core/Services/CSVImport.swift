@@ -255,7 +255,7 @@ public enum CSVImport {
         csvData.append(Dictionary(uniqueKeysWithValues: zip(headers, headers))) // Header row for validation
         
         // Parse data rows
-        for (index, line) in lines.dropFirst().enumerated() {
+        for (_, line) in lines.dropFirst().enumerated() {
             let fields = parseCSVRow(line)
             
             // Ensure field count matches header count

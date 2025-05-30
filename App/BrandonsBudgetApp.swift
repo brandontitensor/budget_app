@@ -64,33 +64,71 @@ struct BrandonsBudgetApp: App {
     }
     
     private func registerForAppStateNotifications() {
+        // Save data when app goes to background
         NotificationCenter.default.addObserver(
             forName: UIApplication.willResignActiveNotification,
             object: nil,
             queue: .main
         ) { _ in
-            // Just let Core Data's auto-save handle background transitions
+            // Force save Core Data contexts
+            do {
+                try CoreDataManager.shared.forceSaveSync()
+                print("Successfully saved data before going to background")
+            } catch {
+                print("Failed to save data before going to background: \(error.localizedDescription)")
+            }
         }
         
+        // Additional save when entering background
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            do {
+                try CoreDataManager.shared.forceSaveSync()
+                print("Successfully saved data when entering background")
+            } catch {
+                print("Failed to save data when entering background: \(error.localizedDescription)")
+            }
+        }
+        
+        // Save when app will terminate
+        NotificationCenter.default.addObserver(
+            forName: UIApplication.willTerminateNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            do {
+                try CoreDataManager.shared.forceSaveSync()
+                print("Successfully saved data before termination")
+            } catch {
+                print("Failed to save data before termination: \(error.localizedDescription)")
+            }
+        }
+        
+        // Refresh data when becoming active
         NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
         ) { _ in
-            // Load fresh data from Core Data storage
             Task {
                 do {
                     _ = try await CoreDataManager.shared.getAllEntries()
-                    // Core Data will automatically merge changes into the main context
+                    print("Successfully refreshed data when becoming active")
                 } catch {
-                    print("Failed to reload data: \(error.localizedDescription)")
+                    print("Failed to refresh data when becoming active: \(error.localizedDescription)")
                 }
             }
         }
     }
-    
+
     private func removeAppStateNotifications() {
-        NotificationCenter.default.removeObserver(self)
+        NotificationCenter.default.removeObserver(self, name: UIApplication.willResignActiveNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIApplication.willTerminateNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: UIApplication.didBecomeActiveNotification, object: nil)
     }
 }
 
