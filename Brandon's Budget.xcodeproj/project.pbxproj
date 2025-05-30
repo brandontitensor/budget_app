@@ -93,6 +93,7 @@
 			membershipExceptions = (
 				Managers/NotificationManager.swift,
 				Managers/SettingsManager.swift,
+				Managers/ThemeManager.swift,
 				Services/CSVExport.swift,
 			);
 			target = D7B2B8052C36655A005E0906 /* Budget WidgetExtension */;
