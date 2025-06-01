@@ -1,215 +1,155 @@
 //
-//  DataEntryView.swift
+//  PurchaseEntryView.swift
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
+//  Updated: 6/1/25 - Enhanced with centralized error handling, improved validation, and better UX
 //
+
 import SwiftUI
 import Combine
 
-/// View for entering new purchase transactions with validation and error handling
+/// Enhanced purchase entry view with comprehensive error handling and improved user experience
 struct PurchaseEntryView: View {
     // MARK: - Environment
     @EnvironmentObject private var budgetManager: BudgetManager
     @EnvironmentObject private var themeManager: ThemeManager
+    @EnvironmentObject private var settingsManager: SettingsManager
+    @EnvironmentObject private var errorHandler: ErrorHandler
     @Environment(\.dismiss) private var dismiss
     
     // MARK: - State
-    @State private var amount: Double = 0
-    @State private var category: String = ""
-    @State private var date = Date()
-    @State private var note: String = ""
-    @State private var showingAlert = false
-    @State private var alertMessage = ""
-    @State private var showingCalculator = false
-    @State private var isProcessing = false
+    @State private var amount = ""
+    @State private var selectedCategory = ""
+    @State private var selectedDate = Date()
+    @State private var note = ""
+    @State private var isSubmitting = false
+    @State private var hasUnsavedChanges = false
+    @State private var showingDiscardAlert = false
     
-    // MARK: - Private Properties
-    private let currencyFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        return formatter
-    }()
+    // MARK: - Error State
+    @State private var validationErrors: [ValidationError] = []
+    @State private var submissionError: AppError?
+    @State private var showingErrorDetails = false
+    @State private var retryCount = 0
+    private let maxRetries = 3
     
-    private var isValidInput: Bool {
-        amount > 0 &&
-        !category.isEmpty &&
-        note.count <= AppConstants.Data.maxTransactionNoteLength
+    // MARK: - Category Management
+    @State private var availableCategories: [String] = []
+    @State private var showingNewCategoryAlert = false
+    @State private var newCategoryName = ""
+    @State private var isLoadingCategories = false
+    @State private var categoryError: AppError?
+    
+    // MARK: - Focus State
+    @FocusState private var isAmountFocused: Bool
+    @FocusState private var isNoteFocused: Bool
+    
+    // MARK: - Haptic Feedback
+    private let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+    private let successFeedback = UINotificationFeedbackGenerator()
+    private let errorFeedback = UINotificationFeedbackGenerator()
+    
+    // MARK: - Types
+    private struct ValidationError: Identifiable {
+        let id = UUID()
+        let field: String
+        let message: String
+    }
+    
+    // MARK: - Computed Properties
+    
+    private var isFormValid: Bool {
+        return validationErrors.isEmpty && !amount.isEmpty && !selectedCategory.isEmpty
+    }
+    
+    private var canSubmit: Bool {
+        return isFormValid && !isSubmitting
+    }
+    
+    private var formattedAmount: String {
+        guard let value = Double(amount), value > 0 else { return "" }
+        return NumberFormatter.formatCurrency(value)
+    }
+    
+    private var hasValidationErrors: Bool {
+        return !validationErrors.isEmpty
+    }
+    
+    private var shouldShowDiscardAlert: Bool {
+        return hasUnsavedChanges && (!amount.isEmpty || !selectedCategory.isEmpty || !note.isEmpty)
     }
     
     // MARK: - Body
+    
     var body: some View {
         NavigationView {
-            Form {
-                amountSection
-                categorySection
-                dateSection
-                noteSection
+            ZStack {
+                // Background
+                Color(.systemGroupedBackground)
+                    .ignoresSafeArea()
                 
-                if isProcessing {
-                    ProgressView("Saving purchase...")
-                        .frame(maxWidth: .infinity)
+                if isSubmitting {
+                    submittingOverlay
+                } else {
+                    mainContent
                 }
             }
             .navigationTitle("Add Purchase")
-            .navigationBarItems(
-                leading: cancelButton,
-                trailing: saveButton
-            )
-            .alert(isPresented: $showingAlert) {
-                Alert(
-                    title: Text("Error"),
-                    message: Text(alertMessage),
-                    dismissButton: .default(Text("OK"))
-                )
-            }
-            .disabled(isProcessing)
-            .onAppear(perform: setupInitialState)
-            .sheet(isPresented: $showingCalculator) {
-                MoneyCalculatorView(amount: $amount)
-            }
-        }
-    }
-    
-    // MARK: - View Components
-    private var amountSection: some View {
-        Section(header: Text("Amount")) {
-            HStack {
-                Text(currencyFormatter.string(from: NSNumber(value: amount)) ?? "$0.00")
-                    .foregroundColor(amount > 0 ? .primary : .secondary)
-                Spacer()
-                Button("Edit") {
-                    showingCalculator = true
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        handleCancelAction()
+                    }
+                    .disabled(isSubmitting)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Add") {
+                        Task {
+                            await submitPurchase()
+                        }
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(!canSubmit)
                 }
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Amount: \(currencyFormatter.string(from: NSNumber(value: amount)) ?? "$0.00")")
-            .accessibilityHint("Double tap to edit amount")
-        }
-    }
-    
-    private var categorySection: some View {
-        Section(header: Text("Category")) {
-            Picker("Category", selection: $category) {
-                ForEach(availableCategories, id: \.self) { category in
-                    Text(category)
-                        .tag(category)
+            .alert("Discard Changes?", isPresented: $showingDiscardAlert) {
+                Button("Discard", role: .destructive) {
+                    dismiss()
                 }
+                Button("Keep Editing", role: .cancel) { }
+            } message: {
+                Text("You have unsaved changes. Are you sure you want to discard them?")
             }
-            .accessibilityLabel("Select category")
-        }
-    }
-    
-    private var dateSection: some View {
-        Section(header: Text("Date")) {
-            DatePicker(
-                "Date",
-                selection: $date,
-                in: ...Date(),
-                displayedComponents: .date
-            )
-            .accessibilityLabel("Select date")
-        }
-    }
-    
-    private var noteSection: some View {
-        Section(
-            header: Text("Note"),
-            footer: Group {
-                if !note.isEmpty {
-                    Text("\(note.count)/\(AppConstants.Data.maxTransactionNoteLength) characters")
-                }
-            }
-        ) {
-            TextField("Optional note", text: $note)
-                .onChange(of: note) { oldValue, newValue in
-                    if newValue.count > AppConstants.Data.maxTransactionNoteLength {
-                        note = String(newValue.prefix(AppConstants.Data.maxTransactionNoteLength))
+            .alert("Purchase Error", isPresented: $showingErrorDetails, presenting: submissionError) { error in
+                if error.isRetryable && retryCount < maxRetries {
+                    Button("Retry") {
+                        Task {
+                            await submitPurchase()
+                        }
                     }
                 }
-                .accessibilityLabel("Add note (optional)")
-        }
-    }
-    
-    private var cancelButton: some View {
-        Button("Cancel") {
-            dismiss()
-        }
-        .accessibilityLabel("Cancel adding purchase")
-    }
-    
-    private var saveButton: some View {
-        Button("Save") {
-            Task {
-                await savePurchase()
+                Button("OK", role: .cancel) {
+                    clearSubmissionError()
+                }
+            } message: { error in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(error.errorDescription ?? "Failed to add purchase")
+                    if let suggestion = error.recoverySuggestion {
+                        Text(suggestion)
+                            .font(.caption)
+                    }
+                }
             }
-        }
-        .disabled(!isValidInput || isProcessing)
-        .accessibilityLabel("Save purchase")
-        .accessibilityHint(isValidInput ? "Double tap to save" : "Form is incomplete")
-    }
-    
-    // MARK: - Helper Properties
-    private var availableCategories: [String] {
-        let categories = budgetManager.getAvailableCategories()
-        return categories.isEmpty ? ["Uncategorized"] : categories
-    }
-    
-    // MARK: - Helper Methods
-    private func setupInitialState() {
-        if let firstCategory = availableCategories.first {
-            category = firstCategory
-        }
-    }
-    
-    private func savePurchase() async {
-        guard isValidInput else {
-            alertMessage = "Please enter a valid amount and category."
-            showingAlert = true
-            return
-        }
-        
-        isProcessing = true
-        
-        do {
-            let entry = try BudgetEntry(
-                amount: amount,
-                category: category,
-                date: date,
-                note: note.isEmpty ? nil : note
-            )
-            
-            try await budgetManager.addEntry(entry)
-            dismiss()
-        } catch BudgetEntry.ValidationError.invalidAmount {
-            alertMessage = "Please enter a valid amount."
-            showingAlert = true
-        } catch BudgetEntry.ValidationError.invalidCategory {
-            alertMessage = "Please select a valid category."
-            showingAlert = true
-        } catch {
-            alertMessage = error.localizedDescription
-            showingAlert = true
-        }
-        
-        isProcessing = false
-    }
-}
-
-// MARK: - Preview Provider
-#if DEBUG
-struct PurchaseEntryView_Previews: PreviewProvider {
-    static var previews: some View {
-        PurchaseEntryView()
-            .environmentObject(BudgetManager.shared)
-            .environmentObject(ThemeManager.shared)
-        
-        PurchaseEntryView()
-            .environmentObject(BudgetManager.shared)
-            .environmentObject(ThemeManager.shared)
-            .preferredColorScheme(.dark)
-    }
-}
-#endif
+            .alert("Add Category", isPresented: $showingNewCategoryAlert) {
+                TextField("Category name", text: $newCategoryName)
+                Button("Add") {
+                    addNewCategory()
+                }
+                Button("Cancel", role: .cancel) {
+                    newCategoryName = ""
+                }
+            } message: {
+                Text("Enter a name for the new category")
