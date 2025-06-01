@@ -3,14 +3,16 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
+//  Updated: 6/1/25 - Enhanced with centralized error handling and improved architecture
 //
 import SwiftUI
 
-/// View for managing monthly budgets and categories
+/// View for managing monthly budgets and categories with enhanced error handling and state management
 struct BudgetView: View {
     // MARK: - Environment
     @EnvironmentObject private var budgetManager: BudgetManager
     @EnvironmentObject private var themeManager: ThemeManager
+    @EnvironmentObject private var errorHandler: ErrorHandler
     @Environment(\.dismiss) private var dismiss
     
     // MARK: - State
@@ -20,8 +22,6 @@ struct BudgetView: View {
     @State private var showingAddCategory = false
     @State private var newCategoryName = ""
     @State private var newCategoryAmount: Double = 0
-    @State private var showingAlert = false
-    @State private var alertMessage = ""
     @State private var showingFutureAddAlert = false
     @State private var showingFutureChangeAlert = false
     @State private var showingFutureYearAlert = false
@@ -30,9 +30,33 @@ struct BudgetView: View {
     @State private var showingYearPicker = false
     @State private var showingCalculator = false
     @State private var isProcessing = false
+    @State private var dataLoadingState: DataLoadingState = .idle
+    @State private var lastSaveDate: Date?
+    
+    // MARK: - Error State
+    @State private var currentError: AppError?
+    @State private var showingErrorDetails = false
     
     // MARK: - Properties
     private let calendar = Calendar.current
+    
+    // MARK: - Types
+    private enum DataLoadingState {
+        case idle
+        case loading
+        case loaded
+        case failed(AppError)
+        
+        var isLoading: Bool {
+            if case .loading = self { return true }
+            return false
+        }
+        
+        var hasError: Bool {
+            if case .failed = self { return true }
+            return false
+        }
+    }
     
     // MARK: - Initialization
     init() {
@@ -45,53 +69,118 @@ struct BudgetView: View {
     // MARK: - Body
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                yearSection
-                monthTabs
+            ZStack {
+                mainContent
                 
-                if isProcessing {
-                    loadingView
-                } else {
-                    ScrollView {
-                        VStack(spacing: 20) {
-                            summarySection
-                            categoriesSection
-                            addCategoryButton
-                        }
-                        .padding()
-                    }
+                // Loading overlay
+                if dataLoadingState.isLoading {
+                    loadingOverlay
                 }
             }
             .navigationTitle("Update Budget")
-            .navigationBarItems(
-                leading: Button("Cancel") { dismiss() },
-                trailing: Button("Save") { saveBudgets() }
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        handleCancelAction()
+                    }
                     .disabled(isProcessing)
-            )
-            .onAppear(perform: loadCurrentBudgets)
-            .alert("Error", isPresented: $showingAlert) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(alertMessage)
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        handleSaveAction()
+                    }
+                    .disabled(isProcessing || !hasUnsavedChanges)
+                }
+            }
+            .onAppear {
+                setupView()
+            }
+            .onChange(of: selectedYear) { oldYear, newYear in
+                handleYearChange(from: oldYear, to: newYear)
             }
             .sheet(isPresented: $showingAddCategory) {
                 addCategorySheet
             }
-            .alert("Update Future Months?", isPresented: $showingFutureChangeAlert) {
+            .sheet(isPresented: $showingCalculator) {
+                MoneyCalculatorView(amount: $newCategoryAmount)
+            }
+            .confirmationDialog(
+                "Update Future Months?",
+                isPresented: $showingFutureChangeAlert,
+                titleVisibility: .visible
+            ) {
                 Button("Yes") { updateFutureMonths() }
                 Button("No", role: .cancel) { }
             } message: {
                 Text("Do you want to apply this change to future months of the current year?")
             }
-            .alert("Load Current Year's Budget?", isPresented: $showingFutureYearAlert) {
+            .confirmationDialog(
+                "Load Current Year's Budget?",
+                isPresented: $showingFutureYearAlert,
+                titleVisibility: .visible
+            ) {
                 Button("Yes") { loadCurrentYearBudget() }
                 Button("No", role: .cancel) { }
             } message: {
                 Text("Do you want to load the current year's budget into this future year?")
             }
-            .sheet(isPresented: $showingCalculator) {
-                MoneyCalculatorView(amount: $newCategoryAmount)
+            .confirmationDialog(
+                "Add Category to Future Months?",
+                isPresented: $showingFutureAddAlert,
+                titleVisibility: .visible
+            ) {
+                Button("This month only") {
+                    Task { await addCategory(includeFutureMonths: false) }
+                }
+                Button("All future months") {
+                    Task { await addCategory(includeFutureMonths: true) }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Do you want to add this category to future months as well?")
             }
+            .errorAlert(onRetry: {
+                Task { await retryFailedOperation() }
+            })
+        }
+        .handleErrors(context: "Budget View")
+    }
+    
+    // MARK: - Main Content
+    private var mainContent: some View {
+        VStack(spacing: 0) {
+            yearSection
+            monthTabs
+            
+            if case .failed(let error) = dataLoadingState {
+                errorStateView(error)
+            } else if case .loaded = dataLoadingState, !monthlyBudgets.isEmpty {
+                budgetContentView
+            } else if case .loaded = dataLoadingState {
+                emptyStateView
+            } else {
+                placeholderView
+            }
+        }
+    }
+    
+    private var budgetContentView: some View {
+        ScrollView {
+            LazyVStack(spacing: 20) {
+                summarySection
+                categoriesSection
+                addCategoryButton
+                
+                if let lastSave = lastSaveDate {
+                    lastSavedIndicator(lastSave)
+                }
+            }
+            .padding()
+        }
+        .refreshable {
+            await refreshBudgetData()
         }
     }
     
@@ -104,17 +193,29 @@ struct BudgetView: View {
                         .font(.title2)
                         .fontWeight(.bold)
                     Image(systemName: "chevron.down")
+                        .font(.caption.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
                 .background(themeManager.primaryColor)
                 .foregroundColor(.white)
-                .cornerRadius(10)
+                .cornerRadius(12)
             }
+            .disabled(isProcessing)
+            .accessibilityLabel("Select year: \(selectedYear)")
             
-            Text("Total Yearly Budget: \(totalYearlyBudget.asCurrency)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
+            HStack {
+                Text("Total Yearly Budget:")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Text(totalYearlyBudget.asCurrency)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(themeManager.primaryColor)
+            }
         }
         .padding()
     }
@@ -122,7 +223,7 @@ struct BudgetView: View {
     private var monthTabs: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack {
+                LazyHStack(spacing: 12) {
                     ForEach(1...12, id: \.self) { month in
                         monthTab(month: month)
                             .id(month)
@@ -131,75 +232,111 @@ struct BudgetView: View {
                 .padding(.horizontal)
             }
             .onAppear {
-                proxy.scrollTo(selectedMonth, anchor: .center)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        proxy.scrollTo(selectedMonth, anchor: .center)
+                    }
+                }
+            }
+            .onChange(of: selectedMonth) { _, newMonth in
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    proxy.scrollTo(newMonth, anchor: .center)
+                }
             }
         }
+        .padding(.bottom, 8)
     }
     
     private func monthTab(month: Int) -> some View {
-        VStack {
+        VStack(spacing: 4) {
             Text(monthName(month))
-                .font(.caption)
+                .font(.caption.weight(.medium))
             Text(totalMonthlyBudget(for: month).asCurrency)
                 .font(.caption2)
+                .foregroundColor(.secondary)
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
-        .background(month == selectedMonth ? themeManager.primaryColor : Color.gray.opacity(0.2))
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(month == selectedMonth ? themeManager.primaryColor : Color.gray.opacity(0.15))
+        )
         .foregroundColor(month == selectedMonth ? .white : .primary)
-        .cornerRadius(8)
+        .scaleEffect(month == selectedMonth ? 1.05 : 1.0)
         .onTapGesture {
-            withAnimation {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                 selectedMonth = month
             }
         }
+        .disabled(isProcessing)
+        .accessibilityLabel("\(monthName(month)): \(totalMonthlyBudget(for: month).asCurrency)")
     }
     
     private var summarySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Budget Summary")
-                .font(.headline)
-            
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                VStack(alignment: .leading) {
-                    Text("Monthly Budget")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text(totalMonthlyBudget(for: selectedMonth).asCurrency)
-                        .font(.title3)
-                        .fontWeight(.bold)
-                }
+                Text("Budget Summary")
+                    .font(.headline.weight(.semibold))
                 
                 Spacer()
                 
-                VStack(alignment: .trailing) {
-                    Text("Categories")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Text("\(monthlyBudgets[selectedMonth]?.count ?? 0)")
-                        .font(.title3)
-                        .fontWeight(.bold)
+                if isProcessing {
+                    ProgressView()
+                        .scaleEffect(0.8)
                 }
+            }
+            
+            HStack(spacing: 20) {
+                summaryCard(
+                    title: "Monthly Budget",
+                    value: totalMonthlyBudget(for: selectedMonth).asCurrency,
+                    color: themeManager.primaryColor
+                )
+                
+                Spacer()
+                
+                summaryCard(
+                    title: "Categories",
+                    value: "\(monthlyBudgets[selectedMonth]?.count ?? 0)",
+                    color: themeManager.semanticColors.info
+                )
             }
         }
         .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    private func summaryCard(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.title3.weight(.bold))
+                .foregroundColor(color)
+        }
     }
     
     private var categoriesSection: some View {
-        ForEach(Array(monthlyBudgets[selectedMonth, default: [:]]
-            .sorted(by: { $0.key < $1.key })), id: \.key) { category, amount in
-            NavigationLink(destination: EditCategoryView(
-                monthlyBudgets: monthlyBudgets,
-                initialCategory: category,
-                month: selectedMonth,
-                year: selectedYear,
-                onUpdate: { oldCategory, newCategory, newAmount in
-                    updateCategory(oldCategory: oldCategory, newCategory: newCategory, newAmount: newAmount)
+        LazyVStack(spacing: 12) {
+            ForEach(Array(monthlyBudgets[selectedMonth, default: [:]]
+                .sorted(by: { $0.value > $1.value })), id: \.key) { category, amount in
+                NavigationLink(destination: EditCategoryView(
+                    monthlyBudgets: monthlyBudgets,
+                    initialCategory: category,
+                    month: selectedMonth,
+                    year: selectedYear,
+                    onUpdate: { oldCategory, newCategory, newAmount in
+                        updateCategory(oldCategory: oldCategory, newCategory: newCategory, newAmount: newAmount)
+                    }
+                )) {
+                    BudgetCategoryRow(category: category, amount: amount)
                 }
-            )) {
-                BudgetCategoryRow(category: category, amount: amount)
+                .disabled(isProcessing)
+                .buttonStyle(PlainButtonStyle())
             }
         }
     }
@@ -208,31 +345,146 @@ struct BudgetView: View {
         Button(action: { showingAddCategory = true }) {
             HStack {
                 Image(systemName: "plus.circle.fill")
+                    .font(.title3)
                 Text("Add Category")
+                    .font(.headline.weight(.medium))
             }
             .frame(maxWidth: .infinity)
             .padding()
             .background(themeManager.primaryColor.opacity(0.1))
             .foregroundColor(themeManager.primaryColor)
-            .cornerRadius(10)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(themeManager.primaryColor.opacity(0.3), lineWidth: 1)
+            )
+        }
+        .disabled(isProcessing)
+        .accessibilityLabel("Add new budget category")
+    }
+    
+    private var loadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.2)
+                    .tint(themeManager.primaryColor)
+                
+                Text("Updating budgets...")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundColor(.secondary)
+            }
+            .padding(24)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
         }
     }
     
-    private var loadingView: some View {
-        VStack {
-            ProgressView()
-            Text("Loading budgets...")
+    private func errorStateView(_ error: AppError) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 48))
+                .foregroundColor(.orange)
+            
+            VStack(spacing: 8) {
+                Text("Failed to Load Budgets")
+                    .font(.headline.weight(.semibold))
+                
+                Text(error.errorDescription ?? "An unexpected error occurred")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Button("Try Again") {
+                Task { await loadCurrentBudgets() }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(themeManager.primaryColor)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "chart.bar.doc.horizontal")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            
+            VStack(spacing: 8) {
+                Text("No Budget Categories")
+                    .font(.headline.weight(.semibold))
+                
+                Text("Add your first budget category to get started with managing your finances.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            Button("Add Category") {
+                showingAddCategory = true
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(themeManager.primaryColor)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var placeholderView: some View {
+        VStack(spacing: 20) {
+            // Placeholder summary
+            VStack(alignment: .leading, spacing: 16) {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 20)
+                
+                HStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 40)
+                    
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(height: 40)
+                }
+            }
+            .padding()
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(12)
+            
+            // Placeholder categories
+            ForEach(0..<3, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(height: 60)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .redacted(reason: .placeholder)
+    }
+    
+    private func lastSavedIndicator(_ date: Date) -> some View {
+        HStack {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+            Text("Last saved: \(formatRelativeTime(date))")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 8)
     }
     
     // MARK: - Add Category Sheet
     private var addCategorySheet: some View {
         NavigationView {
             Form {
-                Section(header: Text("New Category Details")) {
+                Section {
                     TextField("Category Name", text: $newCategoryName)
                         .autocapitalization(.words)
                         .disableAutocorrection(true)
@@ -243,38 +495,85 @@ struct BudgetView: View {
                         }
                     
                     HStack {
-                        Text(newCategoryAmount.asCurrency)
-                            .foregroundColor(newCategoryAmount > 0 ? .primary : .secondary)
+                        Text("Amount")
                         Spacer()
+                        Text(newCategoryAmount.asCurrency)
+                            .foregroundColor(newCategoryAmount > 0 ? themeManager.primaryColor : .secondary)
                         Button("Edit") {
                             showingCalculator = true
                         }
+                        .buttonStyle(.borderless)
                     }
+                } header: {
+                    Text("Category Details")
+                } footer: {
+                    Text("This budget will apply starting from \(monthName(selectedMonth)) \(selectedYear)")
                 }
                 
-                Section(
-                    header: Text("Note"),
-                    footer: Text("This budget will apply starting from the current month")
-                ) {
-                    Text("The category will be created and added to your budget categories.")
+                Section {
+                    Text("The category will be created and added to your budget categories. You can choose to apply it to future months as well.")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
+                } header: {
+                    Text("Note")
                 }
             }
             .navigationTitle("Add Category")
-            .navigationBarItems(
-                leading: Button("Cancel") {
-                    resetNewCategoryFields()
-                    showingAddCategory = false
-                },
-                trailing: Button("Add") {
-                    validateAndAddCategory()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        resetNewCategoryFields()
+                        showingAddCategory = false
+                    }
                 }
-                .disabled(!isValidNewCategory)
-            )
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Add") {
+                        validateAndAddCategory()
+                    }
+                    .disabled(!isValidNewCategory)
+                }
+            }
         }
+        .presentationDetents([.medium])
     }
     
     // MARK: - Helper Methods
+    private func setupView() {
+        Task {
+            await loadCurrentBudgets()
+        }
+    }
+    
+    private func handleCancelAction() {
+        if hasUnsavedChanges {
+            // Could show confirmation dialog here
+        }
+        dismiss()
+    }
+    
+    private func handleSaveAction() {
+        Task {
+            await saveBudgets()
+        }
+    }
+    
+    private func handleYearChange(from oldYear: Int, to newYear: Int) {
+        if newYear > calendar.component(.year, from: Date()) {
+            showingFutureYearAlert = true
+        } else {
+            Task {
+                await loadCurrentBudgets()
+            }
+        }
+    }
+    
+    private var hasUnsavedChanges: Bool {
+        // Simple check for changes - could be more sophisticated
+        return !monthlyBudgets.isEmpty
+    }
+    
     private func monthName(_ month: Int) -> String {
         calendar.monthSymbols[month - 1]
     }
@@ -295,48 +594,77 @@ struct BudgetView: View {
         newCategoryAmount <= AppConstants.Validation.maximumTransactionAmount
     }
     
-    private func loadCurrentBudgets() {
-        isProcessing = true
-        monthlyBudgets = [:]
+    private func formatRelativeTime(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    // MARK: - Data Operations
+    
+    @MainActor
+    private func loadCurrentBudgets() async {
+        dataLoadingState = .loading
         
-        for month in 1...12 {
-            let budgets = budgetManager.getMonthlyBudgets(for: month, year: selectedYear)
-            monthlyBudgets[month] = Dictionary(
-                uniqueKeysWithValues: budgets.map { ($0.category, $0.amount) }
-            )
+        let result = await AsyncErrorHandler.execute(
+            context: "Loading monthly budgets"
+        ) {
+            var newBudgets: [Int: [String: Double]] = [:]
+            
+            for month in 1...12 {
+                let budgets = budgetManager.getMonthlyBudgets(for: month, year: selectedYear)
+                newBudgets[month] = Dictionary(
+                    uniqueKeysWithValues: budgets.map { ($0.category, $0.amount) }
+                )
+            }
+            
+            return newBudgets
         }
         
-        isProcessing = false
+        if let budgets = result {
+            monthlyBudgets = budgets
+            dataLoadingState = .loaded
+        } else if let error = errorHandler.errorHistory.first?.error {
+            dataLoadingState = .failed(error)
+        } else {
+            dataLoadingState = .failed(.generic(message: "Failed to load budget data"))
+        }
+    }
+    
+    @MainActor
+    private func refreshBudgetData() async {
+        await loadCurrentBudgets()
     }
     
     private func validateAndAddCategory() {
         let trimmedName = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
         
         guard !trimmedName.isEmpty else {
-            alertMessage = "Please enter a category name."
-            showingAlert = true
+            errorHandler.handle(.validation(message: "Please enter a category name"), context: "Adding category")
             return
         }
         
         guard newCategoryAmount > 0 else {
-            alertMessage = "Please enter a valid amount."
-            showingAlert = true
+            errorHandler.handle(.validation(message: "Please enter a valid amount"), context: "Adding category")
             return
         }
         
         if monthlyBudgets[selectedMonth]?[trimmedName] != nil {
-            alertMessage = "This category already exists."
-            showingAlert = true
+            errorHandler.handle(.validation(message: "This category already exists"), context: "Adding category")
             return
         }
         
         showingFutureAddAlert = true
     }
     
+    @MainActor
     private func addCategory(includeFutureMonths: Bool) async {
         isProcessing = true
+        defer { isProcessing = false }
         
-        do {
+        let result = await AsyncErrorHandler.execute(
+            context: "Adding budget category"
+        ) {
             try await budgetManager.addCategory(
                 newCategoryName,
                 amount: newCategoryAmount,
@@ -345,32 +673,30 @@ struct BudgetView: View {
                 includeFutureMonths: includeFutureMonths
             )
             
-            await MainActor.run {
-                if includeFutureMonths {
-                    for month in selectedMonth...12 {
-                        monthlyBudgets[month, default: [:]][newCategoryName] = newCategoryAmount
-                    }
-                } else {
-                    monthlyBudgets[selectedMonth, default: [:]][newCategoryName] = newCategoryAmount
-                }
-                
-                resetNewCategoryFields()
-                showingAddCategory = false
-            }
-        } catch {
-            await MainActor.run {
-                alertMessage = error.localizedDescription
-                showingAlert = true
-            }
+            return true
         }
         
-        isProcessing = false
+        if result != nil {
+            if includeFutureMonths {
+                for month in selectedMonth...12 {
+                    monthlyBudgets[month, default: [:]][newCategoryName] = newCategoryAmount
+                }
+            } else {
+                monthlyBudgets[selectedMonth, default: [:]][newCategoryName] = newCategoryAmount
+            }
+            
+            resetNewCategoryFields()
+            showingAddCategory = false
+            lastSaveDate = Date()
+        }
     }
     
     private func updateCategory(oldCategory: String, newCategory: String, newAmount: Double) {
         var updatedBudget = monthlyBudgets[selectedMonth] ?? [:]
         updatedBudget[oldCategory] = nil
-        updatedBudget[newCategory] = newAmount
+        if newAmount > 0 {
+            updatedBudget[newCategory] = newAmount
+        }
         monthlyBudgets[selectedMonth] = updatedBudget
         
         changedCategory = newCategory
@@ -388,6 +714,7 @@ struct BudgetView: View {
             }
             monthlyBudgets[month] = updatedBudget
         }
+        lastSaveDate = Date()
     }
     
     private func loadCurrentYearBudget() {
@@ -400,31 +727,34 @@ struct BudgetView: View {
         }
     }
     
-    private func saveBudgets() {
+    @MainActor
+    private func saveBudgets() async {
         isProcessing = true
+        defer { isProcessing = false }
         
-        Task {
-            do {
-                // Update each month's budgets
-                for (month, budgets) in monthlyBudgets {
-                    try await budgetManager.updateMonthlyBudgets(
-                        budgets,
-                        for: month,
-                        year: selectedYear
-                    )
-                }
-                
-                await MainActor.run {
-                    dismiss()
-                }
-            } catch {
-                await MainActor.run {
-                    alertMessage = error.localizedDescription
-                    showingAlert = true
-                    isProcessing = false
-                }
+        let result = await AsyncErrorHandler.execute(
+            context: "Saving budget changes"
+        ) {
+            // Update each month's budgets
+            for (month, budgets) in monthlyBudgets {
+                try await budgetManager.updateMonthlyBudgets(
+                    budgets,
+                    for: month,
+                    year: selectedYear
+                )
             }
+            
+            return true
         }
+        
+        if result != nil {
+            lastSaveDate = Date()
+            dismiss()
+        }
+    }
+    
+    private func retryFailedOperation() async {
+        await loadCurrentBudgets()
     }
     
     private func resetNewCategoryFields() {
@@ -432,3 +762,15 @@ struct BudgetView: View {
         newCategoryAmount = 0
     }
 }
+
+// MARK: - Preview Provider
+#if DEBUG
+struct BudgetView_Previews: PreviewProvider {
+    static var previews: some View {
+        BudgetView()
+            .environmentObject(BudgetManager.shared)
+            .environmentObject(ThemeManager.shared)
+            .environmentObject(ErrorHandler.shared)
+    }
+}
+#endif
