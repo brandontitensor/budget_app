@@ -43,12 +43,12 @@ struct BrandonsBudgetApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
                     handleAppWillTerminate()
                 }
-                .errorAlert(onRetry: {
+                .modifier(ErrorAlertModifier(onRetry: {
                     // Global retry handler - refresh app data
                     Task {
                         await refreshAppData()
                     }
-                })
+                }))
         }
     }
     
@@ -68,10 +68,10 @@ struct BrandonsBudgetApp: App {
             setupAppearance()
             
             // Setup notifications
-            await setupNotifications()
+            try await setupNotifications()  // Added 'try'
             
             // Load initial data
-            await loadInitialData()
+            try await loadInitialData()     // Added 'try'
             
             // Setup data persistence
             setupDataPersistence()
