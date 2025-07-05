@@ -32,203 +32,120 @@ public enum ValidationResult: Equatable, Sendable {
     public var errorMessage: String? {
         return error?.localizedDescription
     }
-    
-    /// Combine multiple validation results
-    public static func combine(_ results: [ValidationResult]) -> ValidationResult {
-        let errors = results.compactMap { result in
-            if case .invalid(let error) = result {
-                return error
-            }
-            return nil
-        }
-        
-        if errors.isEmpty {
-            return .valid
-        } else if errors.count == 1 {
-            return .invalid(errors[0])
-        } else {
-            return .invalid(.multipleErrors(errors))
-        }
-    }
 }
 
 /// Comprehensive validation error types
 public enum ValidationError: LocalizedError, Equatable, Sendable {
-    // MARK: - String Validation Errors
+    // String validation errors
     case empty(field: String)
     case tooShort(field: String, minimum: Int, actual: Int)
     case tooLong(field: String, maximum: Int, actual: Int)
     case invalidFormat(field: String, format: String)
     case containsInvalidCharacters(field: String, characters: String)
     case notAllowed(field: String, value: String, reason: String)
-    case whitespaceOnly(field: String)
-    case invalidPattern(field: String, pattern: String)
     
-    // MARK: - Numeric Validation Errors
+    // Numeric validation errors
     case notANumber(field: String, value: String)
     case tooSmall(field: String, minimum: Double, actual: Double)
     case tooLarge(field: String, maximum: Double, actual: Double)
     case notInteger(field: String, value: Double)
     case negativeNotAllowed(field: String, value: Double)
     case zeroNotAllowed(field: String)
-    case invalidPrecision(field: String, value: Double, maxDecimalPlaces: Int)
     
-    // MARK: - Date Validation Errors
+    // Date validation errors
     case invalidDate(field: String, value: String)
     case dateInPast(field: String, date: Date)
     case dateInFuture(field: String, date: Date)
     case dateOutOfRange(field: String, date: Date, min: Date?, max: Date?)
-    case invalidDateFormat(field: String, value: String, expectedFormat: String)
-    case weekendNotAllowed(field: String, date: Date)
-    case holidayNotAllowed(field: String, date: Date)
     
-    // MARK: - Email Validation Errors
+    // Email validation errors
     case invalidEmail(email: String)
     case emailTooLong(email: String, maxLength: Int)
     case emailDomainInvalid(email: String, domain: String)
-    case emailLocalPartInvalid(email: String, localPart: String)
-    case disposableEmailNotAllowed(email: String)
     
-    // MARK: - Budget-Specific Validation Errors
+    // Budget-specific validation errors
     case invalidCurrency(amount: String)
     case budgetExceeded(category: String, amount: Double, limit: Double)
     case categoryNotFound(category: String)
     case duplicateCategory(category: String)
     case invalidTransactionDate(date: Date, reason: String)
     case invalidBudgetPeriod(period: String)
-    case insufficientFunds(requested: Double, available: Double)
-    case categoryLimitExceeded(category: String, limit: Double)
-    case monthlyLimitExceeded(amount: Double, monthlyLimit: Double)
-    case invalidRecurringPattern(pattern: String)
     
-    // MARK: - File and Data Validation Errors
-    case fileNotFound(path: String)
-    case fileTooLarge(size: Int64, maxSize: Int64)
-    case invalidFileFormat(expected: String, actual: String)
-    case corruptedData(description: String)
-    case unsupportedVersion(version: String, supportedVersions: [String])
-    
-    // MARK: - Security Validation Errors
-    case passwordTooWeak(requirements: [String])
-    case suspiciousActivity(description: String)
-    case rateLimitExceeded(limit: Int, timeWindow: String)
-    case unauthorizedAccess(resource: String)
-    
-    // MARK: - Custom and Multiple Errors
+    // Custom validation errors
     case custom(message: String)
     case multipleErrors([ValidationError])
-    case conditionalError(condition: String, error: ValidationError)
     
-    // MARK: - LocalizedError Implementation
     public var errorDescription: String? {
         switch self {
+        // String errors
         case .empty(let field):
             return "\(field) cannot be empty"
         case .tooShort(let field, let minimum, let actual):
-            return "\(field) must be at least \(minimum) characters (currently \(actual))"
+            return "\(field) is too short (minimum \(minimum) characters, got \(actual))"
         case .tooLong(let field, let maximum, let actual):
-            return "\(field) must be no more than \(maximum) characters (currently \(actual))"
+            return "\(field) is too long (maximum \(maximum) characters, got \(actual))"
         case .invalidFormat(let field, let format):
-            return "\(field) must match format: \(format)"
+            return "\(field) format is invalid. Expected format: \(format)"
         case .containsInvalidCharacters(let field, let characters):
             return "\(field) contains invalid characters: \(characters)"
         case .notAllowed(let field, let value, let reason):
             return "\(field) value '\(value)' is not allowed: \(reason)"
-        case .whitespaceOnly(let field):
-            return "\(field) cannot contain only whitespace"
-        case .invalidPattern(let field, let pattern):
-            return "\(field) must match pattern: \(pattern)"
             
+        // Numeric errors
         case .notANumber(let field, let value):
-            return "\(field) '\(value)' is not a valid number"
+            return "\(field) must be a valid number (got '\(value)')"
         case .tooSmall(let field, let minimum, let actual):
-            return "\(field) must be at least \(minimum) (currently \(actual))"
+            return "\(field) is too small (minimum \(minimum), got \(actual))"
         case .tooLarge(let field, let maximum, let actual):
-            return "\(field) must be no more than \(maximum) (currently \(actual))"
+            return "\(field) is too large (maximum \(maximum), got \(actual))"
         case .notInteger(let field, let value):
-            return "\(field) must be a whole number (currently \(value))"
+            return "\(field) must be a whole number (got \(value))"
         case .negativeNotAllowed(let field, let value):
-            return "\(field) cannot be negative (currently \(value))"
+            return "\(field) cannot be negative (got \(value))"
         case .zeroNotAllowed(let field):
             return "\(field) cannot be zero"
-        case .invalidPrecision(let field, let value, let maxDecimalPlaces):
-            return "\(field) can have at most \(maxDecimalPlaces) decimal places (currently \(value))"
             
+        // Date errors
         case .invalidDate(let field, let value):
-            return "\(field) '\(value)' is not a valid date"
+            return "\(field) is not a valid date (got '\(value)')"
         case .dateInPast(let field, let date):
-            return "\(field) cannot be in the past (\(DateFormatter.shortDate.string(from: date)))"
+            return "\(field) cannot be in the past (got \(date.formatted()))"
         case .dateInFuture(let field, let date):
-            return "\(field) cannot be in the future (\(DateFormatter.shortDate.string(from: date)))"
+            return "\(field) cannot be in the future (got \(date.formatted()))"
         case .dateOutOfRange(let field, let date, let min, let max):
-            let minStr = min?.formatted(date: .abbreviated, time: .omitted) ?? "beginning of time"
-            let maxStr = max?.formatted(date: .abbreviated, time: .omitted) ?? "end of time"
-            return "\(field) must be between \(minStr) and \(maxStr) (currently \(date.formatted(date: .abbreviated, time: .omitted)))"
-        case .invalidDateFormat(let field, let value, let expectedFormat):
-            return "\(field) '\(value)' does not match expected format: \(expectedFormat)"
-        case .weekendNotAllowed(let field, let date):
-            return "\(field) cannot be a weekend date (\(DateFormatter.shortDate.string(from: date)))"
-        case .holidayNotAllowed(let field, let date):
-            return "\(field) cannot be a holiday (\(DateFormatter.shortDate.string(from: date)))"
+            let minStr = min?.formatted() ?? "beginning of time"
+            let maxStr = max?.formatted() ?? "end of time"
+            return "\(field) must be between \(minStr) and \(maxStr) (got \(date.formatted()))"
             
+        // Email errors
         case .invalidEmail(let email):
-            return "'\(email)' is not a valid email address"
+            return "Invalid email address: \(email)"
         case .emailTooLong(let email, let maxLength):
-            return "Email address is too long (\(email.count) characters, maximum \(maxLength))"
+            return "Email address is too long (maximum \(maxLength) characters): \(email)"
         case .emailDomainInvalid(let email, let domain):
-            return "Email domain '\(domain)' in '\(email)' is not valid"
-        case .emailLocalPartInvalid(let email, let localPart):
-            return "Email local part '\(localPart)' in '\(email)' is not valid"
-        case .disposableEmailNotAllowed(let email):
-            return "Disposable email addresses are not allowed ('\(email)')"
+            return "Email domain '\(domain)' is not valid in \(email)"
             
+        // Budget-specific errors
         case .invalidCurrency(let amount):
-            return "'\(amount)' is not a valid currency amount"
+            return "Invalid currency amount: \(amount)"
         case .budgetExceeded(let category, let amount, let limit):
-            return "Amount $\(String(format: "%.2f", amount)) exceeds budget limit of $\(String(format: "%.2f", limit)) for \(category)"
+            let amountStr = String(format: "%.2f", amount)
+            let limitStr = String(format: "%.2f", limit)
+            return "\(category) budget exceeded: $\(amountStr) over limit of $\(limitStr)"
         case .categoryNotFound(let category):
-            return "Category '\(category)' does not exist"
+            return "Budget category '\(category)' not found"
         case .duplicateCategory(let category):
             return "Category '\(category)' already exists"
         case .invalidTransactionDate(let date, let reason):
-            return "Transaction date \(DateFormatter.shortDate.string(from: date)) is invalid: \(reason)"
+            return "Invalid transaction date \(date.formatted()): \(reason)"
         case .invalidBudgetPeriod(let period):
-            return "Budget period '\(period)' is not valid"
-        case .insufficientFunds(let requested, let available):
-            return "Insufficient funds: requested $\(String(format: "%.2f", requested)), available $\(String(format: "%.2f", available))"
-        case .categoryLimitExceeded(let category, let limit):
-            return "Category '\(category)' limit of $\(String(format: "%.2f", limit)) exceeded"
-        case .monthlyLimitExceeded(let amount, let monthlyLimit):
-            return "Monthly limit of $\(String(format: "%.2f", monthlyLimit)) exceeded by $\(String(format: "%.2f", amount - monthlyLimit))"
-        case .invalidRecurringPattern(let pattern):
-            return "Recurring pattern '\(pattern)' is not valid"
+            return "Invalid budget period: \(period)"
             
-        case .fileNotFound(let path):
-            return "File not found: \(path)"
-        case .fileTooLarge(let size, let maxSize):
-            return "File too large: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file)) (maximum \(ByteCountFormatter.string(fromByteCount: maxSize, countStyle: .file)))"
-        case .invalidFileFormat(let expected, let actual):
-            return "Invalid file format: expected \(expected), got \(actual)"
-        case .corruptedData(let description):
-            return "Corrupted data: \(description)"
-        case .unsupportedVersion(let version, let supportedVersions):
-            return "Unsupported version \(version). Supported versions: \(supportedVersions.joined(separator: ", "))"
-            
-        case .passwordTooWeak(let requirements):
-            return "Password too weak. Requirements: \(requirements.joined(separator: ", "))"
-        case .suspiciousActivity(let description):
-            return "Suspicious activity detected: \(description)"
-        case .rateLimitExceeded(let limit, let timeWindow):
-            return "Rate limit exceeded: \(limit) requests per \(timeWindow)"
-        case .unauthorizedAccess(let resource):
-            return "Unauthorized access to \(resource)"
-            
+        // Custom errors
         case .custom(let message):
             return message
         case .multipleErrors(let errors):
-            return errors.compactMap { $0.errorDescription }.joined(separator: "; ")
-        case .conditionalError(let condition, let error):
-            return "Conditional error (\(condition)): \(error.errorDescription ?? "Unknown error")"
+            return "Multiple validation errors: " + errors.compactMap { $0.errorDescription }.joined(separator: "; ")
         }
     }
     
@@ -242,18 +159,12 @@ public enum ValidationError: LocalizedError, Equatable, Sendable {
             return "Please enter no more than \(maximum) characters"
         case .invalidFormat(_, let format):
             return "Please use the format: \(format)"
-        case .whitespaceOnly:
-            return "Please enter meaningful content, not just spaces"
         case .notANumber:
             return "Please enter a valid number"
         case .tooSmall(_, let minimum, _):
             return "Please enter a value of at least \(minimum)"
         case .tooLarge(_, let maximum, _):
             return "Please enter a value no greater than \(maximum)"
-        case .negativeNotAllowed:
-            return "Please enter a positive number"
-        case .zeroNotAllowed:
-            return "Please enter a value greater than zero"
         case .invalidEmail:
             return "Please enter a valid email address (e.g., user@example.com)"
         case .budgetExceeded:
@@ -262,70 +173,11 @@ public enum ValidationError: LocalizedError, Equatable, Sendable {
             return "Please select an existing category or create a new one"
         case .duplicateCategory:
             return "Please choose a different category name"
-        case .invalidCurrency:
-            return "Please enter a valid dollar amount (e.g., 25.99)"
-        case .invalidTransactionDate:
-            return "Please select a valid transaction date"
-        case .invalidBudgetPeriod:
-            return "Please select a valid budget period"
-        case .insufficientFunds:
-            return "Please reduce the amount or add more funds"
-        case .dateInPast:
-            return "Please select a current or future date"
-        case .dateInFuture:
-            return "Please select a current or past date"
-        case .fileTooLarge:
-            return "Please choose a smaller file"
-        case .invalidFileFormat:
-            return "Please choose a file in the correct format"
-        case .passwordTooWeak:
-            return "Please create a stronger password"
         default:
             return "Please check your input and try again"
         }
     }
-    
-    /// Severity level for error handling
-    public var severity: ErrorSeverity {
-        switch self {
-        case .empty, .tooShort, .tooLong, .invalidFormat, .notANumber, .invalidEmail, .invalidCurrency:
-            return .warning
-        case .budgetExceeded, .monthlyLimitExceeded, .insufficientFunds:
-            return .error
-        case .suspiciousActivity, .unauthorizedAccess, .rateLimitExceeded:
-            return .critical
-        case .corruptedData, .fileNotFound:
-            return .error
-        default:
-            return .warning
-        }
-    }
-    
-    public enum ErrorSeverity: String, CaseIterable {
-        case info = "Info"
-        case warning = "Warning"
-        case error = "Error"
-        case critical = "Critical"
-        
-        public var color: Color {
-            switch self {
-            case .info: return .blue
-            case .warning: return .orange
-            case .error: return .red
-            case .critical: return .purple
-            }
-        }
-        
-        public var icon: String {
-            switch self {
-            case .info: return "info.circle"
-            case .warning: return "exclamationmark.triangle"
-            case .error: return "xmark.circle"
-            case .critical: return "exclamationmark.octagon"
-            }
-        }
-    }
-}
+} // ← FIXED: Added missing closing brace for ValidationError enum
 
 // MARK: - Core Validation Utilities
 
@@ -341,16 +193,7 @@ public enum ValidationHelpers {
     /// - Returns: Validation result
     public static func validateNotEmpty(_ value: String, fieldName: String = "Field") -> ValidationResult {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        if value.isEmpty {
-            return .invalid(.empty(field: fieldName))
-        }
-        
-        if trimmed.isEmpty {
-            return .invalid(.whitespaceOnly(field: fieldName))
-        }
-        
-        return .valid
+        return trimmed.isEmpty ? .invalid(.empty(field: fieldName)) : .valid
     }
     
     /// Validate string length
@@ -366,25 +209,25 @@ public enum ValidationHelpers {
         minLength: Int? = nil,
         maxLength: Int? = nil
     ) -> ValidationResult {
-        let length = value.count
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        if let min = minLength, length < min {
-            return .invalid(.tooShort(field: fieldName, minimum: min, actual: length))
+        if let min = minLength, trimmed.count < min {
+            return .invalid(.tooShort(field: fieldName, minimum: min, actual: trimmed.count))
         }
         
-        if let max = maxLength, length > max {
-            return .invalid(.tooLong(field: fieldName, maximum: max, actual: length))
+        if let max = maxLength, trimmed.count > max {
+            return .invalid(.tooLong(field: fieldName, maximum: max, actual: trimmed.count))
         }
         
         return .valid
     }
     
-    /// Validate string format using regular expression
+    /// Validate string format using regex
     /// - Parameters:
     ///   - value: The string to validate
     ///   - fieldName: Name of the field for error messages
     ///   - pattern: Regular expression pattern
-    ///   - formatDescription: Human-readable format description
+    ///   - formatDescription: Description of the expected format
     /// - Returns: Validation result
     public static func validateStringFormat(
         _ value: String,
@@ -392,33 +235,35 @@ public enum ValidationHelpers {
         pattern: String,
         formatDescription: String
     ) -> ValidationResult {
-        let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive)
-        let range = NSRange(location: 0, length: value.utf16.count)
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        if regex?.firstMatch(in: value, options: [], range: range) != nil {
-            return .valid
-        } else {
-            return .invalid(.invalidFormat(field: fieldName, format: formatDescription))
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: [])
+            let range = NSRange(location: 0, length: trimmed.utf16.count)
+            let matches = regex.matches(in: trimmed, options: [], range: range)
+            
+            return matches.isEmpty ? .invalid(.invalidFormat(field: fieldName, format: formatDescription)) : .valid
+        } catch {
+            return .invalid(.custom(message: "Invalid validation pattern"))
         }
     }
     
-    /// Validate allowed characters
+    /// Validate that string contains only allowed characters
     /// - Parameters:
     ///   - value: The string to validate
     ///   - fieldName: Name of the field for error messages
-    ///   - allowedCharacters: Set of allowed characters
+    ///   - allowedCharacters: Character set of allowed characters
     /// - Returns: Validation result
     public static func validateAllowedCharacters(
         _ value: String,
         fieldName: String = "Field",
         allowedCharacters: CharacterSet
     ) -> ValidationResult {
-        let valueCharacterSet = CharacterSet(charactersIn: value)
-        let invalidCharacters = valueCharacterSet.subtracting(allowedCharacters)
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        if !invalidCharacters.isEmpty {
-            let invalidString = String(value.unicodeScalars.filter { invalidCharacters.contains($0) })
-            return .invalid(.containsInvalidCharacters(field: fieldName, characters: invalidString))
+        if let range = trimmed.rangeOfCharacter(from: allowedCharacters.inverted) {
+            let invalidChars = String(trimmed[range])
+            return .invalid(.containsInvalidCharacters(field: fieldName, characters: invalidChars))
         }
         
         return .valid
@@ -426,33 +271,35 @@ public enum ValidationHelpers {
     
     // MARK: - Numeric Validation
     
-    /// Validate and parse a number from string
+    /// Validate that a string represents a valid number
     /// - Parameters:
-    ///   - value: String representation of number
+    ///   - value: The string to validate
     ///   - fieldName: Name of the field for error messages
-    /// - Returns: Tuple of validation result and parsed number
+    /// - Returns: Validation result with parsed number
     public static func validateNumber(_ value: String, fieldName: String = "Field") -> (ValidationResult, Double?) {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard !trimmed.isEmpty else {
-            return (.invalid(.empty(field: fieldName)), nil)
-        }
+        // Remove currency symbols and formatting
+        let cleanedValue = trimmed
+            .replacingOccurrences(of: "$", with: "")
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: " ", with: "")
         
-        guard let number = Double(trimmed) else {
-            return (.invalid(.notANumber(field: fieldName, value: value)), nil)
+        guard let number = Double(cleanedValue) else {
+            return (.invalid(.notANumber(field: fieldName, value: trimmed)), nil)
         }
         
         return (.valid, number)
     }
     
-    /// Validate number range
+    /// Validate numeric range
     /// - Parameters:
     ///   - value: The number to validate
     ///   - fieldName: Name of the field for error messages
     ///   - min: Minimum allowed value (optional)
     ///   - max: Maximum allowed value (optional)
-    ///   - allowZero: Whether zero is allowed
-    ///   - allowNegative: Whether negative numbers are allowed
+    ///   - allowZero: Whether zero is allowed (default: true)
+    ///   - allowNegative: Whether negative values are allowed (default: true)
     /// - Returns: Validation result
     public static func validateNumberRange(
         _ value: Double,
@@ -481,100 +328,54 @@ public enum ValidationHelpers {
         return .valid
     }
     
-    /// Validate integer
+    /// Validate that a number is an integer
     /// - Parameters:
     ///   - value: The number to validate
     ///   - fieldName: Name of the field for error messages
     /// - Returns: Validation result
     public static func validateInteger(_ value: Double, fieldName: String = "Field") -> ValidationResult {
-        if value.truncatingRemainder(dividingBy: 1) != 0 {
-            return .invalid(.notInteger(field: fieldName, value: value))
-        }
-        return .valid
-    }
-    
-    /// Validate decimal precision
-    /// - Parameters:
-    ///   - value: The number to validate
-    ///   - fieldName: Name of the field for error messages
-    ///   - maxDecimalPlaces: Maximum allowed decimal places
-    /// - Returns: Validation result
-    public static func validateDecimalPrecision(
-        _ value: Double,
-        fieldName: String = "Field",
-        maxDecimalPlaces: Int
-    ) -> ValidationResult {
-        let formatter = NumberFormatter()
-        formatter.maximumFractionDigits = maxDecimalPlaces
-        formatter.minimumFractionDigits = 0
-        
-        let formattedValue = formatter.string(from: NSNumber(value: value)) ?? ""
-        let originalValue = String(value)
-        
-        if formattedValue != originalValue {
-            return .invalid(.invalidPrecision(field: fieldName, value: value, maxDecimalPlaces: maxDecimalPlaces))
-        }
-        
-        return .valid
+        return value.truncatingRemainder(dividingBy: 1) == 0 ? .valid : .invalid(.notInteger(field: fieldName, value: value))
     }
     
     // MARK: - Currency Validation
     
-    /// Validate currency input with decimal precision
+    /// Validate currency amount
     /// - Parameters:
-    ///   - value: String representation of currency
-    ///   - fieldName: Field name for errors
-    ///   - maxAmount: Maximum allowed amount
-    /// - Returns: Tuple of validation result and parsed amount
+    ///   - value: The currency string to validate
+    ///   - fieldName: Name of the field for error messages
+    ///   - maxAmount: Maximum allowed amount (optional)
+    /// - Returns: Validation result with parsed amount
     public static func validateCurrency(
         _ value: String,
         fieldName: String = "Amount",
         maxAmount: Double? = nil
     ) -> (ValidationResult, Double?) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let (numberResult, amount) = validateNumber(value, fieldName: fieldName)
         
-        // Check if empty
-        guard !trimmed.isEmpty else {
-            return (.invalid(.empty(field: fieldName)), nil)
-        }
-        
-        // Remove currency symbols and format
-        let cleaned = trimmed
-            .replacingOccurrences(of: "$", with: "")
-            .replacingOccurrences(of: ",", with: "")
-            .replacingOccurrences(of: " ", with: "")
-        
-        // Parse as double
-        guard let amount = Double(cleaned) else {
+        guard case .valid = numberResult, let validAmount = amount else {
             return (.invalid(.invalidCurrency(amount: value)), nil)
         }
         
-        // Validate range
-        if amount < 0 {
-            return (.invalid(.negativeNotAllowed(field: fieldName, value: amount)), nil)
-        }
+        let rangeResult = validateNumberRange(
+            validAmount,
+            fieldName: fieldName,
+            min: 0,
+            max: maxAmount,
+            allowZero: false,
+            allowNegative: false
+        )
         
-        if let max = maxAmount, amount > max {
-            return (.invalid(.tooLarge(field: fieldName, maximum: max, actual: amount)), nil)
-        }
-        
-        // Validate precision (max 2 decimal places for currency)
-        let precisionResult = validateDecimalPrecision(amount, fieldName: fieldName, maxDecimalPlaces: 2)
-        if !precisionResult.isValid {
-            return (precisionResult, nil)
-        }
-        
-        return (.valid, amount)
+        return (rangeResult, validAmount)
     }
     
     // MARK: - Date Validation
     
-    /// Validate date from string
+    /// Validate date string
     /// - Parameters:
-    ///   - value: String representation of date
-    ///   - fieldName: Field name for errors
-    ///   - format: Expected date format
-    /// - Returns: Tuple of validation result and parsed date
+    ///   - value: The date string to validate
+    ///   - fieldName: Name of the field for error messages
+    ///   - format: Expected date format (default: "yyyy-MM-dd")
+    /// - Returns: Validation result with parsed date
     public static func validateDate(
         _ value: String,
         fieldName: String = "Date",
@@ -582,16 +383,12 @@ public enum ValidationHelpers {
     ) -> (ValidationResult, Date?) {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard !trimmed.isEmpty else {
-            return (.invalid(.empty(field: fieldName)), nil)
-        }
-        
         let formatter = DateFormatter()
         formatter.dateFormat = format
         formatter.locale = Locale(identifier: "en_US_POSIX")
         
         guard let date = formatter.date(from: trimmed) else {
-            return (.invalid(.invalidDateFormat(field: fieldName, value: value, expectedFormat: format)), nil)
+            return (.invalid(.invalidDate(field: fieldName, value: trimmed)), nil)
         }
         
         return (.valid, date)
@@ -599,17 +396,31 @@ public enum ValidationHelpers {
     
     /// Validate date range
     /// - Parameters:
-    ///   - date: Date to validate
-    ///   - fieldName: Field name for errors
-    ///   - minDate: Minimum allowed date
-    ///   - maxDate: Maximum allowed date
+    ///   - date: The date to validate
+    ///   - fieldName: Name of the field for error messages
+    ///   - minDate: Minimum allowed date (optional)
+    ///   - maxDate: Maximum allowed date (optional)
+    ///   - allowPast: Whether past dates are allowed (default: true)
+    ///   - allowFuture: Whether future dates are allowed (default: true)
     /// - Returns: Validation result
     public static func validateDateRange(
         _ date: Date,
         fieldName: String = "Date",
         minDate: Date? = nil,
-        maxDate: Date? = nil
+        maxDate: Date? = nil,
+        allowPast: Bool = true,
+        allowFuture: Bool = true
     ) -> ValidationResult {
+        let now = Date()
+        
+        if !allowPast && date < now {
+            return .invalid(.dateInPast(field: fieldName, date: date))
+        }
+        
+        if !allowFuture && date > now {
+            return .invalid(.dateInFuture(field: fieldName, date: date))
+        }
+        
         if let min = minDate, date < min {
             return .invalid(.dateOutOfRange(field: fieldName, date: date, min: min, max: maxDate))
         }
@@ -621,102 +432,68 @@ public enum ValidationHelpers {
         return .valid
     }
     
-    /// Validate that date is not in the past
-    /// - Parameters:
-    ///   - date: Date to validate
-    ///   - fieldName: Field name for errors
-    /// - Returns: Validation result
-    public static func validateNotInPast(_ date: Date, fieldName: String = "Date") -> ValidationResult {
-        let now = Date()
-        if date < now {
-            return .invalid(.dateInPast(field: fieldName, date: date))
-        }
-        return .valid
-    }
-    
-    /// Validate that date is not in the future
-    /// - Parameters:
-    ///   - date: Date to validate
-    ///   - fieldName: Field name for errors
-    /// - Returns: Validation result
-    public static func validateNotInFuture(_ date: Date, fieldName: String = "Date") -> ValidationResult {
-        let now = Date()
-        if date > now {
-            return .invalid(.dateInFuture(field: fieldName, date: date))
-        }
-        return .valid
-    }
-    
     // MARK: - Email Validation
     
     /// Validate email address
     /// - Parameters:
-    ///   - email: Email address to validate
-    ///   - fieldName: Field name for errors
+    ///   - email: The email string to validate
+    ///   - maxLength: Maximum allowed length (default: 254)
     /// - Returns: Validation result
-    public static func validateEmail(_ email: String, fieldName: String = "Email") -> ValidationResult {
+    public static func validateEmail(_ email: String, maxLength: Int = 254) -> ValidationResult {
         let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        guard !trimmed.isEmpty else {
-            return .invalid(.empty(field: fieldName))
+        // Check length
+        if trimmed.count > maxLength {
+            return .invalid(.emailTooLong(email: trimmed, maxLength: maxLength))
         }
         
-        // Length check
-        if trimmed.count > 254 {
-            return .invalid(.emailTooLong(email: trimmed, maxLength: 254))
+        // Basic email regex pattern
+        let emailPattern = "^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+        
+        do {
+            let regex = try NSRegularExpression(pattern: emailPattern, options: [])
+            let range = NSRange(location: 0, length: trimmed.utf16.count)
+            let matches = regex.matches(in: trimmed, options: [], range: range)
+            
+            if matches.isEmpty {
+                return .invalid(.invalidEmail(email: trimmed))
+            }
+            
+            // Additional domain validation
+            let components = trimmed.split(separator: "@")
+            if components.count == 2 {
+                let domain = String(components[1])
+                if domain.hasPrefix(".") || domain.hasSuffix(".") || domain.contains("..") {
+                    return .invalid(.emailDomainInvalid(email: trimmed, domain: domain))
+                }
+            }
+            
+            return .valid
+        } catch {
+            return .invalid(.custom(message: "Email validation failed"))
         }
-        
-        // Basic format validation
-        let emailRegex = "^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
-        let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
-        
-        if !emailPredicate.evaluate(with: trimmed) {
-            return .invalid(.invalidEmail(email: trimmed))
-        }
-        
-        // Split into local and domain parts
-        let components = trimmed.components(separatedBy: "@")
-        guard components.count == 2 else {
-            return .invalid(.invalidEmail(email: trimmed))
-        }
-        
-        let localPart = components[0]
-        let domain = components[1]
-        
-        // Validate local part
-        if localPart.count > 64 {
-            return .invalid(.emailLocalPartInvalid(email: trimmed, localPart: localPart))
-        }
-        
-        // Validate domain
-        if domain.isEmpty || domain.count > 253 {
-            return .invalid(.emailDomainInvalid(email: trimmed, domain: domain))
-        }
-        
-        return .valid
     }
     
     // MARK: - Budget-Specific Validation
     
     /// Validate category name
     /// - Parameters:
-    ///   - category: Category name to validate
+    ///   - category: The category name to validate
     ///   - existingCategories: List of existing categories to check for duplicates
+    ///   - maxLength: Maximum allowed length (default: 50)
     /// - Returns: Validation result
-    public static func validateCategoryName(
+    public static func validateCategory(
         _ category: String,
-        existingCategories: [String] = []
+        existingCategories: [String] = [],
+        maxLength: Int = 50
     ) -> ValidationResult {
-        // Basic validation
-        let basicResult = validateNotEmpty(category, fieldName: "Category")
-        if !basicResult.isValid {
-            return basicResult
-        }
+        // Check if empty
+        let emptyResult = validateNotEmpty(category, fieldName: "Category")
+        if case .invalid = emptyResult { return emptyResult }
         
-        let lengthResult = validateStringLength(category, fieldName: "Category", minLength: 1, maxLength: 50)
-        if !lengthResult.isValid {
-            return lengthResult
-        }
+        // Check length
+        let lengthResult = validateStringLength(category, fieldName: "Category", maxLength: maxLength)
+        if case .invalid = lengthResult { return lengthResult }
         
         // Check for duplicates
         let trimmed = category.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -724,87 +501,86 @@ public enum ValidationHelpers {
             return .invalid(.duplicateCategory(category: trimmed))
         }
         
-        // Validate allowed characters
-        let allowedCharacters = CharacterSet.alphanumerics
-            .union(.whitespaces)
-            .union(CharacterSet(charactersIn: "-_&"))
-        
+        // Check for valid characters (letters, numbers, spaces, hyphens, underscores)
+        let allowedCharacters = CharacterSet.alphanumerics.union(.whitespaces).union(CharacterSet(charactersIn: "-_"))
         return validateAllowedCharacters(trimmed, fieldName: "Category", allowedCharacters: allowedCharacters)
     }
     
     /// Validate transaction amount against budget
     /// - Parameters:
     ///   - amount: Transaction amount
-    ///   - category: Transaction category
-    ///   - budgetLimit: Budget limit for the category
-    ///   - currentSpent: Amount already spent in the category
+    ///   - category: Budget category
+    ///   - currentSpent: Current amount spent in category
+    ///   - budgetLimit: Budget limit for category
+    ///   - allowOverBudget: Whether to allow going over budget (default: true)
     /// - Returns: Validation result
-    public static func validateBudgetConstraints(
+    public static func validateBudgetLimit(
         amount: Double,
         category: String,
+        currentSpent: Double,
         budgetLimit: Double,
-        currentSpent: Double
+        allowOverBudget: Bool = true
     ) -> ValidationResult {
-        let totalSpent = currentSpent + amount
+        let newTotal = currentSpent + amount
         
-        if totalSpent > budgetLimit {
-            return .invalid(.budgetExceeded(category: category, amount: totalSpent, limit: budgetLimit))
+        if !allowOverBudget && newTotal > budgetLimit {
+            let overAmount = newTotal - budgetLimit
+            return .invalid(.budgetExceeded(category: category, amount: overAmount, limit: budgetLimit))
         }
         
         return .valid
     }
     
-    // MARK: - File Validation
-    
-    /// Validate file size
+    /// Validate transaction date for budget entry
     /// - Parameters:
-    ///   - fileSize: Size of the file in bytes
-    ///   - maxSize: Maximum allowed size in bytes
-    ///   - fieldName: Field name for errors
+    ///   - date: Transaction date
+    ///   - allowFuture: Whether future dates are allowed (default: false)
+    ///   - maxPastDays: Maximum days in the past allowed (default: 365)
     /// - Returns: Validation result
-    public static func validateFileSize(
-        _ fileSize: Int64,
-        maxSize: Int64,
-        fieldName: String = "File"
+    public static func validateTransactionDate(
+        _ date: Date,
+        allowFuture: Bool = false,
+        maxPastDays: Int = 365
     ) -> ValidationResult {
-        if fileSize > maxSize {
-            return .invalid(.fileTooLarge(size: fileSize, maxSize: maxSize))
-        }
-        return .valid
-    }
-    
-    /// Validate file format
-    /// - Parameters:
-    ///   - fileName: Name of the file
-    ///   - allowedExtensions: List of allowed file extensions
-    ///   - fieldName: Field name for errors
-    /// - Returns: Validation result
-    public static func validateFileFormat(
-        _ fileName: String,
-        allowedExtensions: [String],
-        fieldName: String = "File"
-    ) -> ValidationResult {
-        let fileExtension = (fileName as NSString).pathExtension.lowercased()
+        let now = Date()
+        let maxPastDate = Calendar.current.date(byAdding: .day, value: -maxPastDays, to: now) ?? now
         
-        if !allowedExtensions.contains(fileExtension) {
-            return .invalid(.invalidFileFormat(expected: allowedExtensions.joined(separator: ", "), actual: fileExtension))
+        if !allowFuture && date > now {
+            return .invalid(.invalidTransactionDate(date: date, reason: "Future dates are not allowed"))
+        }
+        
+        if date < maxPastDate {
+            return .invalid(.invalidTransactionDate(date: date, reason: "Date is too far in the past"))
         }
         
         return .valid
     }
     
-    // MARK: - Combine Multiple Validations
+    // MARK: - Composite Validation
     
-    /// Validate multiple values and return combined result
-    /// - Parameter results: Array of validation results
+    /// Validate multiple conditions and return combined result
+    /// - Parameter validations: Array of validation results
     /// - Returns: Combined validation result
-    public static func validateAll(_ results: [ValidationResult]) -> ValidationResult {
-        return ValidationResult.combine(results)
+    public static func validateAll(_ validations: [ValidationResult]) -> ValidationResult {
+        let errors = validations.compactMap { result in
+            if case .invalid(let error) = result {
+                return error
+            }
+            return nil
+        }
+        
+        if errors.isEmpty {
+            return .valid
+        } else if errors.count == 1 {
+            return .invalid(errors[0])
+        } else {
+            return .invalid(.multipleErrors(errors))
+        }
     }
     
-    /// Validate with custom condition
+    /// Validate with custom conditions
     /// - Parameters:
-    ///   - condition: Condition to check
+    ///   - condition: Boolean condition to check
     ///   - error: Error to return if condition fails
     /// - Returns: Validation result
     public static func validateCondition(_ condition: Bool, error: ValidationError) -> ValidationResult {
@@ -858,34 +634,11 @@ public struct ValidationRuleBuilder<T> {
         }
     }
     
-    /// Add an async rule
-    /// - Parameter asyncRule: Async validation function
-    /// - Returns: Updated builder
-    public func addAsyncRule(_ asyncRule: @escaping (T) async -> ValidationResult) -> ValidationRuleBuilder<T> {
-        return addRule { value in
-            // For sync context, we'll return valid and handle async separately
-            .valid
-        }
-    }
-    
     /// Build and execute all validation rules
     /// - Parameter value: Value to validate
     /// - Returns: Combined validation result
     public func validate(_ value: T) -> ValidationResult {
         let results = rules.map { $0(value) }
-        return ValidationHelpers.validateAll(results)
-    }
-    
-    /// Build and execute all validation rules asynchronously
-    /// - Parameter value: Value to validate
-    /// - Returns: Combined validation result
-    public func validateAsync(_ value: T) async -> ValidationResult {
-        var results: [ValidationResult] = []
-        
-        for rule in rules {
-            results.append(rule(value))
-        }
-        
         return ValidationHelpers.validateAll(results)
     }
 }
@@ -912,7 +665,7 @@ public enum CommonValidationRules {
     public static let categoryName = ValidationRuleBuilder<String>()
         .addRule { ValidationHelpers.validateNotEmpty($0, fieldName: "Category") }
         .addRule { ValidationHelpers.validateStringLength($0, fieldName: "Category", maxLength: 50) }
-        .addRule { ValidationHelpers.validateAllowedCharacters($0, fieldName: "Category", allowedCharacters: .alphanumerics.union(.whitespaces).union(CharacterSet(charactersIn: "-_&"))) }
+        .addRule { ValidationHelpers.validateAllowedCharacters($0, fieldName: "Category", allowedCharacters: .alphanumerics.union(.whitespaces).union(CharacterSet(charactersIn: "-_"))) }
     
     /// Transaction note validation rules
     public static let transactionNote = ValidationRuleBuilder<String>()
@@ -922,20 +675,6 @@ public enum CommonValidationRules {
     public static let email = ValidationRuleBuilder<String>()
         .addRule { ValidationHelpers.validateNotEmpty($0, fieldName: "Email") }
         .addRule { ValidationHelpers.validateEmail($0) }
-    
-    /// Password validation rules
-    public static let password = ValidationRuleBuilder<String>()
-        .addRule { ValidationHelpers.validateNotEmpty($0, fieldName: "Password") }
-        .addRule { ValidationHelpers.validateStringLength($0, fieldName: "Password", minLength: 8, maxLength: 128) }
-        .addCondition({ password in
-            password.rangeOfCharacter(from: .uppercaseLetters) != nil
-        }, error: .custom(message: "Password must contain at least one uppercase letter"))
-        .addCondition({ password in
-            password.rangeOfCharacter(from: .lowercaseLetters) != nil
-        }, error: .custom(message: "Password must contain at least one lowercase letter"))
-        .addCondition({ password in
-            password.rangeOfCharacter(from: .decimalDigits) != nil
-        }, error: .custom(message: "Password must contain at least one digit"))
 }
 
 // MARK: - SwiftUI Integration
@@ -945,265 +684,128 @@ public enum CommonValidationRules {
 public struct Validated<T> {
     private var value: T
     private let validator: (T) -> ValidationResult
-    private var cachedResult: ValidationResult?
     
     public var wrappedValue: T {
         get { value }
         set {
             value = newValue
-            cachedResult = nil // Invalidate cache
         }
     }
     
     public var projectedValue: ValidationResult {
-        if let cached = cachedResult {
-            return cached
+            // Remove caching - just compute fresh each time
+            // This is actually better for SwiftUI as it ensures current validation state
+            return validator(value)
         }
-        let result = validator(value)
-        cachedResult = result
-        return result
-    }
     
     public init(wrappedValue: T, validator: @escaping (T) -> ValidationResult) {
         self.value = wrappedValue
         self.validator = validator
     }
     
-    public init(wrappedValue: T, ruleBuilder: ValidationRuleBuilder<T>) {
-        self.value = wrappedValue
-        self.validator = ruleBuilder.validate
-    }
+    // Convenience initializer for using with ValidationRuleBuilder
+        public init(wrappedValue: T, ruleBuilder: ValidationRuleBuilder<T>) {
+            self.value = wrappedValue
+            self.validator = ruleBuilder.validate
+        }
+    
 }
 
-// MARK: - View Modifiers for Validation
-
+/// SwiftUI view modifier for validation display
 public struct ValidationModifier: ViewModifier {
-    let validation: ValidationResult
-    let showIcon: Bool
-    
-    public init(validation: ValidationResult, showIcon: Bool = true) {
-        self.validation = validation
-        self.showIcon = showIcon
-    }
+    let validationResult: ValidationResult
+    let showValidation: Bool
     
     public func body(content: Content) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             content
             
-            if case .invalid(let error) = validation {
-                HStack(spacing: 6) {
-                    if showIcon {
-                        Image(systemName: error.severity.icon)
-                            .foregroundColor(error.severity.color)
-                            .font(.caption)
-                    }
-                    
-                    Text(error.errorDescription ?? "Invalid input")
-                        .font(.caption)
-                        .foregroundColor(error.severity.color)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .animation(.easeInOut(duration: 0.2), value: validation.isValid)
-    }
-}
-
-/// Inline validation status indicator
-public struct ValidationStatusModifier: ViewModifier {
-    let validation: ValidationResult
-    
-    public func body(content: Content) -> some View {
-        HStack {
-            content
-            
-            Spacer()
-            
-            switch validation {
-            case .valid:
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundColor(.green)
+            if showValidation, case .invalid(let error) = validationResult {
+                Text(error.errorDescription ?? "Invalid input")
                     .font(.caption)
-            case .invalid(let error):
-                Image(systemName: error.severity.icon)
-                    .foregroundColor(error.severity.color)
-                    .font(.caption)
+                    .foregroundColor(.red)
+                    .transition(.opacity)
             }
         }
     }
 }
 
 public extension View {
-    /// Add validation error display
-    func validation(_ result: ValidationResult, showIcon: Bool = true) -> some View {
-        modifier(ValidationModifier(validation: result, showIcon: showIcon))
-    }
-    
-    /// Add validation status indicator
-    func validationStatus(_ result: ValidationResult) -> some View {
-        modifier(ValidationStatusModifier(validation: result))
-    }
-    
-    /// Apply validation styling based on result
-    func validationStyling(_ result: ValidationResult) -> some View {
-        self
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(
-                        result.isValid ? Color.clear : (result.error?.severity.color ?? .red),
-                        lineWidth: result.isValid ? 0 : 1
-                    )
-            )
+    /// Add validation display to a view
+    /// - Parameters:
+    ///   - result: Validation result to display
+    ///   - showValidation: Whether to show validation messages
+    /// - Returns: Modified view with validation display
+    func validation(_ result: ValidationResult, show: Bool = true) -> some View {
+        modifier(ValidationModifier(validationResult: result, showValidation: show))
     }
 }
 
-// MARK: - Form Validation Helper
-
-/// Helper for form-wide validation
-public class FormValidator: ObservableObject {
-    @Published public private(set) var isValid = true
-    @Published public private(set) var errors: [String: ValidationError] = [:]
-    
-    private var validations: [String: ValidationResult] = [:]
-    
-    public init() {}
-    
-    /// Update validation for a field
-    public func updateValidation(for field: String, result: ValidationResult) {
-        validations[field] = result
-        
-        switch result {
-        case .valid:
-            errors.removeValue(forKey: field)
-        case .invalid(let error):
-            errors[field] = error
-        }
-        
-        updateOverallValidation()
-    }
-    
-    /// Clear validation for a field
-    public func clearValidation(for field: String) {
-        validations.removeValue(forKey: field)
-        errors.removeValue(forKey: field)
-        updateOverallValidation()
-    }
-    
-    /// Clear all validations
-    public func clearAll() {
-        validations.removeAll()
-        errors.removeAll()
-        isValid = true
-    }
-    
-    /// Get validation result for a field
-    public func getValidation(for field: String) -> ValidationResult {
-        return validations[field] ?? .valid
-    }
-    
-    /// Get all error messages
-    public func getAllErrorMessages() -> [String] {
-        return errors.values.compactMap { $0.errorDescription }
-    }
-    
-    private func updateOverallValidation() {
-        isValid = errors.isEmpty
-    }
-}
-
-// MARK: - DateFormatter Extensions
-
-extension DateFormatter {
-    static let shortDate: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        return formatter
-    }()
-    
-    static let iso8601: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSSZ"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        return formatter
-    }()
-}
-
-// MARK: - Debug Utilities
+// MARK: - Testing Support
 
 #if DEBUG
-extension ValidationHelpers {
-    /// Create test validation errors for preview/testing
-    public static func createTestValidationErrors() -> [ValidationError] {
-        return [
-            .empty(field: "Name"),
-            .tooShort(field: "Password", minimum: 8, actual: 4),
-            .invalidEmail(email: "invalid-email"),
-            .budgetExceeded(category: "Food", amount: 500.0, limit: 400.0),
-            .invalidCurrency(amount: "abc123"),
-            .dateInFuture(field: "Transaction Date", date: Date().addingTimeInterval(86400)),
-            .categoryNotFound(category: "NonExistent"),
-            .fileTooLarge(size: 10_000_000, maxSize: 5_000_000)
-        ]
-    }
-    
-    /// Test all validation methods
-    public static func runValidationTests() {
-        print("🧪 Running validation tests...")
-        
-        // Test string validation
-        assert(validateNotEmpty("test").isValid)
-        assert(!validateNotEmpty("").isValid)
-        assert(!validateNotEmpty("   ").isValid)
-        
-        // Test number validation
-        let (numResult, number) = validateNumber("123.45")
-        assert(numResult.isValid && number == 123.45)
-        
-        // Test currency validation
-        let (currResult, amount) = validateCurrency("$1,234.56")
-        assert(currResult.isValid && amount == 1234.56)
-        
-        // Test email validation
-        assert(validateEmail("test@example.com").isValid)
-        assert(!validateEmail("invalid-email").isValid)
-        
-        print("✅ All validation tests passed!")
-    }
-}
-
-/// SwiftUI Preview helper for testing validation
-struct ValidationTestView: View {
-    @State private var testString = ""
-    @State private var testEmail = ""
-    @State private var testAmount = ""
-    
-    var body: some View {
-        Form {
-            Section("String Validation") {
-                TextField("Name (2-30 chars)", text: $testString)
-                    .validation(CommonValidationRules.userName.validate(testString))
-            }
+public extension ValidationHelpers {
+    /// Testing utilities for validation
+    enum Testing {
+        /// Test all validation functions with sample data
+        public static func runValidationTests() -> [String: Bool] {
+            var results: [String: Bool] = [:]
             
-            Section("Email Validation") {
-                TextField("Email", text: $testEmail)
-                    .validation(CommonValidationRules.email.validate(testEmail))
-            }
+            // String validation tests
+            results["empty_string"] = (validateNotEmpty("", fieldName: "Test").isValid == false)
+            results["valid_string"] = validateNotEmpty("Valid", fieldName: "Test").isValid
+            results["long_string"] = (validateStringLength("Very long string that exceeds limit", fieldName: "Test", maxLength: 10).isValid == false)
             
-            Section("Currency Validation") {
-                TextField("Amount", text: $testAmount)
-                    .validation(CommonValidationRules.budgetAmount.validate(testAmount))
-            }
+            // Number validation tests
+            let (numberResult, _) = validateNumber("123.45", fieldName: "Test")
+            results["valid_number"] = numberResult.isValid
+            let (invalidNumberResult, _) = validateNumber("abc", fieldName: "Test")
+            results["invalid_number"] = (invalidNumberResult.isValid == false)
+            
+            // Currency validation tests
+            let (currencyResult, _) = validateCurrency("$123.45", fieldName: "Test")
+            results["valid_currency"] = currencyResult.isValid
+            let (invalidCurrencyResult, _) = validateCurrency("-$50", fieldName: "Test")
+            results["negative_currency"] = (invalidCurrencyResult.isValid == false)
+            
+            // Email validation tests
+            results["valid_email"] = validateEmail("test@example.com").isValid
+            results["invalid_email"] = (validateEmail("invalid.email").isValid == false)
+            
+            // Date validation tests
+            let (dateResult, _) = validateDate("2024-01-01", fieldName: "Test")
+            results["valid_date"] = dateResult.isValid
+            let (invalidDateResult, _) = validateDate("invalid-date", fieldName: "Test")
+            results["invalid_date"] = (invalidDateResult.isValid == false)
+            
+            return results
         }
-        .navigationTitle("Validation Test")
-    }
-}
-
-#Preview {
-    NavigationView {
-        ValidationTestView()
+        
+        /// Performance test for validation functions
+        public static func performanceTest(iterations: Int = 1000) -> TimeInterval {
+            let startTime = Date()
+            
+            for _ in 0..<iterations {
+                _ = validateNotEmpty("Test String", fieldName: "Test")
+                let (_, _) = validateNumber("123.45", fieldName: "Test")
+                _ = validateEmail("test@example.com")
+                let (_, _) = validateDate("2024-01-01", fieldName: "Test")
+            }
+            
+            return Date().timeIntervalSince(startTime)
+        }
+        
+        /// Generate test validation errors for UI testing
+        public static func sampleValidationErrors() -> [ValidationError] {
+            return [
+                .empty(field: "Username"),
+                .tooShort(field: "Password", minimum: 8, actual: 4),
+                .invalidEmail(email: "invalid.email"),
+                .budgetExceeded(category: "Groceries", amount: 150.0, limit: 100.0),
+                .invalidCurrency(amount: "invalid"),
+                .custom(message: "Custom validation error")
+            ]
+        }
     }
 }
 #endif

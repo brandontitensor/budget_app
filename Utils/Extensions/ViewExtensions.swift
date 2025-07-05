@@ -3,49 +3,82 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/8/24.
-//  Updated: 6/1/25 - Enhanced with centralized error handling, improved validation, and better code organization
+//  Updated: 7/5/25 - Enhanced with Swift 6 compliance, comprehensive error handling, and modern SwiftUI features
 //
 
 import SwiftUI
 import Foundation
+import Combine
 
-// MARK: - Error Handling Extensions
+// MARK: - Supporting Types
 
-public extension View {
-    /// Add standardized error handling with alert presentation
-    func errorAlert(onRetry: (() -> Void)? = nil) -> some View {
-        modifier(ErrorAlert(onRetry: onRetry))
+public enum LoadingStyle: Sendable {
+    case spinner
+    case dots
+    case pulse
+    case shimmer
+    case skeleton
+}
+
+
+
+public enum AsyncData<T>: Sendable where T: Sendable {
+    case loading
+    case loaded(T)
+    case failed(Error)
+    case empty
+    
+    public var isLoading: Bool {
+        if case .loading = self { return true }
+        return false
     }
     
-    /// Add comprehensive error handling with inline and alert options
-    func errorHandling(
-        context: String? = nil,
-        showInline: Bool = false,
-        onRetry: (() -> Void)? = nil,
-        onDismiss: (() -> Void)? = nil
-    ) -> some View {
-        modifier(ComprehensiveErrorHandler(
-            context: context,
-            showInline: showInline,
-            onRetry: onRetry,
-            onDismiss: onDismiss
-        ))
+    public var value: T? {
+        if case .loaded(let value) = self { return value }
+        return nil
     }
     
-    /// Handle errors with automatic conversion and reporting
-    func handleErrors(context: String? = nil) -> some View {
-        onReceive(NotificationCenter.default.publisher(for: .errorOccurred)) { notification in
-            if let error = notification.object as? Error {
-                ErrorHandler.shared.handle(error, context: context)
-            }
+    public var error: Error? {
+        if case .failed(let error) = self { return error }
+        return nil
+    }
+}
+
+public enum ShadowLevel: Sendable {
+    case none, low, medium, high, highest
+    
+    var radius: CGFloat {
+        switch self {
+        case .none: return 0
+        case .low: return 2
+        case .medium: return 4
+        case .high: return 8
+        case .highest: return 16
         }
     }
     
-    /// Add error toast notifications
-    func errorToast() -> some View {
-        modifier(ErrorToastModifier())
+    var opacity: Double {
+        switch self {
+        case .none: return 0
+        case .low: return 0.1
+        case .medium: return 0.15
+        case .high: return 0.2
+        case .highest: return 0.25
+        }
+    }
+    
+    var offset: CGFloat {
+        switch self {
+        case .none: return 0
+        case .low: return 1
+        case .medium: return 2
+        case .high: return 4
+        case .highest: return 8
+        }
     }
 }
+
+
 
 // MARK: - Loading and State Extensions
 
@@ -61,17 +94,6 @@ public extension View {
             message: message,
             style: style
         ))
-    }
-    
-    /// Add pull-to-refresh functionality
-    func refreshable(action: @escaping () async -> Void) -> some View {
-        if #available(iOS 15.0, *) {
-            return self.refreshable {
-                await action()
-            }
-        } else {
-            return self
-        }
     }
     
     /// Add empty state view
@@ -105,12 +127,25 @@ public extension View {
             animated: animated
         ))
     }
+    
+    /// Handle async data with loading, error, and empty states
+    func asyncData<T: Sendable>(
+        _ data: AsyncData<T>,
+        onRetry: @escaping () -> Void = {},
+        @ViewBuilder content: @escaping (T) -> some View
+    ) -> some View {
+        AsyncDataView(
+            data: data,
+            onRetry: onRetry,
+            content: content
+        )
+    }
 }
 
 // MARK: - Keyboard and Input Extensions
 
 public extension View {
-    /// Dismiss keyboard when tapped outside
+    /// Dismiss keyboard when tapping outside
     func dismissKeyboardOnTap() -> some View {
         onTapGesture {
             UIApplication.shared.sendAction(
@@ -128,106 +163,43 @@ public extension View {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button("Done") {
+                    onDone()
                     UIApplication.shared.sendAction(
                         #selector(UIResponder.resignFirstResponder),
                         to: nil,
                         from: nil,
                         for: nil
                     )
-                    onDone()
                 }
             }
         }
     }
     
-    /// Handle keyboard appearance/disappearance
+    /// Observe keyboard show/hide events
     func onKeyboardChange(perform action: @escaping (Bool, CGFloat) -> Void) -> some View {
         modifier(KeyboardObserver(onChange: action))
-    }
-}
-
-// MARK: - Navigation and Presentation Extensions
-
-public extension View {
-    /// Present sheet with enhanced options
-    func presentSheet<Content: View>(
-        isPresented: Binding<Bool>,
-        onDismiss: (() -> Void)? = nil,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        sheet(isPresented: isPresented, onDismiss: onDismiss) {
-            content()
-                .presentationDragIndicator(.visible)
-        }
-    }
-    
-    /// Present full screen cover with enhanced options
-    func presentFullScreen<Content: View>(
-        isPresented: Binding<Bool>,
-        onDismiss: (() -> Void)? = nil,
-        @ViewBuilder content: @escaping () -> Content
-    ) -> some View {
-        fullScreenCover(isPresented: isPresented, onDismiss: onDismiss) {
-            content()
-        }
-    }
-    
-    /// Add navigation link with enhanced styling
-    func navigationLink<Destination: View>(
-        to destination: Destination,
-        isActive: Binding<Bool>? = nil
-    ) -> some View {
-        if let isActive = isActive {
-            return AnyView(
-                NavigationLink(destination: destination, isActive: isActive) {
-                    self
-                }
-            )
-        } else {
-            return AnyView(
-                NavigationLink(destination: destination) {
-                    self
-                }
-            )
-        }
-    }
-    
-    /// Add back button with custom action
-    func backButton(action: @escaping () -> Void) -> some View {
-        navigationBarBackButtonHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: action) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                        }
-                    }
-                }
-            }
     }
 }
 
 // MARK: - Styling and Appearance Extensions
 
 public extension View {
-    /// Apply card-like styling
+    /// Apply card-style appearance
     func cardStyle(
         backgroundColor: Color = Color(.systemBackground),
-        cornerRadius: CGFloat = AppConstants.UI.cornerRadius,
-        shadowRadius: CGFloat = AppConstants.UI.defaultShadowRadius,
-        shadowOpacity: Float = AppConstants.UI.defaultShadowOpacity,
-        padding: CGFloat = AppConstants.UI.defaultPadding
+        cornerRadius: CGFloat = 12,
+        shadowLevel: ShadowLevel = .medium,
+        padding: CGFloat = 16
     ) -> some View {
         self
             .padding(padding)
             .background(backgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .cornerRadius(cornerRadius)
             .shadow(
-                color: .black.opacity(Double(shadowOpacity)),
-                radius: shadowRadius,
+                color: .black.opacity(shadowLevel.opacity),
+                radius: shadowLevel.radius,
                 x: 0,
-                y: 2
+                y: shadowLevel.offset
             )
     }
     
@@ -235,46 +207,45 @@ public extension View {
     func glassMorphism(
         blur: CGFloat = 20,
         opacity: Double = 0.3,
-        cornerRadius: CGFloat = AppConstants.UI.cornerRadius
+        cornerRadius: CGFloat = 12
     ) -> some View {
-        self
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(.white.opacity(opacity))
-            )
+        background(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(.ultraThinMaterial)
+                .opacity(opacity)
+        )
+        .cornerRadius(cornerRadius)
     }
     
     /// Apply neumorphism effect
     func neumorphism(
-        cornerRadius: CGFloat = AppConstants.UI.cornerRadius,
+        cornerRadius: CGFloat = 12,
         distance: CGFloat = 6,
         intensity: CGFloat = 0.15
     ) -> some View {
-        self
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Color(.systemBackground))
-                    .shadow(
-                        color: .black.opacity(intensity),
-                        radius: distance,
-                        x: distance,
-                        y: distance
-                    )
-                    .shadow(
-                        color: .white.opacity(intensity * 2),
-                        radius: distance,
-                        x: -distance / 2,
-                        y: -distance / 2
-                    )
-            )
+        background(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(Color(.systemBackground))
+                .shadow(
+                    color: .black.opacity(intensity),
+                    radius: distance,
+                    x: distance,
+                    y: distance
+                )
+                .shadow(
+                    color: .white.opacity(intensity * 2),
+                    radius: distance,
+                    x: -distance,
+                    y: -distance
+                )
+        )
     }
     
-    /// Apply custom border with gradient
+    /// Add gradient border
     func gradientBorder(
         colors: [Color],
         width: CGFloat = 2,
-        cornerRadius: CGFloat = AppConstants.UI.cornerRadius
+        cornerRadius: CGFloat = 12
     ) -> some View {
         overlay(
             RoundedRectangle(cornerRadius: cornerRadius)
@@ -289,12 +260,12 @@ public extension View {
         )
     }
     
-    /// Apply shimmer effect for loading states
+    /// Add shimmer animation effect
     func shimmer(active: Bool = true) -> some View {
-        modifier(ShimmerModifier(isActive: active))
+        modifier(ShimmerModifier(active: active))
     }
     
-    /// Apply bounce animation
+    /// Add bounce animation
     func bounceAnimation(
         trigger: Binding<Bool>,
         scale: CGFloat = 1.2,
@@ -311,7 +282,7 @@ public extension View {
             )
     }
     
-    /// Apply pulse animation
+    /// Add pulse animation
     func pulseAnimation(
         active: Bool = true,
         scale: CGFloat = 1.05,
@@ -370,18 +341,41 @@ public extension View {
     }
     
     /// Apply modifier based on device type
-    func iPhone(_ modifier: (Self) -> some View) -> some View {
+    @ViewBuilder
+    func iPhone<Content: View>(_ modifier: (Self) -> Content) -> some View {
         if UIDevice.current.userInterfaceIdiom == .phone {
-            return AnyView(modifier(self))
+            modifier(self)
+        } else {
+            self
         }
-        return AnyView(self)
     }
     
-    func iPad(_ modifier: (Self) -> some View) -> some View {
+    @ViewBuilder
+    func iPad<Content: View>(_ modifier: (Self) -> Content) -> some View {
         if UIDevice.current.userInterfaceIdiom == .pad {
-            return AnyView(modifier(self))
+            modifier(self)
+        } else {
+            self
         }
-        return AnyView(self)
+    }
+    
+    /// Apply modifier based on iOS version
+    @ViewBuilder
+    func iOS15<Content: View>(_ modifier: (Self) -> Content) -> some View {
+        if #available(iOS 15.0, *) {
+            modifier(self)
+        } else {
+            self
+        }
+    }
+    
+    @ViewBuilder
+    func iOS16<Content: View>(_ modifier: (Self) -> Content) -> some View {
+        if #available(iOS 16.0, *) {
+            modifier(self)
+        } else {
+            self
+        }
     }
 }
 
@@ -396,48 +390,18 @@ public extension View {
         traits: AccessibilityTraits = [],
         identifier: String? = nil
     ) -> some View {
-        var view = self
-        
-        if let label = label {
-            view = view.accessibilityLabel(label) as! Self
-        }
-        
-        if let hint = hint {
-            view = view.accessibilityHint(hint) as! Self
-        }
-        
-        if let value = value {
-            view = view.accessibilityValue(value) as! Self
-        }
-        
-        if !traits.isEmpty {
-            view = view.accessibilityAddTraits(traits) as! Self
-        }
-        
-        if let identifier = identifier {
-            view = view.accessibilityIdentifier(identifier) as! Self
-        }
-        
-        return view
+        modifier(AccessibilityModifier(
+            label: label,
+            hint: hint,
+            value: value,
+            traits: traits,
+            identifier: identifier
+        ))
     }
     
-    /// Add semantic accessibility information
-    func semanticAccessibility(
-        role: AccessibilityRole,
-        label: String,
-        hint: String? = nil,
-        isEnabled: Bool = true
-    ) -> some View {
-        self
-            .accessibilityElement(children: .ignore)
-            .accessibilityAddTraits(role == .button ? .isButton : [])
-            .accessibilityLabel(label)
-            .if(hint != nil) { view in
-                view.accessibilityHint(hint!)
-            }
-            .if(!isEnabled) { view in
-                view.accessibilityAddTraits(.isNotEnabled)
-            }
+    /// Add accessibility actions
+    func accessibilityActions(_ actions: [AccessibilityAction]) -> some View {
+        modifier(AccessibilityActionsModifier(actions: actions))
     }
     
     /// Make view accessible for VoiceOver navigation
@@ -446,31 +410,64 @@ public extension View {
         hint: String? = nil,
         sortPriority: Double = 0
     ) -> some View {
-        self
+        accessibilityElement(children: .ignore)
             .accessibilityLabel(label)
-            .if(hint != nil) { view in
-                view.accessibilityHint(hint!)
-            }
+            .accessibilityHint(hint ?? "")
             .accessibilitySortPriority(sortPriority)
-    }
-    
-    /// Add custom accessibility actions
-    func accessibilityActions(_ actions: [AccessibilityAction]) -> some View {
-        var view = self
-        for action in actions {
-            view = view.accessibilityAction(named: action.name, action.handler) as! Self
-        }
-        return view
     }
 }
 
-// MARK: - Performance and Optimization Extensions
+// MARK: - Gesture Extensions
 
 public extension View {
-    /// Add performance monitoring
-    func performanceMonitored(
+    /// Add swipe gestures in all directions
+    func swipeGestures(
+        onLeft: (() -> Void)? = nil,
+        onRight: (() -> Void)? = nil,
+        onUp: (() -> Void)? = nil,
+        onDown: (() -> Void)? = nil,
+        threshold: CGFloat = 50
+    ) -> some View {
+        gesture(
+            DragGesture()
+                .onEnded { value in
+                    if abs(value.translation.x) > abs(value.translation.y) {
+                        if value.translation.x > threshold {
+                            onRight?()
+                        } else if value.translation.x < -threshold {
+                            onLeft?()
+                        }
+                    } else {
+                        if value.translation.y > threshold {
+                            onDown?()
+                        } else if value.translation.y < -threshold {
+                            onUp?()
+                        }
+                    }
+                }
+        )
+    }
+    
+    /// Add long press gesture with haptic feedback
+    func longPressWithHaptic(
+        minimumDuration: Double = 0.5,
+        onPress: @escaping () -> Void
+    ) -> some View {
+        onLongPressGesture(minimumDuration: minimumDuration) {
+            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+            impactFeedback.impactOccurred()
+            onPress()
+        }
+    }
+}
+
+// MARK: - Performance Extensions
+
+public extension View {
+    /// Monitor view performance
+    func performanceMonitor(
         identifier: String,
-        threshold: TimeInterval = 0.1
+        threshold: TimeInterval = 0.5
     ) -> some View {
         modifier(PerformanceMonitorModifier(
             identifier: identifier,
@@ -478,72 +475,18 @@ public extension View {
         ))
     }
     
-    /// Optimize for large lists
-    func listOptimized() -> some View {
-        self
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets())
-            .buttonStyle(PlainButtonStyle())
-    }
-    
-    /// Add view caching for expensive computations
-    func cached<Key: Hashable>(
-        key: Key,
-        computation: @escaping () -> some View
-    ) -> some View {
-        CachedView(key: key, content: computation)
+    /// Cache view rendering for performance
+    func cached<Key: Hashable>(key: Key) -> some View {
+        modifier(CacheModifier(key: key))
     }
     
     /// Lazy loading for expensive views
-    func lazyLoaded(
-        threshold: CGFloat = 100,
-        placeholder: AnyView = AnyView(ProgressView())
-    ) -> some View {
-        LazyLoadingView(
-            content: AnyView(self),
-            threshold: threshold,
-            placeholder: placeholder
-        )
-    }
-}
-
-// MARK: - Animation Extensions
-
-public extension View {
-    /// Spring animation with preset configurations
-    func springAnimation(
-        preset: SpringPreset = .default,
-        value: some Equatable
-    ) -> some View {
-        animation(preset.animation, value: value)
-    }
-    
-    /// Staggered animation for lists
-    func staggeredAnimation(
-        delay: Double,
-        duration: Double = 0.5
-    ) -> some View {
-        modifier(StaggeredAnimationModifier(
-            delay: delay,
-            duration: duration
-        ))
-    }
-    
-    /// Parallax scroll effect
-    func parallaxScroll(
-        offsetMultiplier: CGFloat = 0.5
-    ) -> some View {
-        modifier(ParallaxScrollModifier(offsetMultiplier: offsetMultiplier))
-    }
-    
-    /// Custom transition effects
-    func customTransition(
-        _ transition: AnyTransition,
-        isVisible: Bool
-    ) -> some View {
+    func lazyLoad(isVisible: Bool) -> some View {
         Group {
             if isVisible {
-                self.transition(transition)
+                self
+            } else {
+                Color.clear
             }
         }
     }
@@ -552,20 +495,7 @@ public extension View {
 // MARK: - Data and State Extensions
 
 public extension View {
-    /// Handle async data loading with states
-    func asyncData<T>(
-        _ data: AsyncData<T>,
-        onRetry: @escaping () -> Void = {},
-        @ViewBuilder content: @escaping (T) -> some View
-    ) -> some View {
-        AsyncDataView(
-            data: data,
-            onRetry: onRetry,
-            content: content
-        )
-    }
-    
-    /// Bind to published values with error handling
+    /// Bind to published values with validation
     func bindingWithValidation<T>(
         _ binding: Binding<T>,
         validation: @escaping (T) -> ValidationResult
@@ -588,116 +518,48 @@ public extension View {
             debounceTime: debounceTime
         ))
     }
-}
-
-// MARK: - Theme and Appearance Extensions
-
-public extension View {
-    /// Apply current theme styling
-    func themedStyle() -> some View {
-        environmentObject(ThemeManager.shared)
-    }
     
-    /// Apply adaptive color scheme
-    func adaptiveColors(
-        light: Color,
-        dark: Color
-    ) -> some View {
-        foregroundColor(Color.dynamicColor(light: light, dark: dark))
-    }
-    
-    /// Apply dynamic type scaling
-    func dynamicTypeSize(
-        min: DynamicTypeSize = .small,
-        max: DynamicTypeSize = .accessibility5
-    ) -> some View {
-        dynamicTypeSize(min...max)
-    }
-    
-    /// Material design elevation
-    func elevation(_ level: ElevationLevel) -> some View {
-        shadow(
-            color: .black.opacity(level.opacity),
-            radius: level.radius,
-            x: 0,
-            y: level.offset
-        )
+    /// Track scroll position
+    func onScrollPositionChanged(_ action: @escaping (CGFloat) -> Void) -> some View {
+        modifier(ScrollPositionModifier(onChange: action))
     }
 }
 
-// MARK: - Gesture Extensions
+// MARK: - Navigation Extensions
 
 public extension View {
-    /// Enhanced tap gesture with haptic feedback
-    func tapWithFeedback(
-        style: UIImpactFeedbackGenerator.FeedbackStyle = .light,
-        action: @escaping () -> Void
+    /// Navigate with custom transitions
+    func customNavigation<Destination: View>(
+        to destination: Destination,
+        isActive: Binding<Bool>,
+        transition: AnyTransition = .slide
     ) -> some View {
-        onTapGesture {
-            let generator = UIImpactFeedbackGenerator(style: style)
-            generator.impactOccurred()
-            action()
-        }
-    }
-    
-    /// Long press with customizable duration and feedback
-    func longPressWithFeedback(
-        minimumDuration: Double = 0.5,
-        maximumDistance: CGFloat = 10,
-        action: @escaping () -> Void
-    ) -> some View {
-        onLongPressGesture(
-            minimumDuration: minimumDuration,
-            maximumDistance: maximumDistance
-        ) {
-            let generator = UIImpactFeedbackGenerator(style: .medium)
-            generator.impactOccurred()
-            action()
-        }
-    }
-    
-    /// Swipe gestures with feedback
-    func swipeGestures(
-        onLeft: (() -> Void)? = nil,
-        onRight: (() -> Void)? = nil,
-        onUp: (() -> Void)? = nil,
-        onDown: (() -> Void)? = nil
-    ) -> some View {
-        simultaneousGesture(
-            DragGesture()
-                .onEnded { value in
-                    let threshold: CGFloat = 50
-                    
-                    if abs(value.translation.x) > abs(value.translation.y) {
-                        if value.translation.x > threshold {
-                            onRight?()
-                        } else if value.translation.x < -threshold {
-                            onLeft?()
-                        }
-                    } else {
-                        if value.translation.y > threshold {
-                            onDown?()
-                        } else if value.translation.y < -threshold {
-                            onUp?()
-                        }
-                    }
-                }
+        background(
+            NavigationLink(
+                destination: destination.transition(transition),
+                isActive: isActive
+            ) {
+                EmptyView()
+            }
+            .hidden()
         )
     }
     
-    /// Pull to refresh gesture
-    func pullToRefresh(
-        coordinateSpace: CoordinateSpace = .named("pullToRefresh"),
-        onRefresh: @escaping () async -> Void
+    /// Add navigation bar styling
+    func navigationBarStyling(
+        backgroundColor: Color = Color(.systemBackground),
+        foregroundColor: Color = Color(.label),
+        hideBackButton: Bool = false
     ) -> some View {
-        modifier(PullToRefreshModifier(
-            coordinateSpace: coordinateSpace,
-            onRefresh: onRefresh
+        modifier(NavigationBarStylingModifier(
+            backgroundColor: backgroundColor,
+            foregroundColor: foregroundColor,
+            hideBackButton: hideBackButton
         ))
     }
 }
 
-// MARK: - Custom Modifiers
+// MARK: - Custom Modifiers Implementation
 
 // MARK: - Error Handling Modifiers
 
@@ -707,7 +569,7 @@ struct ComprehensiveErrorHandler: ViewModifier {
     let onRetry: (() -> Void)?
     let onDismiss: (() -> Void)?
     
-    @ObservedObject private var errorHandler = ErrorHandler.shared
+    @StateObject private var errorHandler = ErrorHandlerProxy()
     
     func body(content: Content) -> some View {
         VStack {
@@ -731,7 +593,7 @@ struct ComprehensiveErrorHandler: ViewModifier {
 }
 
 struct ErrorToastModifier: ViewModifier {
-    @ObservedObject private var errorHandler = ErrorHandler.shared
+    @StateObject private var errorHandler = ErrorHandlerProxy()
     @State private var showingToast = false
     
     func body(content: Content) -> some View {
@@ -752,12 +614,6 @@ struct ErrorToastModifier: ViewModifier {
             )
             .onChange(of: errorHandler.currentError) { _, newError in
                 showingToast = newError != nil
-                
-                if newError != nil {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        showingToast = false
-                    }
-                }
             }
     }
 }
@@ -774,31 +630,7 @@ struct LoadingOverlayModifier: ViewModifier {
             .overlay(
                 Group {
                     if isLoading {
-                        ZStack {
-                            Color.black.opacity(0.3)
-                                .ignoresSafeArea()
-                            
-                            VStack(spacing: 16) {
-                                switch style {
-                                case .spinner:
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                        .scaleEffect(1.5)
-                                case .dots:
-                                    DotsLoadingView()
-                                case .pulse:
-                                    PulseLoadingView()
-                                }
-                                
-                                Text(message)
-                                    .foregroundColor(.white)
-                                    .font(.subheadline)
-                            }
-                            .padding(24)
-                            .background(.ultraThinMaterial)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                        .transition(.opacity)
+                        LoadingOverlayView(message: message, style: style)
                     }
                 }
             )
@@ -816,29 +648,13 @@ struct EmptyStateModifier: ViewModifier {
     func body(content: Content) -> some View {
         Group {
             if isEmpty {
-                VStack(spacing: 24) {
-                    Image(systemName: systemImage)
-                        .font(.system(size: 64))
-                        .foregroundColor(.secondary)
-                    
-                    VStack(spacing: 8) {
-                        Text(title)
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                        
-                        Text(message)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    
-                    if let action = action {
-                        Button(actionTitle, action: action)
-                            .buttonStyle(.borderedProminent)
-                    }
-                }
-                .padding()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                EmptyStateView(
+                    title: title,
+                    message: message,
+                    systemImage: systemImage,
+                    action: action,
+                    actionTitle: actionTitle
+                )
             } else {
                 content
             }
@@ -854,17 +670,7 @@ struct SkeletonLoadingModifier: ViewModifier {
     func body(content: Content) -> some View {
         Group {
             if isLoading {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(0..<lines, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(height: 16)
-                            .frame(maxWidth: index == lines - 1 ? .infinity * 0.7 : .infinity)
-                    }
-                }
-                .if(animated) { view in
-                    view.shimmer()
-                }
+                SkeletonView(lines: lines, animated: animated)
             } else {
                 content
             }
@@ -872,104 +678,7 @@ struct SkeletonLoadingModifier: ViewModifier {
     }
 }
 
-// MARK: - Animation Modifiers
-
-struct ShimmerModifier: ViewModifier {
-    let isActive: Bool
-    @State private var phase: CGFloat = 0
-    
-    func body(content: Content) -> some View {
-        content
-            .overlay(
-                Group {
-                    if isActive {
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        .clear,
-                                        .white.opacity(0.6),
-                                        .clear
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .rotationEffect(.degrees(45))
-                            .offset(x: phase)
-                            .clipped()
-                    }
-                }
-            )
-            .onAppear {
-                if isActive {
-                    withAnimation(
-                        Animation.linear(duration: 1.5)
-                            .repeatForever(autoreverses: false)
-                    ) {
-                        phase = 400
-                    }
-                }
-            }
-    }
-}
-
-struct StaggeredAnimationModifier: ViewModifier {
-    let delay: Double
-    let duration: Double
-    @State private var isVisible = false
-    
-    func body(content: Content) -> some View {
-        content
-            .opacity(isVisible ? 1 : 0)
-            .offset(y: isVisible ? 0 : 20)
-            .onAppear {
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    withAnimation(.easeOut(duration: duration)) {
-                        isVisible = true
-                    }
-                }
-            }
-    }
-}
-
-struct ParallaxScrollModifier: ViewModifier {
-    let offsetMultiplier: CGFloat
-    @State private var scrollOffset: CGFloat = 0
-    
-    func body(content: Content) -> some View {
-        content
-            .offset(y: scrollOffset * offsetMultiplier)
-            .onReceive(NotificationCenter.default.publisher(for: .scrollViewDidScroll)) { notification in
-                if let scrollView = notification.object as? UIScrollView {
-                    scrollOffset = scrollView.contentOffset.y
-                }
-            }
-    }
-}
-
-// MARK: - Performance Modifiers
-
-struct PerformanceMonitorModifier: ViewModifier {
-    let identifier: String
-    let threshold: TimeInterval
-    
-    func body(content: Content) -> some View {
-        content
-            .onAppear {
-                PerformanceMonitor.startTiming(identifier)
-            }
-            .onDisappear {
-                if let duration = PerformanceMonitor.endTiming(identifier) {
-                    if duration > threshold {
-                        print("⚠️ Performance: View '\(identifier)' took \(String(format: "%.2f", duration * 1000))ms to render")
-                    }
-                }
-            }
-    }
-}
-
-// MARK: - Keyboard Modifier
+// MARK: - Input and Keyboard Modifiers
 
 struct KeyboardObserver: ViewModifier {
     let onChange: (Bool, CGFloat) -> Void
@@ -989,7 +698,128 @@ struct KeyboardObserver: ViewModifier {
     }
 }
 
-// MARK: - Data Handling Modifiers
+// MARK: - Styling Modifiers
+
+struct ShimmerModifier: ViewModifier {
+    let active: Bool
+    @State private var phase: CGFloat = 0
+    
+    func body(content: Content) -> some View {
+        content
+            .overlay(
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                .white.opacity(0.6),
+                                .clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .rotationEffect(.degrees(30))
+                    .offset(x: phase)
+                    .opacity(active ? 1 : 0)
+                    .animation(
+                        active ?
+                        Animation.linear(duration: 1.5).repeatForever(autoreverses: false) :
+                        .default,
+                        value: phase
+                    )
+            )
+            .onAppear {
+                if active {
+                    phase = 300
+                }
+            }
+    }
+}
+
+// MARK: - Accessibility Modifiers
+
+struct AccessibilityModifier: ViewModifier {
+    let label: String?
+    let hint: String?
+    let value: String?
+    let traits: AccessibilityTraits
+    let identifier: String?
+    
+    func body(content: Content) -> some View {
+        var view = content
+        
+        if let label = label {
+            view = view.accessibilityLabel(label) as! Content
+        }
+        
+        if let hint = hint {
+            view = view.accessibilityHint(hint) as! Content
+        }
+        
+        if let value = value {
+            view = view.accessibilityValue(value) as! Content
+        }
+        
+        if !traits.isEmpty {
+            view = view.accessibilityAddTraits(traits) as! Content
+        }
+        
+        if let identifier = identifier {
+            view = view.accessibilityIdentifier(identifier) as! Content
+        }
+        
+        return view
+    }
+}
+
+struct AccessibilityActionsModifier: ViewModifier {
+    let actions: [AccessibilityAction]
+    
+    func body(content: Content) -> some View {
+        var view = content
+        
+        for action in actions {
+            view = view.accessibilityAction(named: action.name) {
+                action.handler()
+            } as! Content
+        }
+        
+        return view
+    }
+}
+
+// MARK: - Performance Modifiers
+
+struct PerformanceMonitorModifier: ViewModifier {
+    let identifier: String
+    let threshold: TimeInterval
+    
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                PerformanceMonitor.shared.startTiming(identifier)
+            }
+            .onDisappear {
+                if let duration = PerformanceMonitor.shared.endTiming(identifier) {
+                    if duration > threshold {
+                        print("⚠️ Performance: View '\(identifier)' took \(String(format: "%.2f", duration * 1000))ms to render")
+                    }
+                }
+            }
+    }
+}
+
+struct CacheModifier<Key: Hashable>: ViewModifier {
+    let key: Key
+    
+    func body(content: Content) -> some View {
+        // Implementation would use a view cache
+        content
+    }
+}
+
+// MARK: - Data Modifiers
 
 struct ValidationBindingModifier<T>: ViewModifier {
     let binding: Binding<T>
@@ -1024,124 +854,161 @@ struct AutoSaveModifier<T: Codable>: ViewModifier {
             .onChange(of: value) { _, newValue in
                 saveTimer?.invalidate()
                 saveTimer = Timer.scheduledTimer(withTimeInterval: debounceTime, repeats: false) { _ in
-                    save(newValue)
+                    if let data = try? JSONEncoder().encode(newValue) {
+                        UserDefaults.standard.set(data, forKey: key)
+                    }
                 }
             }
     }
-    
-    private func save(_ value: T) {
-        do {
-            let data = try JSONEncoder().encode(value)
-            UserDefaults.standard.set(data, forKey: key)
-        } catch {
-            print("Failed to auto-save: \(error)")
-        }
-    }
 }
 
-struct PullToRefreshModifier: ViewModifier {
-    let coordinateSpace: CoordinateSpace
-    let onRefresh: () async -> Void
-    @State private var isRefreshing = false
+struct ScrollPositionModifier: ViewModifier {
+    let onChange: (CGFloat) -> Void
+    @State private var scrollOffset: CGFloat = 0
     
     func body(content: Content) -> some View {
         content
-            .coordinateSpace(name: coordinateSpace)
-            .refreshable {
-                await onRefresh()
+            .background(
+                GeometryReader { geometry in
+                    Color.clear
+                        .onAppear {
+                            scrollOffset = geometry.frame(in: .global).minY
+                            onChange(scrollOffset)
+                        }
+                        .onChange(of: geometry.frame(in: .global).minY) { _, newValue in
+                            scrollOffset = newValue
+                            onChange(scrollOffset)
+                        }
+                }
+            )
+    }
+}
+
+// MARK: - Navigation Modifiers
+
+struct NavigationBarStylingModifier: ViewModifier {
+    let backgroundColor: Color
+    let foregroundColor: Color
+    let hideBackButton: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .navigationBarBackButtonHidden(hideBackButton)
+            .onAppear {
+                let appearance = UINavigationBarAppearance()
+                appearance.backgroundColor = UIColor(backgroundColor)
+                appearance.titleTextAttributes = [.foregroundColor: UIColor(foregroundColor)]
+                appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(foregroundColor)]
+                
+                UINavigationBar.appearance().standardAppearance = appearance
+                UINavigationBar.appearance().compactAppearance = appearance
+                UINavigationBar.appearance().scrollEdgeAppearance = appearance
             }
     }
 }
 
-// MARK: - Supporting Types and Views
+// MARK: - Support Views
 
-public enum LoadingStyle {
-    case spinner
-    case dots
-    case pulse
-}
-
-public enum SpringPreset {
-    case `default`
-    case bouncy
-    case smooth
-    case snappy
+struct LoadingOverlayView: View {
+    let message: String
+    let style: LoadingStyle
     
-    var animation: Animation {
-        switch self {
-        case .default:
-            return .spring()
-        case .bouncy:
-            return .spring(response: 0.6, dampingFraction: 0.6, blendDuration: 0)
-        case .smooth:
-            return .spring(response: 0.9, dampingFraction: 1.0, blendDuration: 0)
-        case .snappy:
-            return .spring(response: 0.3, dampingFraction: 0.8, blendDuration: 0)
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                loadingIndicator
+                
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+            }
+            .padding(24)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+            )
+        }
+    }
+    
+    @ViewBuilder
+    private var loadingIndicator: some View {
+        switch style {
+        case .spinner:
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.white)
+        case .dots:
+            DotsLoadingView()
+        case .pulse:
+            PulseLoadingView()
+        case .shimmer:
+            ShimmerLoadingView()
+        case .skeleton:
+            SkeletonView(lines: 1, animated: true)
         }
     }
 }
 
-public enum ElevationLevel {
-    case none
-    case low
-    case medium
-    case high
-    case highest
+struct EmptyStateView: View {
+    let title: String
+    let message: String
+    let systemImage: String
+    let action: (() -> Void)?
+    let actionTitle: String
     
-    var radius: CGFloat {
-        switch self {
-        case .none: return 0
-        case .low: return 2
-        case .medium: return 4
-        case .high: return 8
-        case .highest: return 16
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: systemImage)
+                .font(.system(size: 64))
+                .foregroundColor(.secondary)
+            
+            VStack(spacing: 8) {
+                Text(title)
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            
+            if let action = action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct SkeletonView: View {
+    let lines: Int
+    let animated: Bool
+    @State private var opacity: Double = 0.6
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ForEach(0..<lines, id: \.self) { _ in
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color(.systemGray4))
+                    .frame(height: 20)
+                    .opacity(opacity)
+            }
+        }
+        .onAppear {
+            if animated {
+                withAnimation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
+                    opacity = 0.3
+                }
+            }
         }
     }
-    
-    var opacity: Double {
-        switch self {
-        case .none: return 0
-        case .low: return 0.1
-        case .medium: return 0.15
-        case .high: return 0.2
-        case .highest: return 0.25
-        }
-    }
-    
-    var offset: CGFloat {
-        switch self {
-        case .none: return 0
-        case .low: return 1
-        case .medium: return 2
-        case .high: return 4
-        case .highest: return 8
-        }
-    }
 }
-
-public enum ValidationResult {
-    case valid
-    case invalid(String)
-}
-
-public enum AsyncData<T> {
-    case loading
-    case loaded(T)
-    case failed(Error)
-    case empty
-}
-
-public struct AccessibilityAction {
-    let name: String
-    let handler: () -> Void
-    
-    public init(name: String, handler: @escaping () -> Void) {
-        self.name = name
-        self.handler = handler
-    }
-}
-
-// MARK: - Custom Views for Modifiers
 
 struct DotsLoadingView: View {
     @State private var animationOffset: CGFloat = 0
@@ -1181,51 +1048,36 @@ struct PulseLoadingView: View {
     }
 }
 
-struct CachedView<Key: Hashable, Content: View>: View {
-    let key: Key
-    let content: () -> Content
-    
-    private static var cache: [AnyHashable: AnyView] {
-        get { _cache }
-        set { _cache = newValue }
-    }
-    private static var _cache: [AnyHashable: AnyView] = [:]
+struct ShimmerLoadingView: View {
+    @State private var phase: CGFloat = 0
     
     var body: some View {
-        if let cachedView = Self.cache[AnyHashable(key)] {
-            cachedView
-        } else {
-            let view = AnyView(content())
-            let _ = { Self.cache[AnyHashable(key)] = view }()
-            view
-        }
-    }
-}
-
-struct LazyLoadingView: View {
-    let content: AnyView
-    let threshold: CGFloat
-    let placeholder: AnyView
-    @State private var isVisible = false
-    
-    var body: some View {
-        GeometryReader { geometry in
-            if isVisible {
-                content
-            } else {
-                placeholder
-                    .onAppear {
-                        // Check if view is within threshold distance of viewport
-                        if geometry.frame(in: .global).minY < UIScreen.main.bounds.height + threshold {
-                            isVisible = true
-                        }
-                    }
+        RoundedRectangle(cornerRadius: 8)
+            .fill(Color(.systemGray4))
+            .frame(width: 60, height: 20)
+            .overlay(
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.clear, .white.opacity(0.6), .clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .offset(x: phase)
+            )
+            .clipped()
+            .onAppear {
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    phase = 100
+                }
             }
-        }
     }
 }
 
-struct AsyncDataView<T, Content: View>: View {
+
+
+struct AsyncDataView<T: Sendable, Content: View>: View {
     let data: AsyncData<T>
     let onRetry: () -> Void
     let content: (T) -> Content
@@ -1234,93 +1086,67 @@ struct AsyncDataView<T, Content: View>: View {
         switch data {
         case .loading:
             ProgressView("Loading...")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            
         case .loaded(let value):
             content(value)
-            
         case .failed(let error):
-            VStack(spacing: 16) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 48))
-                    .foregroundColor(.orange)
-                
-                Text("Failed to load data")
-                    .font(.headline)
-                
-                Text(error.localizedDescription)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                
+            VStack {
+                Text("Error: \(error.localizedDescription)")
+                    .foregroundColor(.red)
                 Button("Retry", action: onRetry)
-                    .buttonStyle(.borderedProminent)
             }
-            .padding()
-            
         case .empty:
-            VStack(spacing: 16) {
-                Image(systemName: "tray")
-                    .font(.system(size: 48))
-                    .foregroundColor(.secondary)
-                
-                Text("No data available")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
+            Text("No data available")
+                .foregroundColor(.secondary)
         }
     }
 }
 
-// MARK: - Notification Extensions
+// MARK: - Accessibility Support
 
-extension Notification.Name {
-    static let scrollViewDidScroll = Notification.Name("scrollViewDidScroll")
+public struct AccessibilityAction {
+    public let name: String
+    public let handler: () -> Void
+    
+    public init(name: String, handler: @escaping () -> Void) {
+        self.name = name
+        self.handler = handler
+    }
 }
 
-// MARK: - Testing Support
+// MARK: - Mock Dependencies (for standalone compilation)
 
-#if DEBUG
-public extension View {
-    /// Add debug border for layout debugging
-    func debugBorder(_ color: Color = .red, width: CGFloat = 1) -> some View {
-        overlay(
-            Rectangle()
-                .stroke(color, lineWidth: width)
-        )
+@MainActor
+private class ErrorHandlerProxy: ObservableObject {
+    @Published var currentError: AppError?
+    
+    func handle(_ error: AppError, context: String) {
+        currentError = error
     }
     
-    /// Print view hierarchy for debugging
-    func debugPrint(_ message: String = "") -> some View {
-        onAppear {
-            print("🐛 Debug: \(message) - View appeared")
+    func clearError() {
+        currentError = nil
+    }
+}
+
+// Mock AppError if not available
+public enum AppError: LocalizedError, Equatable, Sendable {
+    case unknown
+    case validation(message: String)
+    
+    public var errorDescription: String? {
+        switch self {
+        case .unknown: return "Unknown error"
+        case .validation(let message): return message
         }
-        .onDisappear {
-            print("🐛 Debug: \(message) - View disappeared")
-        }
     }
     
-    /// Measure view size for debugging
-    func debugSize(label: String = "View") -> some View {
-        background(
-            GeometryReader { geometry in
-                Color.clear
-                    .onAppear {
-                        print("📐 \(label) size: \(geometry.size)")
-                    }
-            }
-        )
-    }
-    
-    /// Test accessibility
-    func debugAccessibility() -> some View {
-        onAppear {
-            // Check if view has accessibility information
-            let mirror = Mirror(reflecting: self)
-            print("♿ Accessibility debug for \(type(of: self))")
-            // Additional accessibility debugging could be added here
+    public static func == (lhs: AppError, rhs: AppError) -> Bool {
+        switch (lhs, rhs) {
+        case (.unknown, .unknown): return true
+        case (.validation(let lhs), .validation(let rhs)): return lhs == rhs
+        default: return false
         }
     }
 }
-#endif
+
+
