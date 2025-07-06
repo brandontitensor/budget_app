@@ -852,6 +852,76 @@ public enum CoreDataError: LocalizedError {
     }
 }
 
+
+public extension CoreDataManager {
+    
+    /// Alias for getAllEntries() - used by BudgetManager
+    func getAllBudgetEntries() async throws -> [BudgetEntry] {
+        return try await getAllEntries()
+    }
+    
+    /// Get budget entries filtered by TimePeriod and optional category
+    func getBudgetEntries(for period: TimePeriod?, category: String? = nil) async throws -> [BudgetEntry] {
+        let startTime = Date()
+        
+        let fetchRequest: NSFetchRequest<BudgetEntryMO> = BudgetEntryMO.fetchRequest()
+        var predicates: [NSPredicate] = []
+        
+        // Add time period filter
+        if let period = period {
+            let dateInterval = period.dateInterval()
+            let datePredicate = NSPredicate(
+                format: "date >= %@ AND date <= %@",
+                dateInterval.start as NSDate,
+                dateInterval.end as NSDate
+            )
+            predicates.append(datePredicate)
+        }
+        
+        // Add category filter
+        if let category = category {
+            let categoryPredicate = NSPredicate(format: "category == %@", category)
+            predicates.append(categoryPredicate)
+        }
+        
+        // Combine predicates
+        if !predicates.isEmpty {
+            fetchRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        }
+        
+        fetchRequest.sortDescriptors = [NSSortDescriptor(keyPath: \BudgetEntryMO.date, ascending: false)]
+        fetchRequest.fetchBatchSize = 50
+        fetchRequest.returnsObjectsAsFaults = false
+        
+        let result = try await mainContext.perform {
+            do {
+                let results = try self.mainContext.fetch(fetchRequest)
+                let entries = results.compactMap { budgetEntryMO in
+                    try? BudgetEntry(from: budgetEntryMO)
+                }
+                
+                let duration = Date().timeIntervalSince(startTime)
+                self.recordMetric("getBudgetEntries", duration: duration)
+                
+                return entries
+            } catch {
+                throw AppError.dataLoad(underlying: error)
+            }
+        }
+        
+        return result
+    }
+}
+
+// MARK: - TimePeriod Extension (Helper)
+
+public extension TimePeriod {
+    /// Convenience property for current month
+    static var currentMonth: TimePeriod {
+        return .thisMonth
+    }
+}
+
 // MARK: - Testing Support
 
 #if DEBUG

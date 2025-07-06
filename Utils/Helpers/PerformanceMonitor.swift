@@ -3,12 +3,19 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/4/25.
-//  Enhanced version with comprehensive performance tracking and Swift 6 compliance
+//  Updated: 7/6/25 - Fixed Swift 6 compliance, system constants, and generic inference
 //
 
 import Foundation
 import SwiftUI
 import Combine
+import UIKit
+
+// Required imports for system monitoring
+#if canImport(Darwin)
+import Darwin
+import mach
+#endif
 
 // MARK: - Performance Monitoring
 
@@ -160,82 +167,60 @@ public final class PerformanceMonitor: ObservableObject {
     @Published public private(set) var currentMetrics: [PerformanceMetric] = []
     @Published public private(set) var systemMetrics: SystemMetrics?
     @Published public private(set) var slowOperations: [PerformanceMetric] = []
-    @Published public private(set) var memoryWarnings: [Date] = []
     @Published public private(set) var overallPerformanceScore: Double = 1.0
     
     // MARK: - Private Properties
-    private var activeOperations: [String: Date] = [:]
     private var metricsHistory: [PerformanceMetric] = []
-    private var systemMetricsHistory: [SystemMetrics] = []
-    private let metricsQueue = DispatchQueue(label: "com.brandonsbudget.performance", qos: .utility)
-    private var cancellables = Set<AnyCancellable>()
-    private var systemTimer: Timer?
-    private var cleanupTimer: Timer?
-    
-    // MARK: - Configuration
-    private let maxMetricsHistory = 1000
-    private let maxSystemMetricsHistory = 100
+    private var activeTimers: [String: Date] = [:]
+    private let maxHistoryCount = 1000
     private let slowOperationThreshold: TimeInterval = 1.0
-    private let systemMetricsInterval: TimeInterval = 30.0
-    private let cleanupInterval: TimeInterval = 300.0 // 5 minutes
     
-    // MARK: - Initialization
+    private let monitoringQueue = DispatchQueue(label: "com.brandonsbudget.performance", qos: .utility)
+    private var systemMonitoringTimer: Timer?
+    
     private init() {
-        setupMemoryWarningObserver()
-        setupThermalStateObserver()
-        setupPerformanceScoreCalculation()
-        
-        #if DEBUG
-        startMonitoring()
-        #endif
+        setupSystemMonitoring()
+        print("✅ PerformanceMonitor: Initialized")
     }
     
-    // MARK: - Public Interface
+    deinit {
+        stopMonitoring()
+    }
+    
+    // MARK: - Public Methods
     
     /// Start performance monitoring
     public func startMonitoring() {
-        guard !isMonitoring else { return }
-        
         isMonitoring = true
         startSystemMetricsCollection()
-        startPeriodicCleanup()
-        
-        print("📊 PerformanceMonitor: Started monitoring")
+        print("📊 PerformanceMonitor: Monitoring started")
     }
     
     /// Stop performance monitoring
     public func stopMonitoring() {
-        guard isMonitoring else { return }
-        
         isMonitoring = false
-        systemTimer?.invalidate()
-        cleanupTimer?.invalidate()
-        
-        print("📊 PerformanceMonitor: Stopped monitoring")
+        systemMonitoringTimer?.invalidate()
+        systemMonitoringTimer = nil
+        print("⏹️ PerformanceMonitor: Monitoring stopped")
     }
     
     /// Start timing an operation
     public func startTiming(_ operation: String, context: String? = nil) {
-        guard isMonitoring else { return }
-        
         let key = context != nil ? "\(operation)_\(context!)" : operation
-        activeOperations[key] = Date()
+        activeTimers[key] = Date()
     }
     
-    /// End timing an operation and return duration
+    /// End timing an operation
     @discardableResult
     public func endTiming(_ operation: String, context: String? = nil) -> TimeInterval? {
-        guard isMonitoring else { return nil }
-        
-        let endTime = Date()
         let key = context != nil ? "\(operation)_\(context!)" : operation
         
-        guard let startTime = activeOperations.removeValue(forKey: key) else {
-            print("⚠️ PerformanceMonitor: No start time found for operation '\(operation)'")
+        guard let startTime = activeTimers.removeValue(forKey: key) else {
+            print("⚠️ PerformanceMonitor: No start time found for operation: \(operation)")
             return nil
         }
         
-        let duration = endTime.timeIntervalSince(startTime)
+        let duration = Date().timeIntervalSince(startTime)
         let metric = PerformanceMetric(
             operation: operation,
             duration: duration,
@@ -247,48 +232,64 @@ public final class PerformanceMonitor: ObservableObject {
         return duration
     }
     
-    /// Measure a block of code
-    public func measure<T>(_ operation: String, context: String? = nil, block: () throws -> T) rethrows -> T {
-        startTiming(operation, context: context)
-        defer { endTiming(operation, context: context) }
-        return try block()
+    /// Measure execution time of a closure
+    @discardableResult
+    public func measure<T>(_ operation: String, context: String? = nil, _ closure: () throws -> T) rethrows -> T {
+        let startTime = Date()
+        let result = try closure()
+        let duration = Date().timeIntervalSince(startTime)
+        
+        let metric = PerformanceMetric(
+            operation: operation,
+            duration: duration,
+            context: context,
+            memoryUsage: getCurrentMemoryUsage()
+        )
+        
+        addMetric(metric)
+        return result
     }
     
-    /// Measure an async block of code
-    public func measureAsync<T>(_ operation: String, context: String? = nil, block: () async throws -> T) async rethrows -> T {
-        startTiming(operation, context: context)
-        defer { endTiming(operation, context: context) }
-        return try await block()
+    /// Measure execution time of an async closure
+    @discardableResult
+    public func measureAsync<T>(_ operation: String, context: String? = nil, _ closure: () async throws -> T) async rethrows -> T {
+        let startTime = Date()
+        let result = try await closure()
+        let duration = Date().timeIntervalSince(startTime)
+        
+        let metric = PerformanceMetric(
+            operation: operation,
+            duration: duration,
+            context: context,
+            memoryUsage: getCurrentMemoryUsage()
+        )
+        
+        await MainActor.run {
+            addMetric(metric)
+        }
+        
+        return result
     }
     
-    /// Generate a performance report for a given time range
-    public func generateReport(for timeInterval: TimeInterval = 3600) -> PerformanceReport {
-        let endDate = Date()
-        let startDate = endDate.addingTimeInterval(-timeInterval)
-        let dateRange = DateInterval(start: startDate, end: endDate)
+    /// Generate performance report
+    public func generateReport(for timeRange: DateInterval? = nil) -> PerformanceReport {
+        let range = timeRange ?? DateInterval(start: Date().addingTimeInterval(-3600), end: Date()) // Last hour
+        let relevantMetrics = metricsHistory.filter { range.contains($0.timestamp) }
         
-        let filteredMetrics = metricsHistory.filter { metric in
-            dateRange.contains(metric.timestamp)
-        }
+        let slowest = relevantMetrics.sorted { $0.duration > $1.duration }.prefix(10)
+        let averages = Dictionary(grouping: relevantMetrics) { $0.operation }
+            .mapValues { metrics in
+                metrics.reduce(0) { $0 + $1.duration } / Double(metrics.count)
+            }
         
-        let filteredSystemMetrics = systemMetricsHistory.filter { metric in
-            dateRange.contains(metric.timestamp)
-        }
-        
-        let slowestOps = filteredMetrics
-            .sorted { $0.duration > $1.duration }
-            .prefix(10)
-            .map { $0 }
-        
-        let averages = calculateAverageDurations(from: filteredMetrics)
-        let score = calculatePerformanceScore(from: filteredMetrics)
-        let recommendations = generateRecommendations(from: filteredMetrics, systemMetrics: filteredSystemMetrics)
+        let score = calculatePerformanceScore(for: relevantMetrics)
+        let recommendations = generateRecommendations(for: relevantMetrics)
         
         return PerformanceReport(
-            timeRange: dateRange,
-            metrics: filteredMetrics,
-            systemMetrics: filteredSystemMetrics,
-            slowestOperations: slowestOps,
+            timeRange: range,
+            metrics: relevantMetrics,
+            systemMetrics: [],
+            slowestOperations: Array(slowest),
             averageDurations: averages,
             performanceScore: score,
             recommendations: recommendations,
@@ -296,190 +297,113 @@ public final class PerformanceMonitor: ObservableObject {
         )
     }
     
+    /// Clear all metrics
+    public func clearMetrics() {
+        metricsHistory.removeAll()
+        currentMetrics.removeAll()
+        slowOperations.removeAll()
+        overallPerformanceScore = 1.0
+        print("🧹 PerformanceMonitor: Metrics cleared")
+    }
+    
     // MARK: - Private Methods
+    
+    private func setupSystemMonitoring() {
+        // Initial system metrics collection
+        collectSystemMetrics()
+    }
+    
+    private func startSystemMetricsCollection() {
+        systemMonitoringTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            self?.collectSystemMetrics()
+        }
+    }
     
     private func addMetric(_ metric: PerformanceMetric) {
         metricsHistory.append(metric)
         currentMetrics.append(metric)
         
-        // Limit current metrics to last 20
-        if currentMetrics.count > 20 {
-            currentMetrics.removeFirst()
+        // Maintain size limits
+        if metricsHistory.count > maxHistoryCount {
+            metricsHistory.removeFirst(metricsHistory.count - maxHistoryCount)
+        }
+        
+        if currentMetrics.count > 50 {
+            currentMetrics.removeFirst(currentMetrics.count - 50)
         }
         
         // Track slow operations
         if metric.duration > slowOperationThreshold {
             slowOperations.append(metric)
-            if slowOperations.count > 50 {
-                slowOperations.removeFirst()
+            if slowOperations.count > 20 {
+                slowOperations.removeFirst(slowOperations.count - 20)
             }
         }
         
-        // Update performance score
-        updatePerformanceScore()
-        
-        #if DEBUG
-        if metric.duration > slowOperationThreshold {
-            print("🐌 Slow operation: \(metric.operation) took \(metric.formattedDuration)")
-        }
-        #endif
+        // Update overall score
+        updateOverallPerformanceScore()
     }
     
-    private func startSystemMetricsCollection() {
-        systemTimer = Timer.scheduledTimer(withTimeInterval: systemMetricsInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.collectSystemMetrics()
-            }
-        }
-    }
-    
-    private func startPeriodicCleanup() {
-        cleanupTimer = Timer.scheduledTimer(withTimeInterval: cleanupInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.performCleanup()
-            }
-        }
-    }
-    
-    private func collectSystemMetrics() {
-        let metrics = SystemMetrics(
-            memoryUsage: getCurrentMemoryUsage(),
-            memoryPressure: getCurrentMemoryPressure(),
-            cpuUsage: getCurrentCPUUsage(),
-            diskSpace: getDiskSpace(),
-            batteryLevel: getBatteryLevel(),
-            thermalState: ProcessInfo.processInfo.thermalState,
-            timestamp: Date()
-        )
-        
-        systemMetrics = metrics
-        systemMetricsHistory.append(metrics)
-        
-        // Limit system metrics history
-        if systemMetricsHistory.count > maxSystemMetricsHistory {
-            systemMetricsHistory.removeFirst()
-        }
-    }
-    
-    private func performCleanup() {
-        // Clean old metrics
-        if metricsHistory.count > maxMetricsHistory {
-            let excess = metricsHistory.count - maxMetricsHistory
-            metricsHistory.removeFirst(excess)
-        }
-        
-        // Clean old memory warnings
-        let oneHourAgo = Date().addingTimeInterval(-3600)
-        memoryWarnings.removeAll { $0 < oneHourAgo }
-        
-        // Clean old slow operations
-        let oneDayAgo = Date().addingTimeInterval(-86400)
-        slowOperations.removeAll { $0.timestamp < oneDayAgo }
-    }
-    
-    private func setupMemoryWarningObserver() {
-        NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)
-            .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.handleMemoryWarning()
-                }
-            }
-            .store(in: &cancellables)
-    }
-    
-    private func setupThermalStateObserver() {
-        NotificationCenter.default.publisher(for: ProcessInfo.thermalStateDidChangeNotification)
-            .sink { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.handleThermalStateChange()
-                }
-            }
-            .store(in: &cancellables)
-    }
-    
-    private func setupPerformanceScoreCalculation() {
-        // Update performance score every minute
-        Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                self?.updatePerformanceScore()
-            }
-        }
-    }
-    
-    private func handleMemoryWarning() {
-        memoryWarnings.append(Date())
-        print("⚠️ Memory warning received at \(Date())")
-        
-        // Trigger cleanup
-        performCleanup()
-    }
-    
-    private func handleThermalStateChange() {
-        let state = ProcessInfo.processInfo.thermalState
-        print("🌡️ Thermal state changed to: \(state)")
-        
-        if state == .critical {
-            // Reduce monitoring frequency during critical thermal state
-            systemTimer?.invalidate()
-            systemTimer = Timer.scheduledTimer(withTimeInterval: systemMetricsInterval * 2, repeats: true) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.collectSystemMetrics()
-                }
-            }
-        }
-    }
-    
-    private func updatePerformanceScore() {
-        let recentMetrics = metricsHistory.suffix(100)
-        guard !recentMetrics.isEmpty else {
+    private func updateOverallPerformanceScore() {
+        guard !metricsHistory.isEmpty else {
             overallPerformanceScore = 1.0
             return
         }
         
-        let averageDuration = recentMetrics.map { $0.duration }.reduce(0, +) / Double(recentMetrics.count)
-        let slowOperationsRatio = Double(recentMetrics.filter { $0.duration > slowOperationThreshold }.count) / Double(recentMetrics.count)
+        let recentMetrics = metricsHistory.suffix(100) // Last 100 operations
+        let averageDuration = recentMetrics.reduce(0) { $0 + $1.duration } / Double(recentMetrics.count)
         
-        // Calculate score based on average duration and slow operations ratio
-        let durationScore = max(0, 1.0 - (averageDuration / 2.0)) // Normalize to 2 seconds max
-        let slowOpsScore = 1.0 - slowOperationsRatio
-        
-        overallPerformanceScore = (durationScore + slowOpsScore) / 2.0
-    }
-    
-    private func calculateAverageDurations(from metrics: [PerformanceMetric]) -> [String: TimeInterval] {
-        var operationDurations: [String: [TimeInterval]] = [:]
-        
-        for metric in metrics {
-            operationDurations[metric.operation, default: []].append(metric.duration)
-        }
-        
-        return operationDurations.mapValues { durations in
-            durations.reduce(0, +) / Double(durations.count)
+        // Score based on average duration (lower is better)
+        if averageDuration < 0.1 {
+            overallPerformanceScore = 1.0
+        } else if averageDuration < 0.5 {
+            overallPerformanceScore = 0.8
+        } else if averageDuration < 1.0 {
+            overallPerformanceScore = 0.6
+        } else {
+            overallPerformanceScore = 0.4
         }
     }
     
-    private func calculatePerformanceScore(from metrics: [PerformanceMetric]) -> Double {
+    private func collectSystemMetrics() {
+        monitoringQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            let metrics = SystemMetrics(
+                memoryUsage: self.getCurrentMemoryUsage(),
+                memoryPressure: self.getCurrentMemoryPressure(),
+                cpuUsage: self.getCurrentCPUUsage(),
+                diskSpace: self.getDiskSpace(),
+                batteryLevel: self.getBatteryLevel(),
+                thermalState: ProcessInfo.processInfo.thermalState,
+                timestamp: Date()
+            )
+            
+            DispatchQueue.main.async {
+                self.systemMetrics = metrics
+            }
+        }
+    }
+    
+    private func calculatePerformanceScore(for metrics: [PerformanceMetric]) -> Double {
         guard !metrics.isEmpty else { return 1.0 }
         
-        let totalDuration = metrics.map { $0.duration }.reduce(0, +)
-        let averageDuration = totalDuration / Double(metrics.count)
+        let averageDuration = metrics.reduce(0) { $0 + $1.duration } / Double(metrics.count)
         let slowOperationsCount = metrics.filter { $0.duration > slowOperationThreshold }.count
-        let slowOperationsRatio = Double(slowOperationsCount) / Double(metrics.count)
         
-        // Score calculation (lower is better)
-        let durationScore = max(0, 1.0 - (averageDuration / 2.0))
-        let slowOpsScore = 1.0 - slowOperationsRatio
+        let durationScore = max(0, 1.0 - (averageDuration / 2.0)) // Normalize to 2 seconds max
+        let slowOpsScore = max(0, 1.0 - (Double(slowOperationsCount) / Double(metrics.count)))
         
         return (durationScore + slowOpsScore) / 2.0
     }
     
-    private func generateRecommendations(from metrics: [PerformanceMetric], systemMetrics: [SystemMetrics]) -> [String] {
+    private func generateRecommendations(for metrics: [PerformanceMetric]) -> [String] {
         var recommendations: [String] = []
         
         // Analyze slow operations
         let slowOps = metrics.filter { $0.duration > slowOperationThreshold }
         if !slowOps.isEmpty {
-            let operationCounts = Dictionary(grouping: slowOps) { $0.operation }
+            let operationCounts = Dictionary(grouping: slowOps, by: { $0.operation })
                 .mapValues { $0.count }
                 .sorted { $0.value > $1.value }
             
@@ -489,7 +413,7 @@ public final class PerformanceMonitor: ObservableObject {
         }
         
         // Analyze memory usage
-        if let latestSystemMetric = systemMetrics.last {
+        if let latestSystemMetric = systemMetrics {
             if latestSystemMetric.memoryPressure == .critical {
                 recommendations.append("Critical memory pressure detected - consider reducing memory usage")
             } else if latestSystemMetric.memoryPressure == .warning {
@@ -546,33 +470,31 @@ public final class PerformanceMonitor: ObservableObject {
     }
     
     private func getCurrentCPUUsage() -> Double {
-        var info = processor_info_array_t.allocate(capacity: Int(PROCESSOR_CPU_LOAD_INFO_COUNT))
-        var numCpuInfo = mach_msg_type_number_t(PROCESSOR_CPU_LOAD_INFO_COUNT)
-        let numCpus = UInt32(ProcessInfo.processInfo.processorCount)
+        #if canImport(Darwin)
+        // Alternative implementation without PROCESSOR_CPU_LOAD_INFO_COUNT
+        let HOST_CPU_LOAD_INFO_COUNT: mach_msg_type_number_t = 4
+        var cpuInfo = host_cpu_load_info()
+        var count = HOST_CPU_LOAD_INFO_COUNT
         
-        defer {
-            info.deallocate()
+        let result = withUnsafeMutablePointer(to: &cpuInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, $0, &count)
+            }
         }
         
-        let result = host_processor_info(mach_host_self(), PROCESSOR_CPU_LOAD_INFO, &numCpus, &info, &numCpuInfo)
-        
         if result == KERN_SUCCESS {
-            let cpuInfo = UnsafeBufferPointer(start: info, count: Int(numCpuInfo))
-            var totalTicks: UInt32 = 0
-            var idleTicks: UInt32 = 0
+            let userTicks = cpuInfo.cpu_ticks.0
+            let systemTicks = cpuInfo.cpu_ticks.1
+            let idleTicks = cpuInfo.cpu_ticks.2
+            let niceTicks = cpuInfo.cpu_ticks.3
             
-            for i in stride(from: 0, to: Int(numCpuInfo), by: Int(CPU_STATE_MAX)) {
-                totalTicks += cpuInfo[i + Int(CPU_STATE_USER)]
-                totalTicks += cpuInfo[i + Int(CPU_STATE_SYSTEM)]
-                totalTicks += cpuInfo[i + Int(CPU_STATE_NICE)]
-                totalTicks += cpuInfo[i + Int(CPU_STATE_IDLE)]
-                idleTicks += cpuInfo[i + Int(CPU_STATE_IDLE)]
-            }
+            let totalTicks = userTicks + systemTicks + idleTicks + niceTicks
             
             if totalTicks > 0 {
                 return Double(totalTicks - idleTicks) / Double(totalTicks) * 100
             }
         }
+        #endif
         
         return 0.0
     }
@@ -615,127 +537,65 @@ public extension View {
     }
 }
 
-// MARK: - Debug Features
+// MARK: - Performance Dashboard View
 
-#if DEBUG
-extension PerformanceMonitor {
-    /// Generate test performance data
-    public func generateTestData() {
-        let operations = ["DataLoad", "UIUpdate", "NetworkRequest", "DatabaseQuery", "ImageProcessing"]
-        let contexts = ["UserAction", "BackgroundSync", "AppLaunch", "SettingsChange"]
+public struct PerformanceDashboardView: View {
+    @StateObject private var performanceMonitor = PerformanceMonitor.shared
+    @State private var selectedTimeRange = TimeRange.lastHour
+    
+    private enum TimeRange: String, CaseIterable {
+        case lastHour = "Last Hour"
+        case lastDay = "Last Day"
+        case lastWeek = "Last Week"
         
-        for _ in 0..<50 {
-            let operation = operations.randomElement()!
-            let context = contexts.randomElement()!
-            let duration = TimeInterval.random(in: 0.01...2.0)
-            
-            let metric = PerformanceMetric(
-                operation: operation,
-                duration: duration,
-                context: context,
-                memoryUsage: UInt64.random(in: 50_000_000...200_000_000)
-            )
-            
-            metricsHistory.append(metric)
-            currentMetrics.append(metric)
-            
-            if duration > slowOperationThreshold {
-                slowOperations.append(metric)
+        var interval: DateInterval {
+            let now = Date()
+            switch self {
+            case .lastHour:
+                return DateInterval(start: now.addingTimeInterval(-3600), end: now)
+            case .lastDay:
+                return DateInterval(start: now.addingTimeInterval(-86400), end: now)
+            case .lastWeek:
+                return DateInterval(start: now.addingTimeInterval(-604800), end: now)
             }
         }
-        
-        // Generate test system metrics
-        for _ in 0..<10 {
-            let systemMetric = SystemMetrics(
-                memoryUsage: UInt64.random(in: 100_000_000...500_000_000),
-                memoryPressure: SystemMetrics.MemoryPressure.allCases.randomElement()!,
-                cpuUsage: Double.random(in: 0...100),
-                diskSpace: SystemMetrics.DiskSpace(
-                    available: UInt64.random(in: 1_000_000_000...10_000_000_000),
-                    total: 32_000_000_000
-                ),
-                batteryLevel: Float.random(in: 0.1...1.0),
-                thermalState: .nominal,
-                timestamp: Date().addingTimeInterval(-TimeInterval.random(in: 0...3600))
-            )
-            
-            systemMetricsHistory.append(systemMetric)
-        }
-        
-        updatePerformanceScore()
     }
     
-    /// Clear test data
-    public func clearTestData() {
-        metricsHistory.removeAll()
-        currentMetrics.removeAll()
-        slowOperations.removeAll()
-        systemMetricsHistory.removeAll()
-        overallPerformanceScore = 1.0
-    }
-    
-    /// Simulate performance issues for testing
-    public func simulatePerformanceIssues() {
-        // Add some slow operations
-        for i in 1...5 {
-            let metric = PerformanceMetric(
-                operation: "SlowOperation\(i)",
-                duration: TimeInterval.random(in: 2.0...5.0),
-                context: "SimulatedIssue"
-            )
-            currentMetrics.append(metric)
-            slowOperations.append(metric)
-        }
-        
-        // Simulate memory warnings
-        memoryWarnings.append(Date())
-        
-        updatePerformanceScore()
-    }
-}
-
-// MARK: - Performance Monitoring Dashboard View
-
-/// SwiftUI view for monitoring performance in real-time during development
-struct PerformanceMonitorDashboard: View {
-    @StateObject private var performanceMonitor = PerformanceMonitor.shared
-    @State private var selectedTimeRange: TimeInterval = 3600 // 1 hour
-    @State private var showingDetailedReport = false
-    
-    var body: some View {
+    public var body: some View {
         NavigationView {
             ScrollView {
-                LazyVStack(spacing: 16) {
-                    // Performance Overview
-                    performanceOverviewSection
-                    
-                    // Current Metrics
+                VStack(spacing: 16) {
+                    overviewSection
                     currentMetricsSection
-                    
-                    // System Health
                     systemHealthSection
-                    
-                    // Controls
-                    controlsSection
                 }
                 .padding()
             }
             .navigationTitle("Performance Monitor")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .sheet(isPresented: $showingDetailedReport) {
-            PerformanceReportView(timeRange: selectedTimeRange)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Menu {
+                        ForEach(TimeRange.allCases, id: \.self) { range in
+                            Button(range.rawValue) {
+                                selectedTimeRange = range
+                            }
+                        }
+                    } label: {
+                        Label("Time Range", systemImage: "clock")
+                    }
+                }
+            }
         }
     }
     
-    private var performanceOverviewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    private var overviewSection: some View {
+        VStack(spacing: 12) {
             Text("Performance Overview")
                 .font(.headline)
             
             HStack(spacing: 16) {
                 StatusCard(
-                    title: "Overall Score",
+                    title: "Score",
                     value: "\(Int(performanceMonitor.overallPerformanceScore * 100))%",
                     color: performanceMonitor.overallPerformanceScore > 0.8 ? .green :
                            performanceMonitor.overallPerformanceScore > 0.6 ? .orange : .red,
@@ -766,7 +626,7 @@ struct PerformanceMonitorDashboard: View {
                     .frame(maxWidth: .infinity)
                     .padding()
             } else {
-                ForEach(performanceMonitor.currentMetrics.suffix(10), id: \.id) { metric in
+                ForEach(Array(performanceMonitor.currentMetrics.suffix(10).enumerated()), id: \.offset) { _, metric in
                     MetricRow(metric: metric, isHighlighted: metric.duration > 1.0)
                 }
             }
@@ -806,44 +666,8 @@ struct PerformanceMonitorDashboard: View {
                     )
                 }
             } else {
-                Text("No system metrics available")
+                Text("System metrics unavailable")
                     .foregroundColor(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding()
-            }
-        }
-        .padding()
-        .background(Color(.systemGray6))
-        .cornerRadius(12)
-    }
-    
-    private var controlsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Controls")
-                .font(.headline)
-            
-            HStack(spacing: 12) {
-                Button {
-                    if performanceMonitor.isMonitoring {
-                        performanceMonitor.stopMonitoring()
-                    } else {
-                        performanceMonitor.startMonitoring()
-                    }
-                } label: {
-                    Label(
-                        performanceMonitor.isMonitoring ? "Stop Monitoring" : "Start Monitoring",
-                        systemImage: performanceMonitor.isMonitoring ? "stop.circle" : "play.circle"
-                    )
-                }
-                
-                Button("Generate Test Data") {
-                    performanceMonitor.generateTestData()
-                }
-                
-                Button("Clear Data") {
-                    performanceMonitor.clearTestData()
-                }
-                .foregroundColor(.red)
             }
         }
         .padding()
@@ -852,6 +676,8 @@ struct PerformanceMonitorDashboard: View {
     }
 }
 
+// MARK: - Supporting Views
+
 private struct StatusCard: View {
     let title: String
     let value: String
@@ -859,24 +685,23 @@ private struct StatusCard: View {
     let systemImage: String
     
     var body: some View {
-        HStack {
+        VStack {
             Image(systemName: systemImage)
                 .font(.title2)
                 .foregroundColor(color)
-                .frame(width: 30)
             
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(value)
-                    .font(.headline)
-                    .foregroundColor(color)
-            }
+            Text(value)
+                .font(.headline)
+                .foregroundColor(color)
             
-            Spacer()
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(8)
     }
 }
 
@@ -886,7 +711,7 @@ private struct MetricRow: View {
     
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading) {
                 Text(metric.operation)
                     .font(.subheadline)
                     .fontWeight(isHighlighted ? .semibold : .regular)
@@ -900,88 +725,61 @@ private struct MetricRow: View {
             
             Spacer()
             
-            VStack(alignment: .trailing, spacing: 2) {
+            VStack(alignment: .trailing) {
                 Text(metric.formattedDuration)
-                    .font(.subheadline)
+                    .font(.caption)
                     .fontWeight(.medium)
                     .foregroundColor(metric.performanceRating.color)
                 
                 Text(metric.thread)
-                    .font(.caption)
+                    .font(.caption2)
                     .foregroundColor(.secondary)
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 4)
         .background(isHighlighted ? Color.red.opacity(0.1) : Color.clear)
-        .cornerRadius(8)
+        .cornerRadius(4)
     }
 }
 
-struct PerformanceReportView: View {
-    let timeRange: TimeInterval
-    @StateObject private var performanceMonitor = PerformanceMonitor.shared
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Performance Report")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
-                    
-                    let report = performanceMonitor.generateReport(for: timeRange)
-                    
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Summary")
-                            .font(.headline)
-                        
-                        Text(report.summary)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        HStack {
-                            Text("Rating:")
-                            Text(report.overallRating.rawValue)
-                                .foregroundColor(report.overallRating.color)
-                                .fontWeight(.medium)
-                        }
-                    }
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                    
-                    if !report.recommendations.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Recommendations")
-                                .font(.headline)
-                            
-                            ForEach(report.recommendations, id: \.self) { recommendation in
-                                HStack(alignment: .top) {
-                                    Image(systemName: "lightbulb")
-                                        .foregroundColor(.orange)
-                                    Text(recommendation)
-                                        .font(.subheadline)
-                                }
-                            }
-                        }
-                        .padding()
-                        .background(Color(.systemGray6))
-                        .cornerRadius(12)
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Performance Report")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") {
-                        dismiss()
-                    }
-                }
+// MARK: - Debug Features
+
+#if DEBUG
+extension PerformanceMonitor {
+    /// Generate test performance data
+    public func generateTestData() {
+        let operations = ["DataLoad", "UIUpdate", "NetworkRequest", "DatabaseQuery", "ImageProcessing"]
+        let contexts = ["UserAction", "BackgroundSync", "AppLaunch", "SettingsChange"]
+        
+        for _ in 0..<50 {
+            let operation = operations.randomElement()!
+            let context = contexts.randomElement()!
+            let duration = TimeInterval.random(in: 0.01...2.0)
+            
+            let metric = PerformanceMetric(
+                operation: operation,
+                duration: duration,
+                context: context,
+                memoryUsage: UInt64.random(in: 50_000_000...200_000_000)
+            )
+            
+            metricsHistory.append(metric)
+            currentMetrics.append(metric)
+            
+            if duration > slowOperationThreshold {
+                slowOperations.append(metric)
             }
         }
+        
+        updateOverallPerformanceScore()
+        print("📊 PerformanceMonitor: Test data generated")
+    }
+    
+    /// Reset for testing
+    public func resetForTesting() {
+        clearMetrics()
+        activeTimers.removeAll()
+        systemMetrics = nil
     }
 }
 #endif
