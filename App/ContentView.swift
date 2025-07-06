@@ -3,10 +3,11 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
-//  Updated: 5/30/25 - Enhanced with centralized error handling and improved data persistence
+//  Updated: 7/5/25 - Enhanced with centralized error handling, improved data persistence, and comprehensive lifecycle management
 //
 
 import SwiftUI
+import WidgetKit
 
 /// Main container view for the app with enhanced data persistence and lifecycle management
 struct ContentView: View {
@@ -107,14 +108,8 @@ struct ContentView: View {
                 ForEach(0..<tabItems.count, id: \.self) { index in
                     NavigationView {
                         tabItems[index].2
-                            .errorHandling(
-                                context: "Tab \(tabItems[index].0)",
-                                showInline: false,
-                                onRetry: {
-                                    Task {
-                                        await refreshTabData(index: index)
-                                    }
-                                }
+                            .handleErrors(
+                                context: "Tab \(tabItems[index].0)"
                             )
                     }
                     .tint(themeManager.primaryColor)
@@ -200,7 +195,7 @@ struct ContentView: View {
             if let lastSave = lastSaveDate {
                 Text("Last saved: \(formatLastSaveTime(lastSave))")
                     .font(.caption2)
-                    .foregroundColor(.tertiary)
+                    .foregroundColor(Color(.tertiaryLabel))
                     .padding(.top, 8)
             }
         }
@@ -288,17 +283,17 @@ struct ContentView: View {
             context: "Loading initial app data"
         ) {
             // Load budget data
-            budgetManager.loadData()
+            await budgetManager.loadData()
             
             // Update widget data
             budgetManager.updateWidgetData()
             
             // Check data integrity
             let stats = budgetManager.getDataStatistics()
-            print("📊 Loaded \(stats.entryCount) entries and \(stats.budgetCount) budgets")
+            print("📊 Loaded \(stats?.entryCount ?? 0) entries and \(stats?.budgetCount ?? 0) budgets")
             
             // Save current state
-            try await CoreDataManager.shared.forceSave()
+            try await budgetManager.saveCurrentState()
             
             return true
         }
@@ -373,8 +368,10 @@ struct ContentView: View {
         }
         
         // Provide haptic feedback
+        #if !os(watchOS)
         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
         impactFeedback.impactOccurred()
+        #endif
     }
     
     // MARK: - Scene Phase Handling
@@ -396,7 +393,7 @@ struct ContentView: View {
         Task {
             await saveAppData(context: "App entering background")
             await MainActor.run {
-                budgetManager.updateWidgetData()
+                WidgetCenter.shared.reloadAllTimelines()
             }
         }
     }
@@ -425,7 +422,8 @@ struct ContentView: View {
             context: context,
             errorTransform: { .dataSave(underlying: $0) }
         ) {
-            try await CoreDataManager.shared.forceSave()
+            try await budgetManager.saveCurrentState()
+            return true
         }
         
         if result != nil {
@@ -440,89 +438,81 @@ struct ContentView: View {
         let result = await AsyncErrorHandler.execute(
             context: "Refreshing app data"
         ) {
-            // Check for unsaved changes
-            let hasUnsavedChanges = await CoreDataManager.shared.hasUnsavedChanges()
-            if hasUnsavedChanges {
-                try await CoreDataManager.shared.forceSave()
-            }
-            
-            // Refresh budget manager
-            budgetManager.loadData()
-            
+            await budgetManager.refreshData()
+            budgetManager.updateWidgetData()
             return true
         }
         
         if result != nil {
-            await MainActor.run {
-                lastSaveDate = Date()
-                print("🔄 ContentView: App data refreshed successfully")
-            }
+            print("✅ ContentView: Data refreshed successfully")
         }
     }
     
     private func refreshTabData(index: Int) async {
         let tabName = tabItems[index].0
-        
         let result = await AsyncErrorHandler.execute(
-            context: "Refreshing \(tabName) data"
+            context: "Refreshing \(tabName) tab data"
         ) {
             // Refresh specific tab data based on index
             switch index {
-            case 0, 2: // Overview and History
-                budgetManager.loadData()
+            case 0: // Overview
+                await budgetManager.refreshOverviewData()
             case 1: // Purchases
-                budgetManager.loadData()
+                await budgetManager.refreshPurchaseData()
+            case 2: // History
+                await budgetManager.refreshHistoryData()
             case 3: // Settings
-                // Settings might need specific refresh logic
-                break
+                try await settingsManager.loadSettings()
             default:
                 break
             }
-            
             return true
         }
         
         if result != nil {
-            print("🔄 ContentView: \(tabName) data refreshed")
+            print("✅ ContentView: \(tabName) tab data refreshed")
         }
     }
     
     // MARK: - Error Handling
     private func handleGlobalError(_ error: AppError?) {
         guard let error = error else {
+            currentError = nil
             showingErrorRecovery = false
             return
         }
         
+        currentError = error
+        
         // Show recovery overlay for critical errors
         if error.severity == .critical {
-            currentError = error
             showingErrorRecovery = true
         }
     }
     
     private func performGlobalRecovery() async {
-        showingErrorRecovery = false
-        
         await MainActor.run {
+            showingErrorRecovery = false
             dataLoadingState = .loading
         }
         
-        // Try to recover by reloading all data
         let result = await AsyncErrorHandler.execute(
             context: "Global error recovery"
         ) {
-            // Force save any pending changes
-            try await CoreDataManager.shared.forceSave()
-            
-            // Reload all data
-            budgetManager.loadData()
-            
-            // Update widget data
-            budgetManager.updateWidgetData()
-            
             // Clear error state
             errorHandler.clearError()
+            
+            // Reload all data
+            await budgetManager.reloadAllData()
+            
+            // Update widgets
+            budgetManager.updateWidgetData()
+            
+            // Validate data integrity
+            let isValid = await budgetManager.validateDataIntegrity()
+            guard isValid else {
+                throw AppError.generic(message: "Data integrity check failed")
+            }
             
             return true
         }
@@ -531,20 +521,14 @@ struct ContentView: View {
             if result != nil {
                 dataLoadingState = .loaded
                 currentError = nil
-                lastSaveDate = Date()
-                print("✅ ContentView: Global recovery successful")
+                print("✅ ContentView: Global recovery completed successfully")
             } else {
-                // If recovery fails, show the error state
-                if let latestError = errorHandler.errorHistory.first?.error {
-                    dataLoadingState = .failed(latestError)
-                }
+                dataLoadingState = .failed(.generic(message: "Recovery failed"))
             }
         }
     }
     
     private func restartApp() {
-        // This would typically involve resetting the app state
-        // For now, we'll reload the initial data
         Task {
             await MainActor.run {
                 isAppReady = false
@@ -552,7 +536,6 @@ struct ContentView: View {
                 currentError = nil
                 dataLoadingState = .idle
                 errorHandler.clearError()
-                errorHandler.clearHistory()
             }
             
             // Reload from scratch
@@ -596,9 +579,9 @@ struct FloatingActionButton: View {
                         systemImage: "cart.fill.badge.plus",
                         color: themeManager.primaryColor
                     ) {
-                        showingAddPurchase = true
                         withAnimation(.spring()) {
                             showingOptions = false
+                            showingAddPurchase = true
                         }
                     }
                     .transition(.asymmetric(
@@ -608,12 +591,12 @@ struct FloatingActionButton: View {
                     
                     ActionButton(
                         title: "Update Budget",
-                        systemImage: "dollarsign.circle.fill",
-                        color: themeManager.semanticColors.success
+                        systemImage: "pencil.circle.fill",
+                        color: .orange
                     ) {
-                        showingUpdateBudget = true
                         withAnimation(.spring()) {
                             showingOptions = false
+                            showingUpdateBudget = true
                         }
                     }
                     .transition(.asymmetric(
@@ -622,41 +605,34 @@ struct FloatingActionButton: View {
                     ))
                 }
                 
-                mainActionButton
-            }
-        }
-    }
-    
-    private var mainActionButton: some View {
-        Button {
-            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-            impactFeedback.impactOccurred()
-            
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                showingOptions.toggle()
-                isAnimating = true
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                isAnimating = false
-            }
-        } label: {
-            Image(systemName: showingOptions ? "xmark.circle.fill" : "plus.circle.fill")
-                .resizable()
-                .frame(width: 56, height: 56)
-                .foregroundStyle(isEnabled ? themeManager.primaryColor : Color.gray)
-                .background(
-                    Circle()
-                        .fill(themeManager.semanticColors.backgroundPrimary)
+                // Main FAB
+                Button {
+                    #if !os(watchOS)
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                    #endif
+                    
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                        showingOptions.toggle()
+                        isAnimating.toggle()
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 56, height: 56)
+                        .background(themeManager.primaryColor)
+                        .clipShape(Circle())
                         .shadow(
-                            color: .black.opacity(0.15),
+                            color: themeManager.primaryColor.opacity(0.3),
                             radius: showingOptions ? 12 : 8,
                             x: 0,
                             y: showingOptions ? 6 : 4
                         )
-                )
+                }
                 .scaleEffect(isAnimating ? 1.1 : 1.0)
                 .rotationEffect(.degrees(showingOptions ? 45 : 0))
+            }
         }
         .disabled(!isEnabled)
         .accessibilityLabel(showingOptions ? "Close menu" : "Open action menu")
@@ -696,6 +672,7 @@ struct ActionButton: View {
     }
 }
 
+
 // MARK: - Preview Provider
 #if DEBUG
 struct ContentView_Previews: PreviewProvider {
@@ -719,18 +696,6 @@ struct ContentView_Previews: PreviewProvider {
                 .environmentObject(AppStateMonitor.shared)
                 .preferredColorScheme(.dark)
                 .previewDisplayName("Dark Mode - Ready")
-            
-            // Loading State
-            ContentView()
-                .environmentObject(BudgetManager.shared)
-                .environmentObject(ThemeManager.shared)
-                .environmentObject(SettingsManager.shared)
-                .environmentObject(ErrorHandler.shared)
-                .environmentObject(AppStateMonitor.shared)
-                .onAppear {
-                    // Simulate loading state
-                }
-                .previewDisplayName("Loading State")
         }
     }
 }

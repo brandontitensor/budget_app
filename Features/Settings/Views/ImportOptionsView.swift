@@ -1339,19 +1339,6 @@ extension String.Encoding {
 
 // MARK: - Error Handling Extension
 
-extension View {
-    func errorHandling(
-        context: String,
-        showInline: Bool = true,
-        onRetry: (() -> Void)? = nil
-    ) -> some View {
-        self.modifier(ErrorHandlingModifier(
-            context: context,
-            showInline: showInline,
-            onRetry: onRetry
-        ))
-    }
-}
 
 private struct ErrorHandlingModifier: ViewModifier {
     let context: String

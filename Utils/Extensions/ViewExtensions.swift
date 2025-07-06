@@ -1128,25 +1128,6 @@ private class ErrorHandlerProxy: ObservableObject {
     }
 }
 
-// Mock AppError if not available
-public enum AppError: LocalizedError, Equatable, Sendable {
-    case unknown
-    case validation(message: String)
-    
-    public var errorDescription: String? {
-        switch self {
-        case .unknown: return "Unknown error"
-        case .validation(let message): return message
-        }
-    }
-    
-    public static func == (lhs: AppError, rhs: AppError) -> Bool {
-        switch (lhs, rhs) {
-        case (.unknown, .unknown): return true
-        case (.validation(let lhs), .validation(let rhs)): return lhs == rhs
-        default: return false
-        }
-    }
-}
+
 
 

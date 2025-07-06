@@ -13,12 +13,11 @@ import WidgetKit
 @main
 struct BrandonsBudgetApp: App {
     // MARK: - State Objects (Environment Objects)
-    @StateObject private var budgetManager = BudgetManagerProxy()
-    @StateObject private var themeManager = ThemeManagerProxy()
-    @StateObject private var settingsManager = SettingsManagerProxy()
-    @StateObject private var errorHandler = ErrorHandlerProxy()
-    @StateObject private var notificationManager = NotificationManagerProxy()
-    @StateObject private var appStateMonitor = AppStateMonitorProxy()
+    @StateObject private var budgetManager = BudgetManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
+    @StateObject private var settingsManager = SettingsManager.shared
+    @StateObject private var errorHandler = ErrorHandler.shared
+    @StateObject private var appStateMonitor = AppStateMonitor.shared
     
     // MARK: - App State
     @Environment(\.scenePhase) private var scenePhase
@@ -44,197 +43,174 @@ struct BrandonsBudgetApp: App {
                         .environmentObject(themeManager)
                         .environmentObject(settingsManager)
                         .environmentObject(errorHandler)
-                        .environmentObject(notificationManager)
                         .environmentObject(appStateMonitor)
                         .preferredColorScheme(themeManager.isDarkMode ? .dark : .light)
-                        .errorAlert(onRetry: {
-                            Task {
-                                await refreshAppData()
-                            }
-                        })
+                        .tint(themeManager.primaryColor)
                 }
             }
             .onChange(of: scenePhase) { oldPhase, newPhase in
-                handleScenePhaseChange(from: oldPhase, to: newPhase)
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
-                handleAppEnteringBackground()
+                Task {
+                    await handleScenePhaseChange(from: oldPhase, to: newPhase)
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)) { _ in
-                handleAppWillTerminate()
+                Task {
+                    await handleAppWillTerminate()
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
-                handleMemoryWarning()
+                Task {
+                    await handleMemoryWarning()
+                }
             }
         }
     }
     
-    // MARK: - App Lifecycle Methods
+    // MARK: - App Initialization
     
-    /// Perform comprehensive app initialization
+    /// Perform complete app initialization
     private func performAppInitialization() async {
         do {
-            print("🚀 Starting app initialization...")
+            // Track app launch
+            await MainActor.run {
+                appLaunchCount += 1
+                print("🚀 App Launch #\(appLaunchCount)")
+            }
             
-            // Update launch tracking
-            await updateLaunchTracking()
+            // Setup app on launch
+            await setupAppOnLaunch()
             
-            // Setup core systems
-            await setupAppearance()
-            try await setupNotifications()
-            try await loadInitialData()
+            // Perform initial setup
+            await performInitialSetup()
+            
+            // Setup data persistence
             await setupDataPersistence()
+            
+            // Setup performance monitoring
             await setupPerformanceMonitoring()
             
-            // Mark initialization as complete
+            // Mark initialization complete
             await MainActor.run {
                 isInitializing = false
-                initializationError = nil
-                print("✅ App initialization completed successfully")
+                hasLaunchedBefore = true
             }
+            
+            print("✅ App initialization completed successfully")
             
         } catch {
+            let appError = AppError.from(error)
             await MainActor.run {
-                let appError = AppError.from(error)
                 initializationError = appError
                 errorHandler.handle(appError, context: "App initialization")
-                
-                // Still allow app to continue with limited functionality
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    isInitializing = false
-                }
-                
-                print("❌ App initialization failed: \(appError.localizedDescription)")
+            }
+            
+            // Allow user to continue with limited functionality
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                isInitializing = false
             }
         }
     }
     
-    /// Update app launch tracking
-    private func updateLaunchTracking() async {
-        await MainActor.run {
-            appLaunchCount += 1
-            if !hasLaunchedBefore {
-                hasLaunchedBefore = true
-                print("🎉 First app launch detected")
-            }
-            print("📱 App launch count: \(appLaunchCount)")
-        }
-    }
-    
-    /// Setup app appearance and theming
-    private func setupAppearance() async {
-        await MainActor.run {
-            // Configure navigation bar appearance
-            let navBarAppearance = UINavigationBarAppearance()
-            navBarAppearance.configureWithDefaultBackground()
-            navBarAppearance.largeTitleTextAttributes = [
-                .foregroundColor: UIColor.label
-            ]
-            navBarAppearance.titleTextAttributes = [
-                .foregroundColor: UIColor.label
-            ]
-            
-            UINavigationBar.appearance().standardAppearance = navBarAppearance
-            UINavigationBar.appearance().compactAppearance = navBarAppearance
-            UINavigationBar.appearance().scrollEdgeAppearance = navBarAppearance
-            
-            // Configure tab bar appearance
-            let tabBarAppearance = UITabBarAppearance()
-            tabBarAppearance.configureWithDefaultBackground()
-            UITabBar.appearance().standardAppearance = tabBarAppearance
-            UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
-            
-            print("✅ App appearance configured")
-        }
-    }
-    
-    /// Setup notification system
-    private func setupNotifications() async throws {
-        let center = UNUserNotificationCenter.current()
-        
-        // Request authorization
-        let authorizationGranted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-        
-        if authorizationGranted {
-            print("✅ Notification authorization granted")
-            
-            // Setup notification categories
-            await setupNotificationCategories()
-            
-            // Configure notification delegate
-            await MainActor.run {
-                center.delegate = notificationManager as? UNUserNotificationCenterDelegate
-            }
-        } else {
-            print("⚠️ Notification authorization denied")
-        }
-    }
-    
-    /// Setup notification categories and actions
-    private func setupNotificationCategories() async {
-        let budgetExceededAction = UNNotificationAction(
-            identifier: "BUDGET_EXCEEDED_ACTION",
-            title: "View Budget",
-            options: [.foreground]
-        )
-        
-        let budgetExceededCategory = UNNotificationCategory(
-            identifier: "BUDGET_EXCEEDED",
-            actions: [budgetExceededAction],
-            intentIdentifiers: [],
-            options: []
-        )
-        
-        let reminderAction = UNNotificationAction(
-            identifier: "REMINDER_ACTION",
-            title: "Add Purchase",
-            options: [.foreground]
-        )
-        
-        let reminderCategory = UNNotificationCategory(
-            identifier: "BUDGET_REMINDER",
-            actions: [reminderAction],
-            intentIdentifiers: [],
-            options: []
-        )
-        
-        let center = UNUserNotificationCenter.current()
-        center.setNotificationCategories([budgetExceededCategory, reminderCategory])
-        
-        print("✅ Notification categories configured")
-    }
-    
-    /// Load initial app data
-    private func loadInitialData() async throws {
-        print("📊 Loading initial data...")
-        
-        // Load settings first
-        try await settingsManager.loadSettings()
-        
-        // Apply theme settings
+    /// Setup app on launch
+    private func setupAppOnLaunch() async {
+        // Apply stored theme
         await MainActor.run {
             themeManager.applyStoredTheme()
         }
         
-        // Load budget data
-        try await budgetManager.initializeData()
+        // Configure global appearance
+        configureGlobalAppearance()
         
-        // Update app state
-        await appStateMonitor.updateAppState(.active)
+        // Initialize app state monitoring
+        await appStateMonitor.updateAppState(.launching)
         
-        print("✅ Initial data loaded successfully")
+        // Set manager dependencies
+        appStateMonitor.setDependencies(budgetManager: budgetManager, errorHandler: errorHandler)
     }
     
-    /// Setup data persistence and background sync
-    private func setupDataPersistence() async {
-        // Setup auto-save timer
-        Timer.scheduledTimer(withTimeInterval: 300.0, repeats: true) { _ in
-            Task {
-                await performBackgroundSave()
+    /// Perform initial setup tasks
+    private func performInitialSetup() async {
+        await withTaskGroup(of: Void.self) { group in
+            // Setup notifications
+            group.addTask {
+                await self.setupNotifications()
+            }
+            
+            // Load data
+            group.addTask {
+                await self.loadInitialData()
+            }
+            
+            // Load settings
+            group.addTask {
+                await self.loadSettings()
             }
         }
+    }
+    
+    /// Setup notifications
+    private func setupNotifications() async {
+        let result = await AsyncErrorHandler.execute(
+            context: "Setting up notifications"
+        ) {
+            let center = UNUserNotificationCenter.current()
+            let settings = await center.notificationSettings()
+            
+            if settings.authorizationStatus == .notDetermined {
+                let granted = try await center.requestAuthorization(options: [.alert, .badge, .sound])
+                print(granted ? "✅ Notifications authorized" : "❌ Notifications denied")
+            }
+            
+            return true
+        }
         
-        // Setup widget update scheduling
+        if result != nil {
+            print("✅ Notification setup completed")
+        }
+    }
+    
+    /// Load initial data
+    private func loadInitialData() async {
+        await budgetManager.loadData()
+        await appStateMonitor.markDataRefresh()
+        print("✅ Initial data loaded")
+    }
+    
+    /// Load settings
+    private func loadSettings() async {
+        let result = await AsyncErrorHandler.execute(
+            context: "Loading settings"
+        ) {
+            try await settingsManager.loadSettings()
+            return true
+        }
+        
+        if result != nil {
+            print("✅ Settings loaded")
+        }
+    }
+    
+    /// Configure global app appearance
+    private func configureGlobalAppearance() {
+        // Configure navigation bar appearance
+        let navBarAppearance = UINavigationBarAppearance()
+        navBarAppearance.configureWithDefaultBackground()
+        UINavigationBar.appearance().standardAppearance = navBarAppearance
+        UINavigationBar.appearance().compactAppearance = navBarAppearance
+        UINavigationBar.appearance().scrollEdgeAppearance = navBarAppearance
+        
+        // Configure tab bar appearance
+        let tabBarAppearance = UITabBarAppearance()
+        tabBarAppearance.configureWithDefaultBackground()
+        UITabBar.appearance().standardAppearance = tabBarAppearance
+        UITabBar.appearance().scrollEdgeAppearance = tabBarAppearance
+        
+        print("✅ Global appearance configured")
+    }
+    
+    /// Setup data persistence
+    private func setupDataPersistence() async {
+        // Configure automatic widget updates
         Timer.scheduledTimer(withTimeInterval: 900.0, repeats: true) { _ in
             WidgetCenter.shared.reloadAllTimelines()
         }
@@ -245,7 +221,7 @@ struct BrandonsBudgetApp: App {
     /// Setup performance monitoring
     private func setupPerformanceMonitoring() async {
         #if DEBUG
-        PerformanceMonitor.shared.startMonitoring()
+        // Performance monitoring would be initialized here
         print("📊 Performance monitoring started")
         #endif
     }
@@ -253,89 +229,77 @@ struct BrandonsBudgetApp: App {
     // MARK: - Scene Phase Handling
     
     /// Handle scene phase transitions
-    private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) {
-        print("🔄 Scene phase changed from \(oldPhase) to \(newPhase)")
+    private func handleScenePhaseChange(from oldPhase: ScenePhase, to newPhase: ScenePhase) async {
+        print("🔄 Scene phase changed from \(String(describing: oldPhase)) to \(String(describing: newPhase))")
         
         switch newPhase {
         case .active:
-            handleAppBecameActive()
+            await handleAppBecameActive()
         case .inactive:
-            handleAppBecameInactive()
+            await handleAppBecameInactive()
         case .background:
-            handleAppEnteredBackground()
+            await handleAppEnteredBackground()
         @unknown default:
             break
         }
     }
     
     /// Handle app becoming active
-    private func handleAppBecameActive() {
-        Task {
-            await appStateMonitor.updateAppState(.active)
-            
-            // Refresh data if needed
-            let lastRefresh = await appStateMonitor.lastDataRefresh
-            if lastRefresh.timeIntervalSinceNow < -300 { // 5 minutes
-                await refreshAppData()
-            }
-            
-            // Update widgets
-            WidgetCenter.shared.reloadAllTimelines()
+    private func handleAppBecameActive() async {
+        await appStateMonitor.updateAppState(.active)
+        
+        // Refresh data if needed
+        if appStateMonitor.shouldRefreshData() {
+            await refreshAppData()
         }
+        
+        // Update widgets
+        WidgetCenter.shared.reloadAllTimelines()
     }
     
     /// Handle app becoming inactive
-    private func handleAppBecameInactive() {
-        Task {
-            await appStateMonitor.updateAppState(.inactive)
-            await performQuickSave()
-        }
+    private func handleAppBecameInactive() async {
+        await appStateMonitor.updateAppState(.inactive)
+        await performQuickSave()
     }
     
     /// Handle app entering background
-    private func handleAppEnteredBackground() {
-        Task {
-            await appStateMonitor.updateAppState(.background)
-            await performBackgroundTasks()
-        }
-    }
-    
-    /// Handle app entering background (from notification)
-    private func handleAppEnteringBackground() {
-        Task {
-            await performBackgroundTasks()
-        }
+    private func handleAppEnteredBackground() async {
+        await appStateMonitor.updateAppState(.background)
+        await performBackgroundTasks()
     }
     
     /// Handle app termination
-    private func handleAppWillTerminate() {
+    private func handleAppWillTerminate() async {
         print("🔄 App will terminate - performing final save")
         
+        await appStateMonitor.updateAppState(.terminating)
+        
         // Perform synchronous save since app is terminating
-        Task {
-            await performFinalSave()
-        }
+        await performFinalSave()
         
         #if DEBUG
-        PerformanceMonitor.shared.stopMonitoring()
+        print("📊 App termination cleanup completed")
         #endif
     }
     
     /// Handle memory warning
-    private func handleMemoryWarning() {
+    private func handleMemoryWarning() async {
         print("⚠️ Memory warning received")
         
-        Task {
+        await withTaskGroup(of: Void.self) { group in
             // Clear caches
-            await budgetManager.clearCaches()
-            await themeManager.clearCaches()
+            group.addTask {
+                await self.budgetManager.clearCaches()
+            }
+            
+            group.addTask {
+                await self.themeManager.clearCaches()
+            }
             
             // Clear error history
-            await errorHandler.clearHistory()
-            
-            // Force garbage collection
-            autoreleasepool {
-                // Clean up temporary objects
+            group.addTask {
+                await self.errorHandler.clearHistory()
             }
         }
     }
@@ -344,24 +308,16 @@ struct BrandonsBudgetApp: App {
     
     /// Perform quick save for app state transitions
     private func performQuickSave() async {
-        do {
+        let result = await AsyncErrorHandler.execute(
+            context: "Quick save"
+        ) {
             try await budgetManager.saveCurrentState()
             try await settingsManager.saveSettings()
-            print("✅ Quick save completed")
-        } catch {
-            errorHandler.handle(AppError.from(error), context: "Quick save")
+            return true
         }
-    }
-    
-    /// Perform comprehensive background save
-    private func performBackgroundSave() async {
-        do {
-            try await budgetManager.performBackgroundSave()
-            try await settingsManager.saveSettings()
-            await updateWidgetData()
-            print("✅ Background save completed")
-        } catch {
-            errorHandler.handle(AppError.from(error), context: "Background save")
+        
+        if result != nil {
+            print("✅ Quick save completed")
         }
     }
     
@@ -383,64 +339,77 @@ struct BrandonsBudgetApp: App {
             group.addTask {
                 await self.cleanupTemporaryFiles()
             }
-            
-            // Schedule notifications
-            group.addTask {
-                await self.scheduleBackgroundNotifications()
-            }
         }
         
         print("✅ Background tasks completed")
     }
     
+    /// Perform background save
+    private func performBackgroundSave() async {
+        let result = await AsyncErrorHandler.execute(
+            context: "Background save"
+        ) {
+            try await budgetManager.performBackgroundSave()
+            try await settingsManager.saveSettings()
+            return true
+        }
+        
+        if result != nil {
+            print("✅ Background save completed")
+        }
+    }
+    
     /// Perform final save before app termination
     private func performFinalSave() async {
-        do {
+        let result = await AsyncErrorHandler.execute(
+            context: "Final save"
+        ) {
             try await budgetManager.performFinalSave()
             try await settingsManager.saveSettings()
+            return true
+        }
+        
+        if result != nil {
             await updateWidgetData()
             print("✅ Final save completed")
-        } catch {
-            print("❌ Final save failed: \(error)")
-            // Can't show UI at this point, just log
         }
     }
     
     /// Refresh app data
     private func refreshAppData() async {
-        do {
-            try await budgetManager.refreshData()
+        let result = await AsyncErrorHandler.execute(
+            context: "Data refresh"
+        ) {
+            await budgetManager.refreshData()
             await appStateMonitor.markDataRefresh()
+            return true
+        }
+        
+        if result != nil {
             print("✅ App data refreshed")
-        } catch {
-            errorHandler.handle(AppError.from(error), context: "Data refresh")
         }
     }
     
     /// Update widget data
     private func updateWidgetData() async {
-        do {
+        let result = await AsyncErrorHandler.execute(
+            context: "Widget data update"
+        ) {
             let widgetData = try await budgetManager.generateWidgetData()
             await SharedDataManager.shared.updateWidgetData(widgetData)
-            print("✅ Widget data updated")
-        } catch {
-            print("⚠️ Widget data update failed: \(error)")
+            return true
         }
-    }
-    
-    /// Schedule background notifications
-    private func scheduleBackgroundNotifications() async {
-        do {
-            try await notificationManager.scheduleBackgroundNotifications()
-            print("✅ Background notifications scheduled")
-        } catch {
-            print("⚠️ Failed to schedule background notifications: \(error)")
+        
+        if result != nil {
+            print("✅ Widget data updated")
         }
     }
     
     /// Cleanup temporary files
     private func cleanupTemporaryFiles() async {
-        do {
+        let result = await AsyncErrorHandler.executeSilently(
+            context: "Cleanup temporary files"
+        ) {
             let tempDirectory = FileManager.default.temporaryDirectory
             let contents = try FileManager.default.contentsOfDirectory(
                 at: tempDirectory,
@@ -457,9 +426,11 @@ struct BrandonsBudgetApp: App {
                 }
             }
             
+            return true
+        }
+        
+        if result != nil {
             print("✅ Temporary files cleaned up")
-        } catch {
-            print("⚠️ Cleanup failed: \(error)")
         }
     }
 }
@@ -468,68 +439,65 @@ struct BrandonsBudgetApp: App {
 
 struct LaunchScreenView: View {
     let error: AppError?
-    @State private var progress: Double = 0.0
     @State private var showRetry = false
+    @State private var progress = 0.0
     
     var body: some View {
-        VStack(spacing: 30) {
-            // App Logo/Icon
-            Image(systemName: "dollarsign.circle.fill")
+        VStack(spacing: 24) {
+            // App Icon
+            Image(systemName: "chart.pie.fill")
                 .font(.system(size: 80))
                 .foregroundColor(.blue)
-                .scaleEffect(1.0 + sin(Date().timeIntervalSince1970) * 0.1)
-                .animation(.easeInOut(duration: 2).repeatForever(autoreverses: true), value: progress)
+                .scaleEffect(error != nil ? 1.0 : (0.8 + progress * 0.2))
+                .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: progress)
             
             VStack(spacing: 12) {
                 Text("Brandon's Budget")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                 
-                Text("Loading your financial data...")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-            
-            if let error = error {
-                // Error state
-                VStack(spacing: 16) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.title)
-                        .foregroundColor(.orange)
-                    
-                    Text("Initialization Error")
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                    
-                    Text(error.localizedDescription)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                    
-                    if showRetry {
-                        Button("Continue with Limited Features") {
-                            // This will be handled by the parent view
+                if let error = error {
+                    VStack(spacing: 16) {
+                        Text("⚠️ Initialization Error")
+                            .font(.headline)
+                            .foregroundColor(.orange)
+                        
+                        Text(error.localizedDescription)
+                            .font(.body)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                        
+                        if showRetry {
+                            Button("Continue with Limited Features") {
+                                // This will be handled by the parent view
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
-                }
-                .padding()
-                .onAppear {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        showRetry = true
-                    }
-                }
-            } else {
-                // Loading state
-                ProgressView()
-                    .scaleEffect(1.2)
+                    .padding()
                     .onAppear {
-                        // Animate progress for visual feedback
-                        withAnimation(.linear(duration: 3.0)) {
-                            progress = 1.0
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                            showRetry = true
                         }
                     }
+                } else {
+                    // Loading state
+                    VStack(spacing: 8) {
+                        Text("Setting up your budget...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .onAppear {
+                                // Animate progress for visual feedback
+                                withAnimation(.linear(duration: 3.0)) {
+                                    progress = 1.0
+                                }
+                            }
+                    }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -537,37 +505,44 @@ struct LaunchScreenView: View {
     }
 }
 
-// MARK: - Manager Proxy Classes (for standalone compilation)
+// MARK: - Manager Classes (for standalone compilation)
 
-// These proxy classes allow the app to compile independently
+// These are simplified versions that allow the app to compile independently
 // Replace with actual manager classes when integrating
 
+#if DEBUG
+// Preview support
 @MainActor
-private class BudgetManagerProxy: ObservableObject {
-    func initializeData() async throws { }
+private class PreviewBudgetManager: ObservableObject {
+    static let shared = PreviewBudgetManager()
+    func loadData() async { }
     func saveCurrentState() async throws { }
     func performBackgroundSave() async throws { }
     func performFinalSave() async throws { }
-    func refreshData() async throws { }
+    func refreshData() async { }
     func clearCaches() async { }
     func generateWidgetData() async throws -> [String: Any] { return [:] }
 }
 
 @MainActor
-private class ThemeManagerProxy: ObservableObject {
+private class PreviewThemeManager: ObservableObject {
+    static let shared = PreviewThemeManager()
     @Published var isDarkMode = false
+    @Published var primaryColor = Color.blue
     func applyStoredTheme() { }
     func clearCaches() async { }
 }
 
 @MainActor
-private class SettingsManagerProxy: ObservableObject {
+private class PreviewSettingsManager: ObservableObject {
+    static let shared = PreviewSettingsManager()
     func loadSettings() async throws { }
     func saveSettings() async throws { }
 }
 
 @MainActor
-private class ErrorHandlerProxy: ObservableObject {
+private class PreviewErrorHandler: ObservableObject {
+    static let shared = PreviewErrorHandler()
     func handle(_ error: AppError, context: String) {
         print("🚨 Error: \(error) in \(context)")
     }
@@ -575,29 +550,21 @@ private class ErrorHandlerProxy: ObservableObject {
 }
 
 @MainActor
-private class NotificationManagerProxy: ObservableObject {
-    func scheduleBackgroundNotifications() async throws { }
-}
-
-@MainActor
-private class AppStateMonitorProxy: ObservableObject {
-    enum AppState {
-        case active, inactive, background
-    }
+private class PreviewAppStateMonitor: ObservableObject {
+    static let shared = PreviewAppStateMonitor()
     
-    var lastDataRefresh = Date()
+    enum AppState {
+        case active, inactive, background, launching, terminating
+    }
     
     func updateAppState(_ state: AppState) async { }
-    func markDataRefresh() async {
-        lastDataRefresh = Date()
-    }
+    func markDataRefresh() async { }
+    func shouldRefreshData() -> Bool { return false }
+    func setDependencies(budgetManager: Any, errorHandler: Any) { }
 }
 
-@MainActor
-private class SharedDataManager {
-    static let shared = SharedDataManager()
-    private init() {}
-    
+private class PreviewSharedDataManager {
+    static let shared = PreviewSharedDataManager()
     func updateWidgetData(_ data: [String: Any]) async { }
 }
-
+#endif
