@@ -541,14 +541,6 @@ public extension AppStateMonitor {
     }
 }
 
-// MARK: - ErrorHandler Extension (to fix missing method)
-
-private extension ErrorHandler {
-    /// Get recent errors - stub for compatibility
-    func getRecentErrors() -> [ErrorEntry] {
-        return Array(errorHistory.suffix(10))
-    }
-}
 
 // MARK: - Testing Support
 

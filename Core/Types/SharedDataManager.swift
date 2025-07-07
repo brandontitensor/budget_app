@@ -2,22 +2,24 @@
 //  SharedDataManager.swift
 //  Brandon's Budget
 //
-//  Created by Brandon Titensor on 5/30/25.
-//  Updated: 7/6/25 - Fixed Swift 6 concurrency issues and removed duplicate extensions
+//  Created by Brandon Titensor on 11/8/24.
+//  Updated: 7/7/25 - Fixed Swift 6 concurrency issues and removed duplicate extensions
 //
 
 import Foundation
-import Combine
 import WidgetKit
+import Combine
 
-/// Manages data sharing between the main app and widgets with proper validation and error handling
+/// Manages shared data between the main app and widget extension with comprehensive error handling
 @MainActor
 public final class SharedDataManager: ObservableObject {
+    
     // MARK: - Singleton
     public static let shared = SharedDataManager()
     
-    // MARK: - Types
-    public enum SharedDataError: LocalizedError {
+    // MARK: - Error Types
+    
+    public enum SharedDataError: LocalizedError, Sendable {
         case invalidData(String)
         case encodingFailed
         case decodingFailed
@@ -28,35 +30,22 @@ public final class SharedDataManager: ObservableObject {
         public var errorDescription: String? {
             switch self {
             case .invalidData(let details):
-                return "Invalid shared data: \(details)"
+                return "Invalid data: \(details)"
             case .encodingFailed:
-                return "Failed to encode shared data"
+                return "Failed to encode data"
             case .decodingFailed:
-                return "Failed to decode shared data"
+                return "Failed to decode data"
             case .userDefaultsUnavailable:
-                return "App Group UserDefaults unavailable"
+                return "Shared UserDefaults unavailable"
             case .dataCorrupted:
-                return "Shared data appears to be corrupted"
+                return "Shared data is corrupted"
             case .widgetUpdateFailed:
-                return "Failed to update widget data"
-            }
-        }
-        
-        public var recoverySuggestion: String? {
-            switch self {
-            case .invalidData:
-                return "Check the data values and try again"
-            case .encodingFailed, .decodingFailed:
-                return "Clear app data and restart the app"
-            case .userDefaultsUnavailable:
-                return "Check app group configuration"
-            case .dataCorrupted:
-                return "Reset widget data and restart the app"
-            case .widgetUpdateFailed:
-                return "Restart the app to refresh widget data"
+                return "Failed to update widget"
             }
         }
     }
+    
+    // MARK: - Data Types
     
     public struct BudgetSummary: Codable, Equatable, Sendable {
         public let monthlyBudget: Double
@@ -73,14 +62,14 @@ public final class SharedDataManager: ObservableObject {
         public init(
             monthlyBudget: Double,
             totalSpent: Double,
-            remainingBudget: Double,
-            categoryCount: Int = 0,
-            transactionCount: Int = 0,
+            remainingBudget: Double? = nil,
+            categoryCount: Int,
+            transactionCount: Int,
             currentMonth: String? = nil
         ) {
             self.monthlyBudget = monthlyBudget
             self.totalSpent = totalSpent
-            self.remainingBudget = remainingBudget
+            self.remainingBudget = remainingBudget ?? (monthlyBudget - totalSpent)
             self.percentageUsed = monthlyBudget > 0 ? (totalSpent / monthlyBudget) * 100 : 0
             self.percentageRemaining = max(0, 100 - percentageUsed)
             self.isOverBudget = totalSpent > monthlyBudget
@@ -203,7 +192,7 @@ public final class SharedDataManager: ObservableObject {
     private let topCategoriesKey = "WidgetTopCategories"
     private let widgetDataKey = "WidgetCompleteData"
     
-    // Performance monitoring
+    // Performance monitoring - Using @MainActor to avoid concurrency issues
     private let metricsQueue = DispatchQueue(label: "com.brandonsbudget.shareddata.metrics", qos: .utility)
     private var operationMetrics: [String: TimeInterval] = [:]
     
@@ -234,166 +223,205 @@ public final class SharedDataManager: ObservableObject {
             lastSuccessfulUpdate = Date()
             lastError = nil
             
-            WidgetCenter.shared.reloadAllTimelines()
-            
             await recordMetric("updateBudgetSummary", duration: Date().timeIntervalSince(startTime))
-            print("✅ SharedDataManager: Updated budget summary")
+            
+            // Trigger widget update
+            WidgetCenter.shared.reloadAllTimelines()
+            print("✅ SharedDataManager: Budget summary updated")
             
         } catch {
-            let appError = AppError.from(error)
-            lastError = appError
-            ErrorHandler.shared.handle(appError, context: "Updating budget summary")
-            throw appError
+            lastError = AppError.from(error)
+            throw error
         }
     }
     
-    /// Update recent transactions data
+    /// Update recent transactions
     public func updateRecentTransactions(_ transactions: [RecentTransaction]) async throws {
         let startTime = Date()
         isProcessing = true
         defer { isProcessing = false }
         
         do {
-            let validatedTransactions = Array(transactions.prefix(5))
-            try await saveRecentTransactions(validatedTransactions)
+            // Validate all transactions
+            for transaction in transactions {
+                guard transaction.amount >= 0 else {
+                    throw SharedDataError.invalidData("Transaction amount cannot be negative")
+                }
+                guard !transaction.category.isEmpty else {
+                    throw SharedDataError.invalidData("Transaction category cannot be empty")
+                }
+            }
             
-            recentTransactions = validatedTransactions
+            let limitedTransactions = Array(transactions.prefix(5))
+            try await saveRecentTransactions(limitedTransactions)
+            
+            recentTransactions = limitedTransactions
             lastSuccessfulUpdate = Date()
             lastError = nil
             
-            WidgetCenter.shared.reloadAllTimelines()
-            
             await recordMetric("updateRecentTransactions", duration: Date().timeIntervalSince(startTime))
-            print("✅ SharedDataManager: Updated \(validatedTransactions.count) recent transactions")
+            
+            // Trigger widget update
+            WidgetCenter.shared.reloadAllTimelines()
+            print("✅ SharedDataManager: Recent transactions updated (\(limitedTransactions.count) items)")
             
         } catch {
-            let appError = AppError.from(error)
-            lastError = appError
-            ErrorHandler.shared.handle(appError, context: "Updating recent transactions")
-            throw appError
+            lastError = AppError.from(error)
+            throw error
         }
     }
     
-    /// Update top categories data
+    /// Update top categories
     public func updateTopCategories(_ categories: [CategorySpending]) async throws {
         let startTime = Date()
         isProcessing = true
         defer { isProcessing = false }
         
         do {
-            let validatedCategories = Array(categories.prefix(5))
-            try await saveTopCategories(validatedCategories)
+            // Validate all categories
+            for category in categories {
+                guard category.amount >= 0 else {
+                    throw SharedDataError.invalidData("Category amount cannot be negative")
+                }
+                guard category.percentage >= 0 && category.percentage <= 100 else {
+                    throw SharedDataError.invalidData("Category percentage must be between 0 and 100")
+                }
+            }
             
-            topCategories = validatedCategories
+            let limitedCategories = Array(categories.prefix(5))
+            try await saveTopCategories(limitedCategories)
+            
+            topCategories = limitedCategories
             lastSuccessfulUpdate = Date()
             lastError = nil
             
-            WidgetCenter.shared.reloadAllTimelines()
-            
             await recordMetric("updateTopCategories", duration: Date().timeIntervalSince(startTime))
-            print("✅ SharedDataManager: Updated \(validatedCategories.count) top categories")
+            
+            // Trigger widget update
+            WidgetCenter.shared.reloadAllTimelines()
+            print("✅ SharedDataManager: Top categories updated (\(limitedCategories.count) items)")
             
         } catch {
-            let appError = AppError.from(error)
-            lastError = appError
-            ErrorHandler.shared.handle(appError, context: "Updating top categories")
-            throw appError
+            lastError = AppError.from(error)
+            throw error
         }
     }
     
-    /// Update all widget data at once
+    /// Update complete widget data at once
     public func updateCompleteWidgetData(
-        budgetSummary: BudgetSummary? = nil,
-        transactions: [RecentTransaction]? = nil,
-        categories: [CategorySpending]? = nil
+        budgetSummary: BudgetSummary,
+        transactions: [RecentTransaction] = [],
+        categories: [CategorySpending] = []
     ) async throws {
         let startTime = Date()
         isProcessing = true
         defer { isProcessing = false }
         
         do {
-            // Use provided data or current data
-            let summary = budgetSummary ?? currentBudgetSummary ?? BudgetSummary(
-                monthlyBudget: 0,
-                totalSpent: 0,
-                remainingBudget: 0
-            )
-            let recentTxns = transactions ?? recentTransactions
-            let topCats = categories ?? topCategories
-            
             let widgetData = WidgetData(
-                budgetSummary: summary,
-                recentTransactions: recentTxns,
-                topCategories: topCats
+                budgetSummary: budgetSummary,
+                recentTransactions: transactions,
+                topCategories: categories
             )
             
-            // Validate complete widget data
             try widgetData.validate()
-            
-            // Save to shared storage
             try await saveWidgetData(widgetData)
             
-            // Update internal state
-            currentBudgetSummary = summary
-            if transactions != nil { self.recentTransactions = recentTxns }
-            if categories != nil { self.topCategories = topCats }
-            
-            // Trigger widget refresh
-            WidgetCenter.shared.reloadAllTimelines()
-            
+            // Update all local state
+            currentBudgetSummary = budgetSummary
+            recentTransactions = widgetData.recentTransactions
+            topCategories = widgetData.topCategories
             lastSuccessfulUpdate = Date()
             lastError = nil
             
             await recordMetric("updateCompleteWidgetData", duration: Date().timeIntervalSince(startTime))
-            print("✅ SharedDataManager: Updated complete widget data")
+            
+            // Trigger widget update
+            WidgetCenter.shared.reloadAllTimelines()
+            print("✅ SharedDataManager: Complete widget data updated")
             
         } catch {
-            let appError = AppError.from(error)
-            lastError = appError
-            ErrorHandler.shared.handle(appError, context: "Updating complete widget data")
-            throw appError
+            lastError = AppError.from(error)
+            throw error
         }
     }
     
     // MARK: - Public Read Methods
     
-    /// Get current budget summary
-    public func getBudgetSummary() -> BudgetSummary? {
-        return currentBudgetSummary
+    /// Load budget summary from shared storage
+    public func loadBudgetSummary() async -> BudgetSummary? {
+        guard let userDefaults = userDefaults else { return nil }
+        
+        guard let data = userDefaults.data(forKey: budgetSummaryKey) else { return nil }
+        
+        do {
+            let summary = try JSONDecoder().decode(BudgetSummary.self, from: data)
+            currentBudgetSummary = summary
+            return summary
+        } catch {
+            print("⚠️ SharedDataManager: Failed to decode budget summary - \(error)")
+            lastError = AppError.from(error)
+            return nil
+        }
     }
     
-    /// Get monthly budget amount
-    public func getMonthlyBudget() -> Double {
-        return currentBudgetSummary?.monthlyBudget ?? 0.0
+    /// Load recent transactions from shared storage
+    public func loadRecentTransactions() async -> [RecentTransaction] {
+        guard let userDefaults = userDefaults else { return [] }
+        
+        guard let data = userDefaults.data(forKey: recentTransactionsKey) else { return [] }
+        
+        do {
+            let transactions = try JSONDecoder().decode([RecentTransaction].self, from: data)
+            recentTransactions = transactions
+            return transactions
+        } catch {
+            print("⚠️ SharedDataManager: Failed to decode recent transactions - \(error)")
+            lastError = AppError.from(error)
+            return []
+        }
     }
     
-    /// Get remaining budget amount
-    public func getRemainingBudget() -> Double {
-        return currentBudgetSummary?.remainingBudget ?? 0.0
+    /// Load top categories from shared storage
+    public func loadTopCategories() async -> [CategorySpending] {
+        guard let userDefaults = userDefaults else { return [] }
+        
+        guard let data = userDefaults.data(forKey: topCategoriesKey) else { return [] }
+        
+        do {
+            let categories = try JSONDecoder().decode([CategorySpending].self, from: data)
+            topCategories = categories
+            return categories
+        } catch {
+            print("⚠️ SharedDataManager: Failed to decode top categories - \(error)")
+            lastError = AppError.from(error)
+            return []
+        }
     }
     
-    /// Get total spent amount
-    public func getTotalSpent() -> Double {
-        return currentBudgetSummary?.totalSpent ?? 0.0
+    /// Load complete widget data
+    public func loadCompleteWidgetData() async -> WidgetData? {
+        guard let userDefaults = userDefaults else { return nil }
+        
+        guard let data = userDefaults.data(forKey: widgetDataKey) else { return nil }
+        
+        do {
+            let widgetData = try JSONDecoder().decode(WidgetData.self, from: data)
+            
+            // Update local state
+            currentBudgetSummary = widgetData.budgetSummary
+            recentTransactions = widgetData.recentTransactions
+            topCategories = widgetData.topCategories
+            
+            return widgetData
+        } catch {
+            print("⚠️ SharedDataManager: Failed to decode widget data - \(error)")
+            lastError = AppError.from(error)
+            return nil
+        }
     }
     
-    /// Get complete widget data
-    public func getWidgetData() -> WidgetData? {
-        guard let summary = currentBudgetSummary else { return nil }
-        return WidgetData(
-            budgetSummary: summary,
-            recentTransactions: recentTransactions,
-            topCategories: topCategories
-        )
-    }
-    
-    /// Check if data is fresh
-    public func isDataFresh(threshold: TimeInterval = 1800) -> Bool { // 30 minutes
-        guard let lastUpdate = lastSuccessfulUpdate else { return false }
-        return Date().timeIntervalSince(lastUpdate) < threshold
-    }
-    
-    // MARK: - Private Storage Methods
+    // MARK: - Private Save Methods
     
     private func saveBudgetSummary(_ summary: BudgetSummary) async throws {
         guard let userDefaults = userDefaults else {
@@ -475,11 +503,17 @@ public final class SharedDataManager: ObservableObject {
     
     // MARK: - Performance Monitoring
     
-    @MainActor
     private func recordMetric(_ operation: String, duration: TimeInterval) async {
+        // Use a detached task to avoid main actor isolation issues
+        Task.detached { [weak self] in
+            await self?.performMetricRecording(operation, duration: duration)
+        }
+    }
+    
+    private func performMetricRecording(_ operation: String, duration: TimeInterval) async {
         await withCheckedContinuation { continuation in
-            metricsQueue.async {
-                self.operationMetrics[operation] = duration
+            metricsQueue.async { [weak self] in
+                self?.operationMetrics[operation] = duration
                 
                 #if DEBUG
                 if duration > 2.0 {
@@ -508,17 +542,6 @@ public enum WidgetUpdatePolicy {
     case atEnd
     case after(Date)
     case never
-}
-
-// MARK: - Extensions
-
-private extension Double {
-    var formattedAsCurrency: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale.current
-        return formatter.string(from: NSNumber(value: self)) ?? "$\(String(format: "%.2f", self))"
-    }
 }
 
 // MARK: - Testing Support

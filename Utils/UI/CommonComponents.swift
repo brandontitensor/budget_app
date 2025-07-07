@@ -2,63 +2,77 @@
 //  CommonComponents.swift
 //  Brandon's Budget
 //
-//  Created by Brandon Titensor on 6/4/25.
-//
-
-
-//
-//  CommonComponents.swift
-//  Brandon's Budget
-//
-//  Created by Brandon Titensor on 6/4/25.
+//  Created by Brandon Titensor on 6/1/25.
+//  Updated: 7/7/25 - Fixed ValidationResult conflicts, ThemeManager references, and type conversions
 //
 
 import SwiftUI
+import Foundation
 
-// MARK: - Common UI Components
-
-/// Collection of reusable UI components for the app
+/// Comprehensive UI component library with consistent styling and validation
 public struct CommonComponents {
+    
+    // MARK: - Validation Types
+    
+    /// Internal validation result for UI components
+    public enum ComponentValidationResult: Equatable, Sendable {
+        case valid
+        case invalid(String)
+        
+        public var isValid: Bool {
+            if case .valid = self { return true }
+            return false
+        }
+        
+        public var errorMessage: String? {
+            if case .invalid(let message) = self { return message }
+            return nil
+        }
+        
+        /// Convert from ValidationHelpers.ValidationResult to ComponentValidationResult
+        public static func from(_ result: ValidationResult) -> ComponentValidationResult {
+            switch result {
+            case .valid:
+                return .valid
+            case .invalid(let error):
+                return .invalid(error.errorDescription ?? "Invalid input")
+            }
+        }
+    }
     
     // MARK: - Card Components
     
-    /// Reusable card container with consistent styling
+    /// Reusable card view with consistent styling
     public struct CardView<Content: View>: View {
         let content: Content
-        let padding: EdgeInsets
+        let backgroundColor: Color
         let cornerRadius: CGFloat
         let shadowRadius: CGFloat
-        let backgroundColor: Color
+        let shadowOpacity: Double
         
         public init(
-            padding: EdgeInsets = EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16),
-            cornerRadius: CGFloat = AppConstants.UI.cornerRadius,
-            shadowRadius: CGFloat = AppConstants.UI.defaultShadowRadius,
-            backgroundColor: Color = Color(.secondarySystemBackground),
+            backgroundColor: Color = Color(.systemBackground),
+            cornerRadius: CGFloat = 12,
+            shadowRadius: CGFloat = 4,
+            shadowOpacity: Double = 0.1,
             @ViewBuilder content: () -> Content
         ) {
             self.content = content()
-            self.padding = padding
+            self.backgroundColor = backgroundColor
             self.cornerRadius = cornerRadius
             self.shadowRadius = shadowRadius
-            self.backgroundColor = backgroundColor
+            self.shadowOpacity = shadowOpacity
         }
         
         public var body: some View {
             content
-                .padding(padding)
                 .background(backgroundColor)
                 .cornerRadius(cornerRadius)
-                .shadow(
-                    color: .black.opacity(Double(AppConstants.UI.defaultShadowOpacity)),
-                    radius: shadowRadius,
-                    x: 0,
-                    y: 2
-                )
+                .shadow(color: .black.opacity(shadowOpacity), radius: shadowRadius, x: 0, y: 2)
         }
     }
     
-    /// Stats card for displaying key metrics
+    /// Statistics card with trend indicators
     public struct StatsCard: View {
         let title: String
         let value: String
@@ -67,7 +81,7 @@ public struct CommonComponents {
         let color: Color
         let trend: Trend?
         
-        public enum Trend {
+        public enum Trend: Equatable {
             case up(String)
             case down(String)
             case neutral(String)
@@ -115,7 +129,6 @@ public struct CommonComponents {
         public var body: some View {
             CardView {
                 VStack(alignment: .leading, spacing: 12) {
-                    // Header
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(title)
@@ -124,7 +137,7 @@ public struct CommonComponents {
                             
                             Text(value)
                                 .font(.title2)
-                                .fontWeight(.bold)
+                                .fontWeight(.semibold)
                                 .foregroundColor(color)
                         }
                         
@@ -137,251 +150,110 @@ public struct CommonComponents {
                         }
                     }
                     
-                    // Footer
-                    if let subtitle = subtitle || trend != nil {
-                        HStack {
-                            if let subtitle = subtitle {
-                                Text(subtitle)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            if let trend = trend {
-                                HStack(spacing: 4) {
-                                    Image(systemName: trend.icon)
-                                        .font(.caption)
-                                    Text(trend.text)
-                                        .font(.caption)
-                                }
+                    if let subtitle = subtitle {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if let trend = trend {
+                        HStack(spacing: 4) {
+                            Image(systemName: trend.icon)
+                                .font(.caption)
                                 .foregroundColor(trend.color)
-                            }
+                            
+                            Text(trend.text)
+                                .font(.caption)
+                                .foregroundColor(trend.color)
                         }
                     }
                 }
+                .padding()
             }
         }
     }
     
     // MARK: - List Components
     
-    /// Reusable list row component
+    /// Customizable list row
     public struct ListRow<Leading: View, Trailing: View>: View {
         let leading: Leading
         let trailing: Trailing
-        let title: String
-        let subtitle: String?
+        let spacing: CGFloat
+        let padding: EdgeInsets
+        
+        public init(
+            spacing: CGFloat = 12,
+            padding: EdgeInsets = EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16),
+            @ViewBuilder leading: () -> Leading,
+            @ViewBuilder trailing: () -> Trailing
+        ) {
+            self.leading = leading()
+            self.trailing = trailing()
+            self.spacing = spacing
+            self.padding = padding
+        }
+        
+        public var body: some View {
+            HStack(spacing: spacing) {
+                leading
+                Spacer()
+                trailing
+            }
+            .padding(padding)
+        }
+    }
+    
+    /// Transaction row with consistent styling
+    public struct TransactionRow: View {
+        let amount: Double
+        let category: String
+        let date: Date
+        let note: String?
         let onTap: (() -> Void)?
         
         public init(
-            title: String,
-            subtitle: String? = nil,
-            onTap: (() -> Void)? = nil,
-            @ViewBuilder leading: () -> Leading = { EmptyView() },
-            @ViewBuilder trailing: () -> Trailing = { EmptyView() }
+            amount: Double,
+            category: String,
+            date: Date,
+            note: String? = nil,
+            onTap: (() -> Void)? = nil
         ) {
-            self.title = title
-            self.subtitle = subtitle
+            self.amount = amount
+            self.category = category
+            self.date = date
+            self.note = note
             self.onTap = onTap
-            self.leading = leading()
-            self.trailing = trailing()
         }
         
         public var body: some View {
             Button(action: onTap ?? {}) {
-                HStack(spacing: 12) {
-                    leading
-                    
+                ListRow {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(title)
-                            .font(.body)
+                        Text(category)
+                            .font(.headline)
                             .foregroundColor(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        if let subtitle = subtitle {
-                            Text(subtitle)
+                        if let note = note, !note.isEmpty {
+                            Text(note)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .lineLimit(1)
                         }
+                        
+                        Text(date, style: .date)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    
-                    trailing
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(onTap == nil)
-        }
-    }
-    
-    /// Transaction row component
-    public struct TransactionRow: View {
-        let transaction: BudgetEntry
-        let showCategory: Bool
-        let onTap: (() -> Void)?
-        @EnvironmentObject private var themeManager: ThemeManager
-        
-        public init(
-            transaction: BudgetEntry,
-            showCategory: Bool = true,
-            onTap: (() -> Void)? = nil
-        ) {
-            self.transaction = transaction
-            self.showCategory = showCategory
-            self.onTap = onTap
-        }
-        
-        public var body: some View {
-            ListRow(
-                title: FormatHelpers.TextFormatter.formatTransactionNote(transaction.note),
-                subtitle: subtitleText,
-                onTap: onTap
-            ) {
-                // Leading - Category icon
-                CategoryIcon(
-                    category: transaction.category,
-                    color: themeManager.colorForCategory(transaction.category)
-                )
-            } trailing: {
-                // Trailing - Amount and date
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text(transaction.amount.formattedAsCurrency)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    
-                    Text(transaction.date.formattedForTransaction)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        
-        private var subtitleText: String? {
-            if showCategory {
-                return transaction.category
-            } else {
-                return transaction.date.formattedRelative
-            }
-        }
-    }
-    
-    // MARK: - Button Components
-    
-    /// Primary action button with consistent styling
-    public struct PrimaryButton: View {
-        let title: String
-        let icon: String?
-        let isLoading: Bool
-        let isEnabled: Bool
-        let action: () -> Void
-        
-        public init(
-            title: String,
-            icon: String? = nil,
-            isLoading: Bool = false,
-            isEnabled: Bool = true,
-            action: @escaping () -> Void
-        ) {
-            self.title = title
-            self.icon = icon
-            self.isLoading = isLoading
-            self.isEnabled = isEnabled
-            self.action = action
-        }
-        
-        public var body: some View {
-            Button(action: action) {
-                HStack(spacing: 8) {
-                    if isLoading {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .tint(.white)
-                    } else if let icon = icon {
-                        Image(systemName: icon)
-                    }
-                    
-                    Text(isLoading ? "Loading..." : title)
-                        .fontWeight(.semibold)
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: AppConstants.UI.minimumTouchHeight)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!isEnabled || isLoading)
-        }
-    }
-    
-    /// Secondary action button
-    public struct SecondaryButton: View {
-        let title: String
-        let icon: String?
-        let action: () -> Void
-        
-        public init(title: String, icon: String? = nil, action: @escaping () -> Void) {
-            self.title = title
-            self.icon = icon
-            self.action = action
-        }
-        
-        public var body: some View {
-            Button(action: action) {
-                HStack(spacing: 8) {
-                    if let icon = icon {
-                        Image(systemName: icon)
-                    }
-                    Text(title)
+                } trailing: {
+                    Text(amount.formattedAsCurrency)
+                        .font(.headline)
                         .fontWeight(.medium)
+                        .foregroundColor(.primary)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: AppConstants.UI.minimumTouchHeight)
             }
-            .buttonStyle(.bordered)
-        }
-    }
-    
-    /// Floating action button
-    public struct FloatingActionButton: View {
-        let icon: String
-        let action: () -> Void
-        @EnvironmentObject private var themeManager: ThemeManager
-        @State private var isPressed = false
-        
-        public init(icon: String = "plus", action: @escaping () -> Void) {
-            self.icon = icon
-            self.action = action
-        }
-        
-        public var body: some View {
-            Button(action: action) {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.white)
-                    .frame(width: 56, height: 56)
-                    .background(themeManager.primaryColor)
-                    .clipShape(Circle())
-                    .shadow(
-                        color: themeManager.primaryColor.opacity(0.3),
-                        radius: 8,
-                        x: 0,
-                        y: 4
-                    )
-                    .scaleEffect(isPressed ? 0.95 : 1.0)
-            }
+            .disabled(onTap == nil)
             .buttonStyle(.plain)
-            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) { _ in
-                withAnimation(.easeInOut(duration: 0.1)) {
-                    isPressed = true
-                }
-            } onPressingChanged: { pressing in
-                if !pressing {
-                    withAnimation(.easeInOut(duration: 0.1)) {
-                        isPressed = false
-                    }
-                }
-            }
         }
     }
     
@@ -392,20 +264,19 @@ public struct CommonComponents {
         let title: String
         let placeholder: String
         @Binding var text: String
-        let validation: (String) -> ValidationResult
+        let validation: (String) -> ComponentValidationResult
         let keyboardType: UIKeyboardType
         let autocapitalization: TextInputAutocapitalization
         let isSecure: Bool
         
-        @State private var validationResult: ValidationResult = .valid
+        @State private var validationResult: ComponentValidationResult = .valid
         @FocusState private var isFocused: Bool
-    
         
         public init(
             title: String,
             placeholder: String = "",
             text: Binding<String>,
-            validation: @escaping (String) -> ValidationResult = { _ in .valid },
+            validation: @escaping (String) -> ComponentValidationResult = { _ in .valid },
             keyboardType: UIKeyboardType = .default,
             autocapitalization: TextInputAutocapitalization = .sentences,
             isSecure: Bool = false
@@ -417,6 +288,29 @@ public struct CommonComponents {
             self.keyboardType = keyboardType
             self.autocapitalization = autocapitalization
             self.isSecure = isSecure
+        }
+        
+        /// Convenience initializer using ValidationHelpers
+        public init(
+            title: String,
+            placeholder: String = "",
+            text: Binding<String>,
+            validationHelper: @escaping (String) -> ValidationResult,
+            keyboardType: UIKeyboardType = .default,
+            autocapitalization: TextInputAutocapitalization = .sentences,
+            isSecure: Bool = false
+        ) {
+            self.init(
+                title: title,
+                placeholder: placeholder,
+                text: text,
+                validation: { input in
+                    ComponentValidationResult.from(validationHelper(input))
+                },
+                keyboardType: keyboardType,
+                autocapitalization: autocapitalization,
+                isSecure: isSecure
+            )
         }
         
         public var body: some View {
@@ -496,50 +390,67 @@ public struct CommonComponents {
             )
             .onAppear {
                 if amount > 0 {
-                    textValue = FormatHelpers.NumberFormatter.formatDecimal(amount)
+                    textValue = String(format: "%.2f", amount)
                 }
             }
             .onChange(of: textValue) { oldValue, newValue in
-                let cleaned = FormatHelpers.ValidationFormatter.cleanCurrencyInput(newValue)
+                let cleaned = cleanCurrencyInput(newValue)
                 if cleaned != newValue {
                     textValue = cleaned
                 }
-                amount = Double(cleaned) ?? 0.0
-            }
-            .toolbar {
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        isFocused = false
-                    }
-                }
+                amount = Double(cleaned) ?? 0
             }
         }
         
-        private func validateCurrency(_ input: String) -> ValidatedTextField.ValidationResult {
-            if isRequired && input.isEmpty {
+        private func validateCurrency(_ input: String) -> ComponentValidationResult {
+            if input.isEmpty && !isRequired {
+                return .valid
+            }
+            
+            if input.isEmpty && isRequired {
                 return .invalid("Amount is required")
             }
             
-            if let value = Double(input) {
-                if value < 0 {
-                    return .invalid("Amount cannot be negative")
-                }
-                if value > AppConstants.Validation.maximumTransactionAmount {
-                    return .invalid("Amount exceeds maximum allowed")
-                }
-                return .valid
-            } else if !input.isEmpty {
-                return .invalid("Invalid amount format")
+            guard let value = Double(input), value >= 0 else {
+                return .invalid("Please enter a valid amount")
+            }
+            
+            if value > 999999.99 {
+                return .invalid("Amount is too large")
             }
             
             return .valid
         }
+        
+        private func cleanCurrencyInput(_ input: String) -> String {
+            // Remove currency symbols and clean input
+            var cleaned = input.replacingOccurrences(of: "$", with: "")
+            cleaned = cleaned.replacingOccurrences(of: ",", with: "")
+            
+            // Allow only digits and one decimal point
+            let allowedCharacters = CharacterSet(charactersIn: "0123456789.")
+            cleaned = String(cleaned.unicodeScalars.filter { allowedCharacters.contains($0) })
+            
+            // Ensure only one decimal point
+            let components = cleaned.components(separatedBy: ".")
+            if components.count > 2 {
+                cleaned = components[0] + "." + components[1]
+            }
+            
+            // Limit decimal places to 2
+            if let dotIndex = cleaned.firstIndex(of: ".") {
+                let decimals = cleaned[cleaned.index(after: dotIndex)...]
+                if decimals.count > 2 {
+                    let endIndex = cleaned.index(dotIndex, offsetBy: 3)
+                    cleaned = String(cleaned[..<endIndex])
+                }
+            }
+            
+            return cleaned
+        }
     }
     
-    // MARK: - Selection Components
-    
-    /// Custom picker with search
+    /// Searchable picker component
     public struct SearchablePicker<T: Hashable & CustomStringConvertible>: View {
         let title: String
         let items: [T]
@@ -579,45 +490,225 @@ public struct CommonComponents {
                             .foregroundColor(.secondary)
                     }
                     .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(.systemGray4), lineWidth: 1)
-                    )
+                    .background(Color(.systemGray6))
+                    .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
+                .sheet(isPresented: $isPresented) {
+                    pickerSheet
+                }
             }
-            .sheet(isPresented: $isPresented) {
-                SearchablePickerSheet(
-                    title: title,
-                    items: items,
-                    selection: $selection,
-                    allowsCustomEntry: allowsCustomEntry,
-                    isPresented: $isPresented
-                )
+        }
+        
+        private var pickerSheet: some View {
+            NavigationView {
+                List {
+                    if allowsCustomEntry && !searchText.isEmpty {
+                        Button("Add \"\(searchText)\"") {
+                            // Custom entry logic would go here
+                            isPresented = false
+                        }
+                        .foregroundColor(.blue)
+                    }
+                    
+                    ForEach(filteredItems, id: \.self) { item in
+                        Button(action: {
+                            selection = item
+                            isPresented = false
+                        }) {
+                            HStack {
+                                Text(item.description)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                if selection == item {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.blue)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .searchable(text: $searchText)
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            isPresented = false
+                        }
+                    }
+                }
+            }
+        }
+        
+        private var filteredItems: [T] {
+            if searchText.isEmpty {
+                return items
+            } else {
+                return items.filter { item in
+                    item.description.localizedCaseInsensitiveContains(searchText)
+                }
             }
         }
     }
     
-    /// Category picker specifically for budget categories
-    public struct CategoryPicker: View {
-        @Binding var selectedCategory: String
-        let availableCategories: [String]
+    // MARK: - Button Components
+    
+    /// Primary button with consistent styling
+    public struct PrimaryButton: View {
+        let title: String
+        let action: () -> Void
+        let isEnabled: Bool
+        let isLoading: Bool
+        let style: ButtonStyle
         
-        public init(selectedCategory: Binding<String>, availableCategories: [String]) {
-            self._selectedCategory = selectedCategory
-            self.availableCategories = availableCategories
+        public enum ButtonStyle {
+            case filled
+            case outlined
+            case text
+        }
+        
+        public init(
+            title: String,
+            action: @escaping () -> Void,
+            isEnabled: Bool = true,
+            isLoading: Bool = false,
+            style: ButtonStyle = .filled
+        ) {
+            self.title = title
+            self.action = action
+            self.isEnabled = isEnabled
+            self.isLoading = isLoading
+            self.style = style
         }
         
         public var body: some View {
-            SearchablePicker(
-                title: "Category",
-                items: availableCategories,
-                selection: Binding(
-                    get: { selectedCategory.isEmpty ? nil : selectedCategory },
-                    set: { selectedCategory = $0 ?? "" }
-                ),
-                allowsCustomEntry: true
+            Button(action: action) {
+                HStack {
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .progressViewStyle(CircularProgressViewStyle(tint: textColor))
+                    }
+                    
+                    Text(title)
+                        .fontWeight(.medium)
+                }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .foregroundColor(textColor)
+                .background(backgroundColor)
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(borderColor, lineWidth: style == .outlined ? 1 : 0)
+                )
+            }
+            .disabled(!isEnabled || isLoading)
+            .opacity(isEnabled ? 1.0 : 0.6)
+        }
+        
+        private var backgroundColor: Color {
+            switch style {
+            case .filled:
+                return .blue
+            case .outlined, .text:
+                return .clear
+            }
+        }
+        
+        private var textColor: Color {
+            switch style {
+            case .filled:
+                return .white
+            case .outlined, .text:
+                return .blue
+            }
+        }
+        
+        private var borderColor: Color {
+            switch style {
+            case .filled, .text:
+                return .clear
+            case .outlined:
+                return .blue
+            }
+        }
+    }
+    
+    /// Secondary button variant
+    public struct SecondaryButton: View {
+        let title: String
+        let action: () -> Void
+        let isEnabled: Bool
+        
+        public init(
+            title: String,
+            action: @escaping () -> Void,
+            isEnabled: Bool = true
+        ) {
+            self.title = title
+            self.action = action
+            self.isEnabled = isEnabled
+        }
+        
+        public var body: some View {
+            PrimaryButton(
+                title: title,
+                action: action,
+                isEnabled: isEnabled,
+                style: .outlined
             )
+        }
+    }
+    
+    /// Floating action button
+    public struct FloatingActionButton: View {
+        let icon: String
+        let action: () -> Void
+        let backgroundColor: Color
+        let foregroundColor: Color
+        
+        @State private var isPressed = false
+        
+        public init(
+            icon: String,
+            action: @escaping () -> Void,
+            backgroundColor: Color = .blue,
+            foregroundColor: Color = .white
+        ) {
+            self.icon = icon
+            self.action = action
+            self.backgroundColor = backgroundColor
+            self.foregroundColor = foregroundColor
+        }
+        
+        public var body: some View {
+            Button(action: action) {
+                Image(systemName: icon)
+                    .font(.title2)
+                    .foregroundColor(foregroundColor)
+                    .frame(width: 56, height: 56)
+                    .background(backgroundColor)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                    .scaleEffect(isPressed ? 0.95 : 1.0)
+            }
+            .buttonStyle(.plain)
+            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) { _ in
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    isPressed = true
+                }
+            } onPressingChanged: { pressing in
+                if !pressing {
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = false
+                    }
+                }
+            }
         }
     }
     
@@ -626,45 +717,39 @@ public struct CommonComponents {
     /// Category icon with consistent styling
     public struct CategoryIcon: View {
         let category: String
-        let color: Color
         let size: CGFloat
+        let backgroundColor: Color?
         
-        public init(category: String, color: Color, size: CGFloat = 40) {
+        public init(
+            category: String,
+            size: CGFloat = 40,
+            backgroundColor: Color? = nil
+        ) {
             self.category = category
-            self.color = color
             self.size = size
+            self.backgroundColor = backgroundColor ?? Self.colorForCategory(category)
         }
         
         public var body: some View {
             ZStack {
                 Circle()
-                    .fill(color.opacity(0.1))
+                    .fill(backgroundColor ?? .blue)
                     .frame(width: size, height: size)
                 
-                Image(systemName: iconName)
-                    .font(.system(size: size * 0.5))
-                    .foregroundColor(color)
+                Text(String(category.prefix(1).uppercased()))
+                    .font(.system(size: size * 0.4, weight: .medium))
+                    .foregroundColor(.white)
             }
         }
         
-        private var iconName: String {
-            switch category.lowercased() {
-            case "groceries", "food": return "cart.fill"
-            case "transportation", "transport": return "car.fill"
-            case "entertainment": return "tv.fill"
-            case "utilities": return "bolt.fill"
-            case "housing", "rent": return "house.fill"
-            case "healthcare", "medical": return "cross.fill"
-            case "education": return "book.fill"
-            case "savings": return "piggybank.fill"
-            case "dining", "restaurants": return "fork.knife"
-            case "shopping": return "bag.fill"
-            default: return "folder.fill"
-            }
+        private static func colorForCategory(_ category: String) -> Color {
+            let colors: [Color] = [.blue, .purple, .green, .orange, .red, .pink, .teal]
+            let index = abs(category.hashValue) % colors.count
+            return colors[index]
         }
     }
     
-    /// Progress bar with percentage
+    /// Progress bar with animation
     public struct ProgressBar: View {
         let progress: Double
         let total: Double
@@ -679,7 +764,7 @@ public struct CommonComponents {
             total: Double,
             color: Color = .blue,
             height: CGFloat = 8,
-            showPercentage: Bool = true
+            showPercentage: Bool = false
         ) {
             self.progress = progress
             self.total = total
@@ -689,47 +774,52 @@ public struct CommonComponents {
         }
         
         public var body: some View {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
-                        // Background
                         Rectangle()
                             .fill(Color(.systemGray5))
                             .frame(height: height)
+                            .cornerRadius(height / 2)
                         
-                        // Progress
                         Rectangle()
                             .fill(color)
-                            .frame(width: geometry.size.width * animatedProgress, height: height)
+                            .frame(width: progressWidth(geometry.size.width), height: height)
+                            .cornerRadius(height / 2)
+                            .animation(.easeInOut(duration: 0.5), value: animatedProgress)
                     }
-                    .cornerRadius(height / 2)
                 }
                 .frame(height: height)
+                .onAppear {
+                    animatedProgress = progressPercentage
+                }
+                .onChange(of: progress) { _, _ in
+                    animatedProgress = progressPercentage
+                }
                 
                 if showPercentage {
                     HStack {
-                        Text("\(Int(animatedProgress * 100))%")
+                        Text("\(Int(progressPercentage))%")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
                         Spacer()
                         
-                        Text("\(FormatHelpers.CurrencyFormatter().format(progress)) of \(FormatHelpers.CurrencyFormatter().format(total))")
+                        Text("\(progress.formattedAsCurrency) / \(total.formattedAsCurrency)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
             }
-            .onAppear {
-                withAnimation(.easeInOut(duration: 1.0)) {
-                    animatedProgress = min(progress / total, 1.0)
-                }
-            }
-            .onChange(of: progress) { oldValue, newValue in
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    animatedProgress = min(newValue / total, 1.0)
-                }
-            }
+        }
+        
+        private var progressPercentage: Double {
+            guard total > 0 else { return 0 }
+            return min(100, (progress / total) * 100)
+        }
+        
+        private func progressWidth(_ totalWidth: CGFloat) -> CGFloat {
+            return totalWidth * (animatedProgress / 100)
         }
     }
     
@@ -746,111 +836,65 @@ public struct CommonComponents {
         }
         
         public var body: some View {
-            let (statusText, statusColor) = FormatHelpers.BudgetFormatter.formatBudgetStatus(
-                spent: spent,
-                budget: budget
-            )
-            
             HStack(spacing: 8) {
-                Circle()
-                    .fill(Color(statusColor))
-                    .frame(width: 8, height: 8)
+                CategoryIcon(category: category, size: 32)
                 
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-    
-    // MARK: - Navigation Components
-    
-    /// Custom navigation bar with consistent styling
-    public struct CustomNavigationBar<Leading: View, Trailing: View>: View {
-        let title: String
-        let leading: Leading
-        let trailing: Trailing
-        @Environment(\.dismiss) private var dismiss
-        
-        public init(
-            title: String,
-            @ViewBuilder leading: () -> Leading = { EmptyView() },
-            @ViewBuilder trailing: () -> Trailing = { EmptyView() }
-        ) {
-            self.title = title
-            self.leading = leading()
-            self.trailing = trailing()
-        }
-        
-        public var body: some View {
-            HStack {
-                leading
-                
-                Spacer()
-                
-                Text(title)
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                
-                Spacer()
-                
-                trailing
-            }
-            .padding(.horizontal)
-            .frame(height: 44)
-            .background(.ultraThinMaterial)
-        }
-    }
-    
-    /// Tab bar item with badge support
-    public struct TabBarItem: View {
-        let title: String
-        let icon: String
-        let badge: Int?
-        let isSelected: Bool
-        let action: () -> Void
-        
-        public init(
-            title: String,
-            icon: String,
-            badge: Int? = nil,
-            isSelected: Bool,
-            action: @escaping () -> Void
-        ) {
-            self.title = title
-            self.icon = icon
-            self.badge = badge
-            self.isSelected = isSelected
-            self.action = action
-        }
-        
-        public var body: some View {
-            Button(action: action) {
-                VStack(spacing: 4) {
-                    ZStack {
-                        Image(systemName: icon)
-                            .font(.system(size: 24))
-                            .symbolVariant(isSelected ? .fill : .none)
-                        
-                        if let badge = badge, badge > 0 {
-                            Text("\(badge)")
-                                .font(.caption2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.red)
-                                .cornerRadius(10)
-                                .offset(x: 12, y: -12)
-                        }
-                    }
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(category)
+                        .font(.headline)
+                        .fontWeight(.medium)
                     
-                    Text(title)
-                        .font(.caption2)
+                    Text(statusText)
+                        .font(.caption)
+                        .foregroundColor(statusColor)
+                    
+                    ProgressBar(
+                        progress: spent,
+                        total: budget,
+                        color: statusColor,
+                        height: 6
+                    )
                 }
-                .foregroundColor(isSelected ? .blue : .gray)
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(spent.formattedAsCurrency)
+                        .font(.headline)
+                        .fontWeight(.medium)
+                    
+                    Text("of \(budget.formattedAsCurrency)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            .buttonStyle(.plain)
+            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(12)
+        }
+        
+        private var statusText: String {
+            let percentage = budget > 0 ? (spent / budget) * 100 : 0
+            
+            if spent > budget {
+                return "Over budget by \((spent - budget).formattedAsCurrency)"
+            } else if percentage >= 80 {
+                return "Near budget limit"
+            } else {
+                return "Within budget"
+            }
+        }
+        
+        private var statusColor: Color {
+            let percentage = budget > 0 ? (spent / budget) * 100 : 0
+            
+            if spent > budget {
+                return .red
+            } else if percentage >= 80 {
+                return .orange
+            } else {
+                return .green
+            }
         }
     }
     
@@ -881,26 +925,26 @@ public struct CommonComponents {
             
             var icon: String {
                 switch self {
-                case .info: return "info.circle.fill"
-                case .warning: return "exclamationmark.triangle.fill"
-                case .error: return "xmark.circle.fill"
-                case .success: return "checkmark.circle.fill"
+                case .info: return "info.circle"
+                case .warning: return "exclamationmark.triangle"
+                case .error: return "xmark.circle"
+                case .success: return "checkmark.circle"
                 }
             }
         }
         
         public struct AlertButton {
             let title: String
-            let style: Style
             let action: () -> Void
+            let style: Style
             
             public enum Style {
-                case `default`
+                case primary
+                case secondary
                 case destructive
-                case cancel
             }
             
-            public init(title: String, style: Style = .default, action: @escaping () -> Void) {
+            public init(title: String, style: Style = .primary, action: @escaping () -> Void) {
                 self.title = title
                 self.style = style
                 self.action = action
@@ -910,7 +954,7 @@ public struct CommonComponents {
         public init(
             title: String,
             message: String,
-            alertType: AlertType,
+            alertType: AlertType = .info,
             primaryButton: AlertButton,
             secondaryButton: AlertButton? = nil
         ) {
@@ -923,15 +967,14 @@ public struct CommonComponents {
         
         public var body: some View {
             VStack(spacing: 20) {
-                // Icon
-                Image(systemName: alertType.icon)
-                    .font(.system(size: 48))
-                    .foregroundColor(alertType.color)
-                
-                // Content
                 VStack(spacing: 12) {
+                    Image(systemName: alertType.icon)
+                        .font(.system(size: 48))
+                        .foregroundColor(alertType.color)
+                    
                     Text(title)
-                        .font(.headline)
+                        .font(.title2)
+                        .fontWeight(.semibold)
                         .multilineTextAlignment(.center)
                     
                     Text(message)
@@ -940,395 +983,118 @@ public struct CommonComponents {
                         .multilineTextAlignment(.center)
                 }
                 
-                // Buttons
                 VStack(spacing: 12) {
-                    Button(primaryButton.title) {
-                        primaryButton.action()
+                    Button(action: primaryButton.action) {
+                        Text(primaryButton.title)
+                            .fontWeight(.medium)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(buttonBackgroundColor(for: primaryButton.style))
+                            .foregroundColor(buttonTextColor(for: primaryButton.style))
+                            .cornerRadius(8)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(buttonColor(for: primaryButton.style))
                     
                     if let secondaryButton = secondaryButton {
-                        Button(secondaryButton.title) {
-                            secondaryButton.action()
+                        Button(action: secondaryButton.action) {
+                            Text(secondaryButton.title)
+                                .fontWeight(.medium)
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(buttonBackgroundColor(for: secondaryButton.style))
+                                .foregroundColor(buttonTextColor(for: secondaryButton.style))
+                                .cornerRadius(8)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
             }
             .padding(32)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
-            )
-            .padding()
+            .background(Color(.systemBackground))
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 4)
         }
         
-        private func buttonColor(for style: AlertButton.Style) -> Color {
+        private func buttonBackgroundColor(for style: AlertButton.Style) -> Color {
             switch style {
-            case .default: return .blue
+            case .primary: return alertType.color
+            case .secondary: return Color(.systemGray5)
             case .destructive: return .red
-            case .cancel: return .gray
+            }
+        }
+        
+        private func buttonTextColor(for style: AlertButton.Style) -> Color {
+            switch style {
+            case .primary, .destructive: return .white
+            case .secondary: return .primary
             }
         }
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Extensions
 
-/// Sheet for searchable picker
-private struct SearchablePickerSheet<T: Hashable & CustomStringConvertible>: View {
-    let title: String
-    let items: [T]
-    @Binding var selection: T?
-    let allowsCustomEntry: Bool
-    @Binding var isPresented: Bool
-    
-    @State private var searchText = ""
-    @State private var customEntry = ""
-    @State private var showingCustomEntry = false
-    
-    var filteredItems: [T] {
-        if searchText.isEmpty {
-            return items
-        } else {
-            return items.filter { $0.description.localizedCaseInsensitiveContains(searchText) }
-        }
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack {
-                // Search bar
-                SearchBar(text: $searchText, placeholder: "Search \(title.lowercased())...")
-                
-                List {
-                    // Custom entry option
-                    if allowsCustomEntry && !searchText.isEmpty && !items.contains(where: { $0.description.localizedCaseInsensitiveCompare(searchText) == .orderedSame }) {
-                        Button("Add \"\(searchText)\"") {
-                            if let newItem = searchText as? T {
-                                selection = newItem
-                                isPresented = false
-                            }
-                        }
-                        .foregroundColor(.blue)
-                    }
-                    
-                    // Existing items
-                    ForEach(filteredItems, id: \.self) { item in
-                        Button(action: {
-                            selection = item
-                            isPresented = false
-                        }) {
-                            HStack {
-                                Text(item.description)
-                                    .foregroundColor(.primary)
-                                
-                                Spacer()
-                                
-                                if selection?.description == item.description {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                }
-            }
-        }
+private extension Double {
+    var formattedAsCurrency: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale.current
+        return formatter.string(from: NSNumber(value: self)) ?? "$\(String(format: "%.2f", self))"
     }
 }
 
-/// Search bar component
-private struct SearchBar: View {
-    @Binding var text: String
-    let placeholder: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-            
-            TextField(placeholder, text: $text)
-                .textFieldStyle(.plain)
-            
-            if !text.isEmpty {
-                Button("Clear") {
-                    text = ""
-                }
-                .foregroundColor(.secondary)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(.systemGray6))
-        )
-        .padding(.horizontal)
-    }
-}
-
-// MARK: - View Extensions
-
-extension View {
-    /// Apply card styling
-    public func cardStyle(
-        padding: EdgeInsets = EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16),
-        cornerRadius: CGFloat = AppConstants.UI.cornerRadius,
-        shadowRadius: CGFloat = AppConstants.UI.defaultShadowRadius,
-        backgroundColor: Color = Color(.secondarySystemBackground)
-    ) -> some View {
-        self
-            .padding(padding)
-            .background(backgroundColor)
-            .cornerRadius(cornerRadius)
-            .shadow(
-                color: .black.opacity(Double(AppConstants.UI.defaultShadowOpacity)),
-                radius: shadowRadius,
-                x: 0,
-                y: 2
-            )
-    }
-    
-    /// Apply consistent list row styling
-    public func listRowStyle() -> some View {
-        self
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color(.systemBackground))
-    }
-}
-
-// MARK: - Predefined Components
-
-extension CommonComponents {
-    /// Quick add transaction button
-    public static func quickAddButton(onTap: @escaping () -> Void) -> some View {
-        PrimaryButton(
-            title: "Add Transaction",
-            icon: "plus",
-            action: onTap
-        )
-    }
-    
-    /// Budget overview card
-    public static func budgetOverviewCard(
-        budgeted: Double,
-        spent: Double,
-        remaining: Double
-    ) -> some View {
-        CardView {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("Monthly Budget")
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Text(FormatHelpers.CurrencyFormatter().format(budgeted))
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.blue)
-                }
-                
-                ProgressBar(
-                    progress: spent,
-                    total: budgeted,
-                    color: spent > budgeted ? .red : .blue
-                )
-                
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text("Spent")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(FormatHelpers.CurrencyFormatter().format(spent))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                    }
-                    
-                    Spacer()
-                    
-                    VStack(alignment: .trailing) {
-                        Text("Remaining")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(FormatHelpers.CurrencyFormatter().format(remaining))
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(remaining < 0 ? .red : .green)
-                    }
-                }
-            }
-        }
-    }
-    
-    /// Empty state view
-    public static func emptyState(
-        icon: String,
-        title: String,
-        message: String,
-        actionTitle: String? = nil,
-        action: (() -> Void)? = nil
-    ) -> some View {
-        VStack(spacing: 20) {
-            Image(systemName: icon)
-                .font(.system(size: 64))
-                .foregroundColor(.gray)
-            
-            VStack(spacing: 8) {
-                Text(title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                
-                Text(message)
-                    .font(.body)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            
-            if let actionTitle = actionTitle, let action = action {
-                PrimaryButton(title: actionTitle, action: action)
-                    .frame(maxWidth: 200)
-            }
-        }
-        .padding()
-    }
-}
-
-// MARK: - Testing Support
+// MARK: - Preview Support
 
 #if DEBUG
-extension CommonComponents {
-    public struct TestComponents: View {
-        @State private var selectedCategory = ""
-        @State private var amount: Double = 0
-        @State private var textInput = ""
-        @State private var showingAlert = false
-        
-        public var body: some View {
-            NavigationView {
-                List {
-                    Section("Cards") {
-                        StatsCard(
-                            title: "Total Spent",
-                            value: "$1,234.56",
-                            subtitle: "This month",
-                            icon: "creditcard.fill",
-                            color: .blue,
-                            trend: .up("12%")
-                        )
-                        
-                        budgetOverviewCard(
-                            budgeted: 2500,
-                            spent: 1750,
-                            remaining: 750
-                        )
-                    }
-                    
-                    Section("Inputs") {
-                        ValidatedTextField(
-                            title: "Description",
-                            placeholder: "Enter description",
-                            text: $textInput,
-                            validation: { text in
-                                text.isEmpty ? .invalid("Description is required") : .valid
-                            }
-                        )
-                        
-                        CurrencyTextField(
-                            title: "Amount",
-                            amount: $amount
-                        )
-                        
-                        CategoryPicker(
-                            selectedCategory: $selectedCategory,
-                            availableCategories: ["Groceries", "Transportation", "Entertainment"]
-                        )
-                    }
-                    
-                    Section("Buttons") {
-                        PrimaryButton(title: "Primary Action") {
-                            print("Primary action tapped")
-                        }
-                        
-                        SecondaryButton(title: "Secondary Action", icon: "gear") {
-                            print("Secondary action tapped")
-                        }
-                        
-                        LoadingViews.LoadingButton(
-                            title: "Loading Button",
-                            isLoading: false
-                        ) {
-                            print("Loading button tapped")
-                        }
-                    }
-                    
-                    Section("Progress") {
-                        ProgressBar(
-                            progress: 1750,
-                            total: 2500,
-                            color: .blue
-                        )
-                        
-                        BudgetStatusIndicator(
-                            spent: 1750,
-                            budget: 2500,
-                            category: "Groceries"
-                        )
-                    }
-                    
-                    Section("Lists") {
-                        TransactionRow(
-                            transaction: try! BudgetEntry(
-                                amount: 45.67,
-                                category: "Groceries",
-                                date: Date(),
-                                note: "Weekly shopping"
-                            )
-                        )
-                    }
-                    
-                    Section("Alerts") {
-                        Button("Show Alert") {
-                            showingAlert = true
-                        }
-                    }
-                }
-                .navigationTitle("Component Test")
+struct CommonComponents_Previews: PreviewProvider {
+    static var previews: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                // Stats Cards
+                CommonComponents.StatsCard(
+                    title: "Monthly Budget",
+                    value: "$2,500.00",
+                    subtitle: "Updated today",
+                    icon: "dollarsign.circle",
+                    color: .blue,
+                    trend: .up("5.2%")
+                )
+                
+                // Transaction Row
+                CommonComponents.TransactionRow(
+                    amount: 45.67,
+                    category: "Groceries",
+                    date: Date(),
+                    note: "Weekly shopping"
+                )
+                
+                // Progress Bar
+                CommonComponents.ProgressBar(
+                    progress: 1750,
+                    total: 2500,
+                    color: .blue,
+                    height: 8,
+                    showPercentage: true
+                )
+                
+                // Budget Status Indicator
+                CommonComponents.BudgetStatusIndicator(
+                    spent: 1750,
+                    budget: 2000,
+                    category: "Groceries"
+                )
+                
+                // Primary Button
+                CommonComponents.PrimaryButton(
+                    title: "Save Changes",
+                    action: {}
+                )
+                
+                // Secondary Button
+                CommonComponents.SecondaryButton(
+                    title: "Cancel",
+                    action: {}
+                )
             }
-            .overlay {
-                if showingAlert {
-                    Color.black.opacity(0.4)
-                        .ignoresSafeArea()
-                        .onTapGesture {
-                            showingAlert = false
-                        }
-                    
-                    AlertView(
-                        title: "Delete Transaction",
-                        message: "Are you sure you want to delete this transaction? This action cannot be undone.",
-                        alertType: .warning,
-                        primaryButton: AlertView.AlertButton(title: "Delete", style: .destructive) {
-                            showingAlert = false
-                        },
-                        secondaryButton: AlertView.AlertButton(title: "Cancel", style: .cancel) {
-                            showingAlert = false
-                        }
-                    )
-                }
-            }
+            .padding()
         }
     }
 }

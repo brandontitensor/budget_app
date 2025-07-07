@@ -552,15 +552,7 @@ struct ActionButton: View {
     }
 }
 
-// MARK: - Extensions
 
-private extension ErrorHandler {
-    /// Clear current error - compatibility method
-    func clearError() {
-        currentError = nil
-        isShowingError = false
-    }
-}
 
 // MARK: - Preview Provider
 

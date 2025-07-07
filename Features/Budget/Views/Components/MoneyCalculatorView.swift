@@ -3,8 +3,9 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/19/24.
-//  Updated: 6/1/25 - Enhanced with centralized error handling and improved UX
+//  Updated: 7/7/25 - Fixed Hashable conformance and private method visibility
 //
+
 import SwiftUI
 
 /// A calculator view specifically designed for monetary input with enhanced error handling and accessibility
@@ -36,7 +37,7 @@ public struct MoneyCalculatorView: View {
         [.clear, .number(0), .delete]
     ]
     
-    private enum CalculatorButton: Equatable {
+    private enum CalculatorButton: Equatable, Hashable {
         case number(Int)
         case clear
         case delete
@@ -68,21 +69,12 @@ public struct MoneyCalculatorView: View {
     
     // MARK: - Computed Properties
     private var formattedDisplay: String {
-        let numberString = inputString
-        let length = numberString.count
-        
-        guard length > 0 else { return "$0.00" }
-        
-        switch length {
-        case 1: return "$0.0\(numberString)"
-        case 2: return "$0.\(numberString)"
-        default:
-            let decimalIndex = length - 2
-            let dollars = String(numberString.prefix(decimalIndex))
-            let cents = String(numberString.suffix(2))
-            let formattedDollars = formatWithCommas(dollars)
-            return "$\(formattedDollars).\(cents)"
-        }
+        let value = Double(inputString) ?? 0
+        let amount = value / 100.0
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale.current
+        return formatter.string(from: NSNumber(value: amount)) ?? "$0.00"
     }
     
     private var currentAmount: Double {
@@ -90,16 +82,14 @@ public struct MoneyCalculatorView: View {
         return value / 100.0
     }
     
-    private var isValidAmount: Bool {
-        let amount = currentAmount
-        return amount >= AppConstants.Validation.minimumTransactionAmount &&
-               amount <= AppConstants.Validation.maximumTransactionAmount
+    private var canSave: Bool {
+        hasValidInput && !isProcessing && currentAmount > 0
     }
     
     private var validationMessage: String? {
         let amount = currentAmount
         
-        if amount < AppConstants.Validation.minimumTransactionAmount {
+        if amount < AppConstants.Validation.minimumTransactionAmount && amount > 0 {
             return "Amount must be at least \(AppConstants.Validation.minimumTransactionAmount.asCurrency)"
         } else if amount > AppConstants.Validation.maximumTransactionAmount {
             return "Amount cannot exceed \(AppConstants.Validation.maximumTransactionAmount.asCurrency)"
@@ -108,92 +98,82 @@ public struct MoneyCalculatorView: View {
         return nil
     }
     
-    private var canSave: Bool {
-        return isValidAmount && !isProcessing && currentAmount > 0
-    }
-    
-    // MARK: - Initialization
+    // MARK: - Initializer
     public init(amount: Binding<Double>) {
         self._amount = amount
-        let initialAmount = Int(amount.wrappedValue * 100)
-        self._inputString = State(initialValue: initialAmount > 0 ? String(initialAmount) : "0")
+        let initialValue = Int(amount.wrappedValue * 100)
+        self._inputString = State(initialValue: initialValue > 0 ? "\(initialValue)" : "0")
     }
     
     // MARK: - Body
     public var body: some View {
-        NavigationView {
-            ZStack {
-                VStack(spacing: 24) {
-                    Spacer()
-                    
-                    displaySection
-                    
-                    Spacer()
-                    
-                    calculatorPad
-                    
-                    actionButtons
-                }
-                .padding()
-                .navigationTitle("Enter Amount")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        Button("Cancel") {
-                            handleCancelAction()
-                        }
-                        .disabled(isProcessing)
-                    }
-                    
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") {
-                            handleSaveAction()
-                        }
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
-                    }
-                }
-                .onAppear {
-                    updateValidationState()
-                }
-                .onChange(of: inputString) { _, _ in
-                    updateValidationState()
-                }
-                .confirmationDialog(
-                    "Confirm Amount",
-                    isPresented: $showingConfirmation,
-                    titleVisibility: .visible
-                ) {
-                    Button("Save \(formattedDisplay)") {
-                        saveAmount()
-                    }
-                    Button("Cancel", role: .cancel) { }
-                } message: {
-                    Text("Save this amount to your budget?")
-                }
-                .errorAlert(onRetry: {
-                    // Retry validation or save operation
-                    updateValidationState()
-                })
+        ZStack {
+            VStack(spacing: 24) {
+                // Header with close button
+                headerView
                 
-                // Processing overlay
-                if isProcessing {
-                    processingOverlay
-                }
+                // Amount display
+                amountDisplay
+                
+                // Calculator pad
+                calculatorPad
+                
+                // Action buttons
+                actionButtons
+                
+                Spacer()
+            }
+            .padding()
+            .background(Color(.systemBackground))
+            
+            // Processing overlay
+            if isProcessing {
+                processingOverlay
             }
         }
-        .handleErrors(context: "Money Calculator")
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .onAppear {
+            setupInitialAmount()
+        }
+        .confirmationDialog(
+            "Large Amount",
+            isPresented: $showingConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Confirm \(currentAmount.asCurrency)") {
+                Task { await saveAmount() }
+            }
+            Button("Edit Amount", role: .cancel) {
+                showingConfirmation = false
+            }
+        } message: {
+            Text("This is a large amount. Are you sure you want to continue?")
+        }
     }
     
-    // MARK: - Display Section
-    private var displaySection: some View {
-        VStack(spacing: 16) {
+    // MARK: - View Components
+    
+    private var headerView: some View {
+        HStack {
+            Text("Enter Amount")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Button("Close") {
+                dismiss()
+            }
+            .foregroundColor(themeManager.primaryColor)
+        }
+    }
+    
+    private var amountDisplay: some View {
+        VStack(spacing: 8) {
             // Main amount display
             Text(formattedDisplay)
-                .font(.system(size: 48, weight: .medium, design: .rounded))
-                .foregroundColor(isValidAmount ? themeManager.primaryColor : .red)
+                .font(.system(size: 48, weight: .light, design: .rounded))
+                .foregroundColor(hasValidInput ? themeManager.primaryColor : .red)
                 .multilineTextAlignment(.center)
                 .accessibilityLabel("Current amount: \(formattedDisplay)")
                 .animation(.easeInOut(duration: 0.2), value: formattedDisplay)
@@ -329,6 +309,14 @@ public struct MoneyCalculatorView: View {
     }
     
     // MARK: - Helper Methods
+    
+    private func setupInitialAmount() {
+        if amount > 0 {
+            let initialValue = Int(amount * 100)
+            inputString = "\(initialValue)"
+        }
+    }
+    
     private func handleButtonPress(_ button: CalculatorButton) {
         Constants.hapticFeedback.impactOccurred()
         
@@ -340,6 +328,8 @@ public struct MoneyCalculatorView: View {
         case .delete:
             deleteLastDigit()
         }
+        
+        updateValidation()
     }
     
     private func appendDigit(_ digit: Int) {
@@ -355,6 +345,10 @@ public struct MoneyCalculatorView: View {
         }
     }
     
+    private func clearInput() {
+        inputString = "0"
+    }
+    
     private func deleteLastDigit() {
         if inputString.count > 1 {
             inputString.removeLast()
@@ -363,25 +357,14 @@ public struct MoneyCalculatorView: View {
         }
     }
     
-    private func clearInput() {
-        inputString = "0"
-        Constants.hapticFeedback.impactOccurred()
-    }
-    
     private func setQuickAmount(_ amount: Double) {
-        let amountInCents = Int(amount * 100)
-        inputString = String(amountInCents)
-        Constants.hapticFeedback.impactOccurred()
+        let value = Int(amount * 100)
+        inputString = "\(value)"
+        updateValidation()
     }
     
-    private func updateValidationState() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            hasValidInput = isValidAmount
-        }
-    }
-    
-    private func handleCancelAction() {
-        dismiss()
+    private func updateValidation() {
+        hasValidInput = validationMessage == nil
     }
     
     private func handleSaveAction() {
@@ -390,35 +373,35 @@ public struct MoneyCalculatorView: View {
             return
         }
         
-        if currentAmount >= 100 { // Show confirmation for large amounts
+        // Show confirmation for large amounts
+        if currentAmount >= 100 {
             showingConfirmation = true
         } else {
-            saveAmount()
+            Task {
+                await saveAmount()
+            }
         }
     }
     
-    private func saveAmount() {
+    private func saveAmount() async {
         isProcessing = true
         
-        Task {
-            do {
-                // Validate the amount one more time
-                try validateAmount()
-                
-                // Small delay to show processing state
-                try await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
-                
-                await MainActor.run {
-                    amount = currentAmount
-                    isProcessing = false
-                    dismiss()
-                }
-                
-            } catch {
-                await MainActor.run {
-                    isProcessing = false
-                    errorHandler.handle(AppError.from(error), context: "Saving amount")
-                }
+        do {
+            try validateAmount()
+            
+            // Simulate processing delay for better UX
+            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            
+            await MainActor.run {
+                amount = currentAmount
+                isProcessing = false
+                dismiss()
+            }
+            
+        } catch {
+            await MainActor.run {
+                isProcessing = false
+                errorHandler.handle(AppError.from(error), context: "Saving amount")
             }
         }
     }
@@ -484,6 +467,17 @@ public struct MoneyCalculatorView: View {
     }
 }
 
+// MARK: - Extensions
+
+private extension Double {
+    var asCurrency: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale.current
+        return formatter.string(from: NSNumber(value: self)) ?? "$\(String(format: "%.2f", self))"
+    }
+}
+
 // MARK: - Accessibility Extensions
 
 extension MoneyCalculatorView {
@@ -493,7 +487,9 @@ extension MoneyCalculatorView {
             .accessibilityElement(children: .contain)
             .accessibilityAction(.default) {
                 if canSave {
-                    saveAmount()
+                    Task {
+                        await saveAmount()
+                    }
                 }
             }
             .accessibilityAction(.escape) {
