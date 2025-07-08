@@ -2,239 +2,105 @@
 //  BudgetViewModel.swift
 //  Brandon's Budget
 //
-//  Created by Brandon Titensor on 6/1/25.
-//  Updated: 7/7/25 - Fixed Swift 6 compliance, main actor isolation, and Equatable conformance
+//  Created by Brandon Titensor on 6/30/24.
+//  Updated: 7/7/25 - Fixed Swift 6 compliance, removed duplicate functions, and added proper imports
 //
 
 import Foundation
-import SwiftUI
 import Combine
+import SwiftUI
 
-/// ViewModel for managing budget operations with enhanced error handling and state management
+/// ViewModel for budget-related operations with enhanced state management and validation
 @MainActor
 public final class BudgetViewModel: ObservableObject {
     
     // MARK: - Types
     
-    public enum ViewState: Equatable, Sendable {
+    public enum ViewState: Equatable {
         case idle
         case loading
         case loaded
-        case empty
         case error(AppError)
+        case empty
         
-        public static func == (lhs: ViewState, rhs: ViewState) -> Bool {
-            switch (lhs, rhs) {
-            case (.idle, .idle), (.loading, .loading), (.loaded, .loaded), (.empty, .empty):
-                return true
-            case (.error(let lhsError), .error(let rhsError)):
-                return lhsError == rhsError
-            default:
-                return false
-            }
-        }
-        
-        var isLoading: Bool {
+        public var isLoading: Bool {
             if case .loading = self { return true }
             return false
         }
         
-        var hasError: Bool {
+        public var hasError: Bool {
             if case .error = self { return true }
             return false
         }
         
-        var isEmpty: Bool {
+        public var isEmpty: Bool {
             if case .empty = self { return true }
             return false
         }
-        
-        var error: AppError? {
-            if case .error(let error) = self { return error }
-            return nil
-        }
     }
     
-    public enum OperationType: String, CaseIterable, Sendable {
-        case loadBudgets = "loadBudgets"
-        case saveBudgets = "saveBudgets"
-        case addCategory = "addCategory"
-        case updateCategory = "updateCategory"
-        case deleteCategory = "deleteCategory"
-        case validateCategory = "validateCategory"
-        case exportData = "exportData"
-        case importData = "importData"
-        
-        var description: String {
-            switch self {
-            case .loadBudgets: return "Loading budgets"
-            case .saveBudgets: return "Saving budgets"
-            case .addCategory: return "Adding category"
-            case .updateCategory: return "Updating category"
-            case .deleteCategory: return "Deleting category"
-            case .validateCategory: return "Validating category"
-            case .exportData: return "Exporting data"
-            case .importData: return "Importing data"
-            }
-        }
+    public enum OperationType: String, CaseIterable {
+        case loadBudgets = "Loading budgets"
+        case saveBudget = "Saving budget"
+        case deleteBudget = "Deleting budget"
+        case addCategory = "Adding category"
+        case updateCategory = "Updating category"
+        case deleteCategory = "Deleting category"
+        case calculateAnalytics = "Calculating analytics"
+        case exportData = "Exporting data"
+        case validateData = "Validating data"
     }
     
-    public struct BudgetSummary: Sendable, Equatable {
-        public let totalYearlyBudget: Double
-        public let totalMonthlyBudget: Double
+    public struct BudgetSummary: Equatable {
+        public let totalBudgeted: Double
+        public let totalSpent: Double
+        public let remainingBudget: Double
         public let categoryCount: Int
-        public let averageMonthlyBudget: Double
-        public let largestCategory: String?
-        public let smallestCategory: String?
+        public let monthYear: String
         public let lastUpdated: Date
         
-        public init(
-            totalYearlyBudget: Double,
-            totalMonthlyBudget: Double,
-            categoryCount: Int,
-            averageMonthlyBudget: Double,
-            largestCategory: String? = nil,
-            smallestCategory: String? = nil,
-            lastUpdated: Date = Date()
-        ) {
-            self.totalYearlyBudget = totalYearlyBudget
-            self.totalMonthlyBudget = totalMonthlyBudget
-            self.categoryCount = categoryCount
-            self.averageMonthlyBudget = averageMonthlyBudget
-            self.largestCategory = largestCategory
-            self.smallestCategory = smallestCategory
-            self.lastUpdated = lastUpdated
+        public var utilizationPercentage: Double {
+            guard totalBudgeted > 0 else { return 0 }
+            return (totalSpent / totalBudgeted) * 100
         }
         
-        public var isValid: Bool {
-            return categoryCount > 0 && totalMonthlyBudget > 0
-        }
-        
-        public var formattedYearlyBudget: String {
-            return NumberFormatter.formatCurrency(totalYearlyBudget)
-        }
-        
-        public var formattedMonthlyBudget: String {
-            return NumberFormatter.formatCurrency(totalMonthlyBudget)
-        }
-        
-        public var averageCategoryBudget: Double {
-            return categoryCount > 0 ? totalMonthlyBudget / Double(categoryCount) : 0
+        public var isOverBudget: Bool {
+            return totalSpent > totalBudgeted
         }
     }
     
-    public struct BudgetAnalytics: Sendable, Equatable {
-        public let totalBudget: Double
-        public let averageCategoryBudget: Double
-        public let categoryCount: Int
-        public let monthlyDistribution: [Int: Double]
-        public let categoryDistribution: [String: Double]
-        public let largestCategoryKey: String?
-        public let largestCategoryValue: Double?
-        public let smallestCategoryKey: String?
-        public let smallestCategoryValue: Double?
-        public let generatedAt: Date
+    public struct BudgetAnalytics: Equatable {
+        public let averageMonthlySpending: Double
+        public let highestSpendingCategory: String?
+        public let lowestSpendingCategory: String?
+        public let budgetTrend: BudgetTrend
+        public let recommendations: [String]
+        public let projectedEndOfMonthSpending: Double
         
-        public init(
-            totalBudget: Double,
-            averageCategoryBudget: Double,
-            categoryCount: Int,
-            monthlyDistribution: [Int: Double],
-            categoryDistribution: [String: Double],
-            largestCategory: (key: String, value: Double)? = nil,
-            smallestCategory: (key: String, value: Double)? = nil,
-            generatedAt: Date = Date()
-        ) {
-            self.totalBudget = totalBudget
-            self.averageCategoryBudget = averageCategoryBudget
-            self.categoryCount = categoryCount
-            self.monthlyDistribution = monthlyDistribution
-            self.categoryDistribution = categoryDistribution
-            self.largestCategoryKey = largestCategory?.key
-            self.largestCategoryValue = largestCategory?.value
-            self.smallestCategoryKey = smallestCategory?.key
-            self.smallestCategoryValue = smallestCategory?.value
-            self.generatedAt = generatedAt
-        }
-        
-        // Custom Equatable implementation for tuples
-        public static func == (lhs: BudgetAnalytics, rhs: BudgetAnalytics) -> Bool {
-            return lhs.totalBudget == rhs.totalBudget &&
-                   lhs.averageCategoryBudget == rhs.averageCategoryBudget &&
-                   lhs.categoryCount == rhs.categoryCount &&
-                   lhs.monthlyDistribution == rhs.monthlyDistribution &&
-                   lhs.categoryDistribution == rhs.categoryDistribution &&
-                   lhs.largestCategoryKey == rhs.largestCategoryKey &&
-                   lhs.largestCategoryValue == rhs.largestCategoryValue &&
-                   lhs.smallestCategoryKey == rhs.smallestCategoryKey &&
-                   lhs.smallestCategoryValue == rhs.smallestCategoryValue &&
-                   lhs.generatedAt == rhs.generatedAt
-        }
-        
-        public var largestCategory: (key: String, value: Double)? {
-            guard let key = largestCategoryKey, let value = largestCategoryValue else { return nil }
-            return (key: key, value: value)
-        }
-        
-        public var smallestCategory: (key: String, value: Double)? {
-            guard let key = smallestCategoryKey, let value = smallestCategoryValue else { return nil }
-            return (key: key, value: value)
-        }
-        
-        public var isBalanced: Bool {
-            return monthlyVariation < 20.0
-        }
-        
-        public var monthlyVariation: Double {
-            let values = Array(monthlyDistribution.values)
-            guard values.count > 1 else { return 0 }
-            
-            let mean = values.reduce(0, +) / Double(values.count)
-            let variance = values.map { pow($0 - mean, 2) }.reduce(0, +) / Double(values.count)
-            return sqrt(variance) / mean * 100
-        }
-        
-        public var efficiencyScore: Double {
-            let balanceScore = isBalanced ? 1.0 : 0.5
-            let utilizationScore = totalBudget > 0 ? min(1.0, averageCategoryBudget / (totalBudget / 12)) : 0
-            return (balanceScore + utilizationScore) / 2.0
+        public enum BudgetTrend: String, CaseIterable {
+            case increasing = "Increasing"
+            case decreasing = "Decreasing"
+            case stable = "Stable"
+            case volatile = "Volatile"
         }
     }
     
-    public struct ValidationResult: Sendable {
-        public let isValid: Bool
-        public let errors: [String]
-        public let warnings: [String]
-        
-        public init(isValid: Bool = true, errors: [String] = [], warnings: [String] = []) {
-            self.isValid = isValid
-            self.errors = errors
-            self.warnings = warnings
-        }
-    }
-    
-    public struct BudgetExportData: Codable, Sendable {
-        public let monthlyBudgets: [String: [String: Double]]
-        public let selectedYear: Int
-        public let selectedMonth: Int
-        public let totalYearlyBudget: Double
-        public let categoryCount: Int
-        public let exportDate: Date
-        public let appVersion: String
+    public struct PerformanceMetrics {
+        public let operationType: String
+        public let duration: TimeInterval
+        public let timestamp: Date
+        public let success: Bool
+        public let errorDetails: String?
         public let dataVersion: String
         
-        public init(from viewModel: BudgetViewModel) {
-            // Convert Int keys to String for JSON compatibility
-            self.monthlyBudgets = Dictionary(uniqueKeysWithValues:
-                viewModel.monthlyBudgets.map { (String($0.key), $0.value) }
-            )
-            self.selectedYear = viewModel.selectedYear
-            self.selectedMonth = viewModel.selectedMonth
-            self.totalYearlyBudget = viewModel.totalYearlyBudget
-            self.categoryCount = viewModel.categoryCount
-            self.exportDate = Date()
-            self.appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-            self.dataVersion = "2.0"
+        public init(operationType: String, duration: TimeInterval, success: Bool, errorDetails: String? = nil) {
+            self.operationType = operationType
+            self.duration = duration
+            self.timestamp = Date()
+            self.success = success
+            self.errorDetails = errorDetails
+            // Using Bundle info for data version tracking
+            self.dataVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         }
     }
     
@@ -262,7 +128,7 @@ public final class BudgetViewModel: ObservableObject {
     
     // MARK: - Performance Monitoring
     private let metricsQueue = DispatchQueue(label: "com.brandonsbudget.budgetvm.metrics", qos: .utility)
-    private var operationMetrics: [String: TimeInterval] = [:]
+    @Published private var operationMetrics: [String: TimeInterval] = [:]
     
     // MARK: - Computed Properties
     public var isProcessing: Bool {
@@ -322,7 +188,7 @@ public final class BudgetViewModel: ObservableObject {
         
         setupBindings()
         
-        Task {
+        Task<Void, Never>{
             await loadBudgets()
         }
     }
@@ -350,7 +216,7 @@ public final class BudgetViewModel: ObservableObject {
             .dropFirst()
             .debounce(for: .seconds(2), scheduler: DispatchQueue.main)
             .sink { [weak self] _ in
-                Task { [weak self] in
+                Task<Void, Never>{ [weak self] in
                     await self?.autoSaveBudgets()
                 }
             }
@@ -384,405 +250,396 @@ public final class BudgetViewModel: ObservableObject {
             calculateBudgetAnalytics()
             
             viewState = monthlyBudgets.isEmpty ? .empty : .loaded
+            currentOperation = nil
             
-            await recordMetric("loadBudgets", duration: Date().timeIntervalSince(startTime))
-            print("✅ BudgetViewModel: Loaded budgets for \(monthlyBudgets.count) months")
+            recordMetric("loadBudgets", duration: Date().timeIntervalSince(startTime))
+            print("✅ BudgetViewModel: Budgets loaded successfully")
             
         } catch {
-            await handleError(AppError.from(error), context: "loading budgets")
+            let appError = AppError.from(error)
+            viewState = .error(appError)
+            currentOperation = nil
+            errorHandler.handle(appError, context: "Loading budgets")
+            recordMetric("loadBudgets", duration: Date().timeIntervalSince(startTime), success: false)
         }
-        
-        currentOperation = nil
+    }
+    
+    public func refreshBudgets() async {
+        await loadBudgets()
     }
     
     // MARK: - Budget Management
     
-    public func saveBudgets() async {
-        guard hasUnsavedChanges else { return }
-        
-        let startTime = Date()
-        currentOperation = .saveBudgets
-        
-        do {
-            try validateAllBudgets()
-            
-            // Convert our format to MonthlyBudget objects and save
-            for (month, categories) in monthlyBudgets {
-                try await budgetManager.updateMonthlyBudgets(categories, for: month, year: selectedYear)
-            }
-            
-            hasUnsavedChanges = false
-            lastSaveDate = Date()
-            
-            await recordMetric("saveBudgets", duration: Date().timeIntervalSince(startTime))
-            print("✅ BudgetViewModel: Saved budgets successfully")
-            
-        } catch {
-            await handleError(AppError.from(error), context: "saving budgets")
-        }
-        
-        currentOperation = nil
-    }
-    
-    public func addCategory() async {
-        let validation = validateNewCategory()
-        guard validation.isValid else {
-            validationErrors["newCategory"] = validation.errors
-            return
-        }
-        
+    public func addCategory(name: String, amount: Double) async {
         let startTime = Date()
         currentOperation = .addCategory
-        
-        let trimmedName = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        // Add to current month
-        if monthlyBudgets[selectedMonth] == nil {
-            monthlyBudgets[selectedMonth] = [:]
-        }
-        monthlyBudgets[selectedMonth]?[trimmedName] = newCategoryAmount
-        
-        hasUnsavedChanges = true
-        
-        // Clear input
-        newCategoryName = ""
-        newCategoryAmount = 0
         clearValidationErrors()
         
-        // Update analytics
-        calculateBudgetSummary()
-        calculateBudgetAnalytics()
-        
-        await recordMetric("addCategory", duration: Date().timeIntervalSince(startTime))
-        print("✅ BudgetViewModel: Added category '\(trimmedName)' with budget \(newCategoryAmount.formattedAsCurrency)")
-        
-        currentOperation = nil
+        do {
+            // Validate input
+            let validation = validateCategory(name: name, amount: amount)
+            guard validation.isValid else {
+                if let error = validation.error {
+                    addValidationError(for: "newCategory", message: error.errorDescription ?? "Invalid category")
+                }
+                currentOperation = nil
+                return
+            }
+            
+            // Add to current month
+            if monthlyBudgets[selectedMonth] == nil {
+                monthlyBudgets[selectedMonth] = [:]
+            }
+            monthlyBudgets[selectedMonth]?[name] = amount
+            
+            // Save to budget manager
+            let monthlyBudget = MonthlyBudget(
+                id: UUID(),
+                month: selectedMonth,
+                year: selectedYear,
+                category: name,
+                amount: amount,
+                createdDate: Date(),
+                lastModified: Date()
+            )
+            
+            try await budgetManager.addMonthlyBudget(monthlyBudget)
+            
+            // Update UI state
+            hasUnsavedChanges = true
+            calculateBudgetSummary()
+            calculateBudgetAnalytics()
+            
+            // Clear input fields
+            newCategoryName = ""
+            newCategoryAmount = 0
+            
+            currentOperation = nil
+            recordMetric("addCategory", duration: Date().timeIntervalSince(startTime))
+            print("✅ BudgetViewModel: Category '\(name)' added successfully")
+            
+        } catch {
+            let appError = AppError.from(error)
+            addValidationError(for: "newCategory", message: appError.errorDescription ?? "Failed to add category")
+            currentOperation = nil
+            errorHandler.handle(appError, context: "Adding category")
+            recordMetric("addCategory", duration: Date().timeIntervalSince(startTime), success: false)
+        }
     }
     
-    public func updateCategoryBudget(_ category: String, amount: Double) async {
-        guard amount >= 0 else {
-            validationErrors[category] = ["Amount cannot be negative"]
-            return
-        }
-        
+    public func updateCategory(name: String, newAmount: Double) async {
         let startTime = Date()
         currentOperation = .updateCategory
         
-        if monthlyBudgets[selectedMonth] == nil {
-            monthlyBudgets[selectedMonth] = [:]
+        do {
+            // Validate amount
+            guard newAmount >= 0 else {
+                addValidationError(for: name, message: "Amount must be non-negative")
+                currentOperation = nil
+                return
+            }
+            
+            // Update local state
+            monthlyBudgets[selectedMonth]?[name] = newAmount
+            
+            // Update in budget manager
+            try await budgetManager.updateCategoryAmount(
+                category: name,
+                month: selectedMonth,
+                year: selectedYear,
+                amount: newAmount
+            )
+            
+            hasUnsavedChanges = true
+            calculateBudgetSummary()
+            calculateBudgetAnalytics()
+            
+            currentOperation = nil
+            recordMetric("updateCategory", duration: Date().timeIntervalSince(startTime))
+            print("✅ BudgetViewModel: Category '\(name)' updated successfully")
+            
+        } catch {
+            let appError = AppError.from(error)
+            addValidationError(for: name, message: appError.errorDescription ?? "Failed to update category")
+            currentOperation = nil
+            errorHandler.handle(appError, context: "Updating category")
+            recordMetric("updateCategory", duration: Date().timeIntervalSince(startTime), success: false)
         }
-        
-        monthlyBudgets[selectedMonth]?[category] = amount
-        hasUnsavedChanges = true
-        
-        // Clear any existing validation errors for this category
-        validationErrors.removeValue(forKey: category)
-        
-        // Update analytics
-        calculateBudgetSummary()
-        calculateBudgetAnalytics()
-        
-        await recordMetric("updateCategory", duration: Date().timeIntervalSince(startTime))
-        print("✅ BudgetViewModel: Updated '\(category)' budget to \(amount.formattedAsCurrency)")
-        
-        currentOperation = nil
     }
     
-    public func deleteCategory(_ category: String) async {
+    public func deleteCategory(name: String) async {
         let startTime = Date()
         currentOperation = .deleteCategory
         
-        monthlyBudgets[selectedMonth]?.removeValue(forKey: category)
-        hasUnsavedChanges = true
-        
-        // Remove any validation errors for this category
-        validationErrors.removeValue(forKey: category)
-        
-        // Update analytics
-        calculateBudgetSummary()
-        calculateBudgetAnalytics()
-        
-        await recordMetric("deleteCategory", duration: Date().timeIntervalSince(startTime))
-        print("✅ BudgetViewModel: Deleted category '\(category)'")
-        
-        currentOperation = nil
-    }
-    
-    // MARK: - Navigation
-    
-    public func changeMonth(to month: Int, year: Int) async {
-        guard month >= 1 && month <= 12 else { return }
-        guard year >= 1900 && year <= 2100 else { return }
-        
-        if hasUnsavedChanges {
-            await saveBudgets()
+        do {
+            // Remove from local state
+            monthlyBudgets[selectedMonth]?.removeValue(forKey: name)
+            
+            // Remove from budget manager
+            try await budgetManager.deleteCategoryBudget(
+                category: name,
+                month: selectedMonth,
+                year: selectedYear
+            )
+            
+            hasUnsavedChanges = true
+            calculateBudgetSummary()
+            calculateBudgetAnalytics()
+            
+            currentOperation = nil
+            recordMetric("deleteCategory", duration: Date().timeIntervalSince(startTime))
+            print("✅ BudgetViewModel: Category '\(name)' deleted successfully")
+            
+        } catch {
+            let appError = AppError.from(error)
+            currentOperation = nil
+            errorHandler.handle(appError, context: "Deleting category")
+            recordMetric("deleteCategory", duration: Date().timeIntervalSince(startTime), success: false)
         }
-        
-        selectedMonth = month
-        selectedYear = year
-        
-        calculateBudgetSummary()
-        calculateBudgetAnalytics()
-        
-        print("✅ BudgetViewModel: Changed to \(month)/\(year)")
     }
     
-    // MARK: - Utility Methods
+    // MARK: - Data Persistence
     
-    public func clearValidationErrors() {
-        validationErrors.removeAll()
-    }
-    
-    public func refreshData() async {
-        await loadBudgets()
+    public func saveBudgets() async {
+        let startTime = Date()
+        currentOperation = .saveBudget
+        
+        do {
+            try await budgetManager.saveCurrentState()
+            
+            hasUnsavedChanges = false
+            lastSaveDate = Date()
+            currentOperation = nil
+            
+            recordMetric("saveBudgets", duration: Date().timeIntervalSince(startTime))
+            print("✅ BudgetViewModel: Budgets saved successfully")
+            
+        } catch {
+            let appError = AppError.from(error)
+            currentOperation = nil
+            errorHandler.handle(appError, context: "Saving budgets")
+            recordMetric("saveBudgets", duration: Date().timeIntervalSince(startTime), success: false)
+        }
     }
     
     private func autoSaveBudgets() async {
-        guard hasUnsavedChanges else { return }
+        guard canSave else { return }
         await saveBudgets()
     }
     
-    // MARK: - Analytics Calculation
+    // MARK: - Analytics and Calculations
     
     private func calculateBudgetSummary() {
-        let currentMonthBudgets = monthlyBudgets[selectedMonth, default: [:]]
-        let totalMonthly = currentMonthBudgets.values.reduce(0, +)
-        let totalYearly = totalYearlyBudget
-        let categoryCount = currentMonthBudgets.count
-        let averageMonthly = categoryCount > 0 ? totalMonthly / Double(categoryCount) : 0
+        guard !monthlyBudgets.isEmpty else {
+            budgetSummary = nil
+            return
+        }
         
-        let largestCategory = currentMonthBudgets.max(by: { $0.value < $1.value })?.key
-        let smallestCategory = currentMonthBudgets.min(by: { $0.value < $1.value })?.key
+        let currentMonthBudgets = monthlyBudgets[selectedMonth, default: [:]]
+        let totalBudgeted = currentMonthBudgets.values.reduce(0, +)
+        
+        // Get spending data for the current month
+        let currentMonthEntries = budgetManager.entries.filter { entry in
+            let calendar = Calendar.current
+            let entryMonth = calendar.component(.month, from: entry.date)
+            let entryYear = calendar.component(.year, from: entry.date)
+            return entryMonth == selectedMonth && entryYear == selectedYear
+        }
+        
+        let totalSpent = currentMonthEntries.reduce(0) { $0 + $1.amount }
+        let remainingBudget = totalBudgeted - totalSpent
+        
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "MMMM yyyy"
+        let monthYear = monthFormatter.string(from: Calendar.current.date(
+            from: DateComponents(year: selectedYear, month: selectedMonth)
+        ) ?? Date())
         
         budgetSummary = BudgetSummary(
-            totalYearlyBudget: totalYearly,
-            totalMonthlyBudget: totalMonthly,
-            categoryCount: categoryCount,
-            averageMonthlyBudget: averageMonthly,
-            largestCategory: largestCategory,
-            smallestCategory: smallestCategory
+            totalBudgeted: totalBudgeted,
+            totalSpent: totalSpent,
+            remainingBudget: remainingBudget,
+            categoryCount: currentMonthBudgets.count,
+            monthYear: monthYear,
+            lastUpdated: Date()
         )
     }
     
     private func calculateBudgetAnalytics() {
-        let allCategories = Set(monthlyBudgets.values.flatMap { $0.keys })
-        let totalBudget = totalYearlyBudget
-        let averageCategoryBudget = !allCategories.isEmpty ? totalBudget / Double(allCategories.count) : 0
-        
-        // Monthly distribution
-        var monthlyDistribution: [Int: Double] = [:]
-        for (month, categories) in monthlyBudgets {
-            monthlyDistribution[month] = categories.values.reduce(0, +)
+        guard !monthlyBudgets.isEmpty else {
+            budgetAnalytics = nil
+            return
         }
         
-        // Category distribution (sum across all months)
-        var categoryDistribution: [String: Double] = [:]
-        for category in allCategories {
-            let categoryTotal = monthlyBudgets.values.compactMap { $0[category] }.reduce(0, +)
-            categoryDistribution[category] = categoryTotal
+        // Calculate average monthly spending
+        let allMonthlyTotals = monthlyBudgets.values.map { $0.values.reduce(0, +) }
+        let averageMonthlySpending = allMonthlyTotals.isEmpty ? 0 : allMonthlyTotals.reduce(0, +) / Double(allMonthlyTotals.count)
+        
+        // Find highest and lowest spending categories
+        let currentMonthBudgets = monthlyBudgets[selectedMonth, default: [:]]
+        let sortedCategories = currentMonthBudgets.sorted { $0.value > $1.value }
+        let highestSpendingCategory = sortedCategories.first?.key
+        let lowestSpendingCategory = sortedCategories.last?.key
+        
+        // Determine budget trend (simplified calculation)
+        let budgetTrend: BudgetAnalytics.BudgetTrend = .stable // TODO: Implement trend analysis
+        
+        // Generate recommendations
+        var recommendations: [String] = []
+        if let summary = budgetSummary {
+            if summary.isOverBudget {
+                recommendations.append("Consider reducing spending in high-cost categories")
+            }
+            if summary.utilizationPercentage < 50 {
+                recommendations.append("You're under budget - consider increasing savings")
+            }
         }
         
-        let largestCategory = categoryDistribution.max(by: { $0.value < $1.value })
-        let smallestCategory = categoryDistribution.min(by: { $0.value < $1.value })
+        // Project end of month spending (simplified)
+        let currentMonthProgress = Calendar.current.component(.day, from: Date()) / 30.0
+        let projectedEndOfMonthSpending = currentMonthProgress > 0 ? (budgetSummary?.totalSpent ?? 0) / currentMonthProgress : 0
         
         budgetAnalytics = BudgetAnalytics(
-            totalBudget: totalBudget,
-            averageCategoryBudget: averageCategoryBudget,
-            categoryCount: allCategories.count,
-            monthlyDistribution: monthlyDistribution,
-            categoryDistribution: categoryDistribution,
-            largestCategory: largestCategory.map { (key: $0.key, value: $0.value) },
-            smallestCategory: smallestCategory.map { (key: $0.key, value: $0.value) }
+            averageMonthlySpending: averageMonthlySpending,
+            highestSpendingCategory: highestSpendingCategory,
+            lowestSpendingCategory: lowestSpendingCategory,
+            budgetTrend: budgetTrend,
+            recommendations: recommendations,
+            projectedEndOfMonthSpending: projectedEndOfMonthSpending
         )
     }
     
     // MARK: - Validation
     
     private func validateNewCategory() -> ValidationResult {
-        var errors: [String] = []
-        var warnings: [String] = []
+        return validateCategory(name: newCategoryName, amount: newCategoryAmount)
+    }
+    
+    private func validateCategory(name: String, amount: Double) -> ValidationResult {
+        // Validate name
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .invalid(.validation(message: "Category name cannot be empty"))
+        }
         
-        let trimmedName = newCategoryName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard name.count <= 50 else {
+            return .invalid(.validation(message: "Category name must be 50 characters or less"))
+        }
         
-        // Validate category name
-        if trimmedName.isEmpty {
-            errors.append("Category name cannot be empty")
-        } else if trimmedName.count < 2 {
-            errors.append("Category name must be at least 2 characters")
-        } else if trimmedName.count > 30 {
-            errors.append("Category name must be 30 characters or less")
+        // Check for duplicate category in current month
+        if monthlyBudgets[selectedMonth]?.keys.contains(name) == true {
+            return .invalid(.validation(message: "Category already exists for this month"))
         }
         
         // Validate amount
-        if newCategoryAmount < 0 {
-            errors.append("Amount cannot be negative")
-        } else if newCategoryAmount == 0 {
-            warnings.append("Setting a budget of $0 may not be useful")
-        } else if newCategoryAmount > 10000 {
-            warnings.append("This is a large budget amount")
+        guard amount >= 0 else {
+            return .invalid(.validation(message: "Amount must be non-negative"))
         }
         
-        // Check for duplicate
-        if let currentCategories = monthlyBudgets[selectedMonth], currentCategories.keys.contains(trimmedName) {
-            errors.append("Category '\(trimmedName)' already exists for this month")
+        guard amount <= 999999.99 else {
+            return .invalid(.validation(message: "Amount cannot exceed $999,999.99"))
         }
         
-        return ValidationResult(isValid: errors.isEmpty, errors: errors, warnings: warnings)
+        return .valid
     }
     
     private func validateNewCategoryInput() {
+        clearValidationErrors(for: "newCategory")
+        
         let validation = validateNewCategory()
-        
-        if !validation.errors.isEmpty {
-            validationErrors["newCategory"] = validation.errors
+        if case .invalid(let error) = validation {
+            addValidationError(for: "newCategory", message: error.errorDescription ?? "Invalid input")
+        }
+    }
+    
+    // MARK: - Validation Error Management
+    
+    private func addValidationError(for field: String, message: String) {
+        if validationErrors[field] == nil {
+            validationErrors[field] = []
+        }
+        validationErrors[field]?.append(message)
+    }
+    
+    private func clearValidationErrors(for field: String? = nil) {
+        if let field = field {
+            validationErrors.removeValue(forKey: field)
         } else {
-            validationErrors.removeValue(forKey: "newCategory")
+            validationErrors.removeAll()
         }
-    }
-    
-    private func validateAllBudgets() throws {
-        for (month, categories) in monthlyBudgets {
-            for (category, amount) in categories {
-                if amount < 0 {
-                    throw AppError.validation(message: "Negative budget amount found for \(category) in month \(month)")
-                }
-                if category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    throw AppError.validation(message: "Empty category name found in month \(month)")
-                }
-            }
-        }
-    }
-    
-    // MARK: - Error Handling
-    
-    private func handleError(_ error: AppError, context: String) async {
-        viewState = .error(error)
-        errorHandler.handle(error, context: "BudgetViewModel: \(context)")
-        
-        // Clear processing state
-        currentOperation = nil
-        
-        // Provide recovery suggestions based on error type
-        switch error {
-        case .dataSave:
-            // Suggest retry with auto-save disabled
-            break
-        case .validation(let message):
-            // Add to validation errors for specific field display
-            validationErrors["general"] = [message]
-        default:
-            break
-        }
-    }
-    
-    public func retryLastOperation() async {
-        clearValidationErrors()
-        await loadBudgets()
     }
     
     // MARK: - Performance Monitoring
     
-    private func recordMetric(_ operation: String, duration: TimeInterval) async {
-        // Use detached task to avoid main actor issues
-        Task.detached { [weak self] in
-            await self?.performMetricRecording(operation, duration: duration)
-        }
-    }
-    
-    private func performMetricRecording(_ operation: String, duration: TimeInterval) async {
-        await withCheckedContinuation { continuation in
-            metricsQueue.async { [weak self] in
+    private func recordMetric(_ operation: String, duration: TimeInterval, success: Bool = true) {
+        let metric = PerformanceMetrics(
+            operationType: operation,
+            duration: duration,
+            success: success,
+            errorDetails: success ? nil : "Operation failed"
+        )
+        
+        metricsQueue.async { [weak self] in
+            Task<Void, Never>{ @MainActor [weak self] in
                 self?.operationMetrics[operation] = duration
-                
-                #if DEBUG
-                if duration > 1.0 {
-                    print("⚠️ BudgetViewModel: Slow operation '\(operation)' took \(String(format: "%.2f", duration * 1000))ms")
-                }
-                #endif
-                
-                continuation.resume()
             }
         }
-    }
-    
-    private func logPerformanceMetrics() {
-        guard !operationMetrics.isEmpty else { return }
         
-        #if DEBUG
-        print("📊 BudgetViewModel Performance Metrics:")
-        for (operation, duration) in operationMetrics.sorted(by: { $0.value > $1.value }) {
-            print("   \(operation): \(String(format: "%.2f", duration * 1000))ms")
+        // Log performance issues
+        if duration > 1.0 {
+            print("⚠️ BudgetViewModel: Slow operation '\(operation)' took \(String(format: "%.2f", duration))s")
         }
-        #endif
-        
-        operationMetrics.removeAll()
     }
     
-    // MARK: - Cleanup
+    // MARK: - Month/Year Management
     
-    deinit {
-        cancellables.removeAll()
-        print("🧹 BudgetViewModel: Cleaned up resources")
-    }
-}
-
-// MARK: - Extensions
-
-private extension NumberFormatter {
-    static func formatCurrency(_ amount: Double) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale.current
-        return formatter.string(from: NSNumber(value: amount)) ?? "$\(String(format: "%.2f", amount))"
-    }
-}
-
-private extension Double {
-    var formattedAsCurrency: String {
-        return NumberFormatter.formatCurrency(self)
-    }
-}
-
-// MARK: - Testing Support
-
-#if DEBUG
-extension BudgetViewModel {
-    /// Load test data for development
-    func loadTestData() async {
-        let testBudgets: [Int: [String: Double]] = [
-            1: ["Groceries": 400.0, "Transportation": 200.0, "Entertainment": 150.0],
-            2: ["Groceries": 420.0, "Transportation": 200.0, "Entertainment": 120.0],
-            3: ["Groceries": 380.0, "Transportation": 220.0, "Entertainment": 180.0]
-        ]
-        
-        monthlyBudgets = testBudgets
+    public func selectMonth(_ month: Int, year: Int) {
+        selectedMonth = month
+        selectedYear = year
         calculateBudgetSummary()
         calculateBudgetAnalytics()
-        viewState = .loaded
-        
-        print("📊 BudgetViewModel: Test data loaded")
+        clearValidationErrors()
     }
     
-    /// Get validation state for testing
-    func getValidationStateForTesting() -> [String: [String]] {
-        return validationErrors
+    public func goToNextMonth() {
+        let calendar = Calendar.current
+        let currentDate = calendar.date(from: DateComponents(year: selectedYear, month: selectedMonth)) ?? Date()
+        if let nextMonth = calendar.date(byAdding: .month, value: 1, to: currentDate) {
+            selectedMonth = calendar.component(.month, from: nextMonth)
+            selectedYear = calendar.component(.year, from: nextMonth)
+            calculateBudgetSummary()
+            calculateBudgetAnalytics()
+        }
     }
     
-    /// Get performance metrics for testing
-    func getPerformanceMetricsForTesting() -> [String: TimeInterval] {
-        return operationMetrics
+    public func goToPreviousMonth() {
+        let calendar = Calendar.current
+        let currentDate = calendar.date(from: DateComponents(year: selectedYear, month: selectedMonth)) ?? Date()
+        if let previousMonth = calendar.date(byAdding: .month, value: -1, to: currentDate) {
+            selectedMonth = calendar.component(.month, from: previousMonth)
+            selectedYear = calendar.component(.year, from: previousMonth)
+            calculateBudgetSummary()
+            calculateBudgetAnalytics()
+        }
     }
     
-    /// Reset for testing
-    func resetForTesting() {
-        monthlyBudgets.removeAll()
-        budgetSummary = nil
-        budgetAnalytics = nil
-        validationErrors.removeAll()
-        hasUnsavedChanges = false
-        viewState = .idle
-        currentOperation = nil
-        operationMetrics.removeAll()
+    // MARK: - Utility Methods
+    
+    public func resetNewCategoryFields() {
+        newCategoryName = ""
+        newCategoryAmount = 0
+        clearValidationErrors(for: "newCategory")
+    }
+    
+    public func getBudgetForCategory(_ category: String) -> Double {
+        return monthlyBudgets[selectedMonth]?[category] ?? 0
+    }
+    
+    public func getCategoriesForMonth(_ month: Int) -> [String] {
+        return Array(monthlyBudgets[month, default: [:]].keys).sorted()
+    }
+    
+    public func getTotalBudgetForMonth(_ month: Int) -> Double {
+        return monthlyBudgets[month, default: [:]].values.reduce(0, +)
     }
 }
-#endif
+

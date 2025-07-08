@@ -149,7 +149,7 @@ struct EditCategoryView: View {
                 }
                 .errorAlert(onRetry: {
                     // Retry the last failed operation
-                    Task { await retryLastOperation() }
+                    Task<Void, Never>{ await retryLastOperation() }
                 })
                 
                 // Loading overlay
@@ -361,7 +361,7 @@ struct EditCategoryView: View {
     }
     
     private func handleSaveAction() {
-        Task {
+        Task<Void, Never>{
             await saveChanges()
         }
     }
@@ -415,9 +415,9 @@ struct EditCategoryView: View {
     private func handleDelete(includeFutureMonths: Bool) {
         isProcessing = true
         
-        Task {
+        Task<Void, Never>{
             defer {
-                Task { @MainActor in
+                Task<Void, Never>{ @MainActor in
                     isProcessing = false
                 }
             }

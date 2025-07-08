@@ -322,7 +322,7 @@ public final class PurchasesViewModel: ObservableObject {
         budgetManager.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
-                Task { [weak self] in
+               Task<Void, Never>{ [weak self] in
                     await self?.handleBudgetManagerUpdate()
                 }
             }
@@ -335,7 +335,7 @@ public final class PurchasesViewModel: ObservableObject {
             .sink { [weak self] error in
                 // Only handle errors related to purchases
                 if error.context?.contains("purchase") == true {
-                    Task { [weak self] in
+                   Task<Void, Never>{ [weak self] in
                         await self?.handleError(error)
                     }
                 }
@@ -444,7 +444,7 @@ public final class PurchasesViewModel: ObservableObject {
         let updateTime = Date()
         lastFilterUpdate = updateTime
         
-        filterUpdateTask = Task {
+        filterUpdateTask =Task<Void, Never>{
             // Debounce the update
             try? await Task.sleep(nanoseconds: UInt64(filterDebounceInterval * 1_000_000_000))
             

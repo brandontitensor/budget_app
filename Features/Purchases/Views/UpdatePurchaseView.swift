@@ -144,7 +144,7 @@ struct UpdatePurchaseView: View {
                     .disabled(!canDelete)
                     
                     Button("Save") {
-                        Task {
+                       Task<Void, Never>{
                             await updatePurchase()
                         }
                     }
@@ -162,7 +162,7 @@ struct UpdatePurchaseView: View {
             }
             .alert("Delete Purchase", isPresented: $showingDeleteAlert) {
                 Button("Delete", role: .destructive) {
-                    Task {
+                   Task<Void, Never>{
                         await deletePurchase()
                     }
                 }
@@ -173,7 +173,7 @@ struct UpdatePurchaseView: View {
             .alert("Purchase Error", isPresented: $showingErrorDetails, presenting: submissionError) { error in
                 if error.isRetryable && retryCount < maxRetries {
                     Button("Retry") {
-                        Task {
+                       Task<Void, Never>{
                             await updatePurchase()
                         }
                     }
@@ -220,7 +220,7 @@ struct UpdatePurchaseView: View {
                 updateUnsavedChangesState()
             }
             .errorAlert(onRetry: {
-                Task {
+               Task<Void, Never>{
                     await retryLastOperation()
                 }
             })
@@ -261,7 +261,7 @@ struct UpdatePurchaseView: View {
                         error: error,
                         onDismiss: { clearSubmissionError() },
                         onRetry: error.isRetryable ? {
-                            Task { await updatePurchase() }
+                           Task<Void, Never>{ await updatePurchase() }
                         } : nil
                     )
                     .padding(.horizontal)

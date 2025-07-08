@@ -148,7 +148,7 @@ struct CategoryMappingView: View {
                 Text(getValidationSummary())
             }
             .errorAlert(onRetry: {
-                Task {
+               Task<Void, Never>{
                     await retryFailedOperations()
                 }
             })
@@ -950,7 +950,7 @@ extension CategoryMappingView {
     private func createNewCategory(includeFutureMonths: Bool) {
         guard let category = selectedCategoryToCreate else { return }
         
-        Task {
+       Task<Void, Never>{
             await performCategoryCreation(category: category, includeFutureMonths: includeFutureMonths)
         }
     }
@@ -1042,7 +1042,7 @@ extension CategoryMappingView {
     private func handleImportAction() {
         guard canProceed else { return }
         
-        Task {
+       Task<Void, Never>{
             await performImport()
         }
     }

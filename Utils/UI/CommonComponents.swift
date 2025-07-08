@@ -1030,16 +1030,7 @@ public struct CommonComponents {
     }
 }
 
-// MARK: - Extensions
 
-private extension Double {
-    var formattedAsCurrency: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale.current
-        return formatter.string(from: NSNumber(value: self)) ?? "$\(String(format: "%.2f", self))"
-    }
-}
 
 // MARK: - Preview Support
 

@@ -59,7 +59,7 @@ struct BudgetHistoryView: View {
                 toolbarContent
             }
             .errorAlert(onRetry: {
-                Task {
+                Task<Void, Never>{
                     await viewModel.refreshData(
                         budgetManager: budgetManager,
                         timePeriod: selectedTimePeriod
@@ -79,7 +79,7 @@ struct BudgetHistoryView: View {
                 setupView()
             }
             .onChange(of: selectedTimePeriod) { _, newPeriod in
-                Task {
+                Task<Void, Never>{
                     await viewModel.updateTimePeriod(
                         newPeriod,
                         budgetManager: budgetManager
@@ -408,7 +408,7 @@ struct BudgetHistoryView: View {
         
         Button {
             // Export single category
-            Task {
+            Task<Void, Never>{
                 await exportCategory(data)
             }
         } label: {
@@ -461,7 +461,7 @@ struct BudgetHistoryView: View {
     }
     
     private func setupView() {
-        Task {
+        Task<Void, Never>{
             await viewModel.loadInitialData(
                 budgetManager: budgetManager,
                 timePeriod: selectedTimePeriod
@@ -1450,7 +1450,7 @@ struct ExportOptionsView: View {
     
     private var exportButton: some View {
         Button {
-            Task {
+            Task<Void, Never>{
                 await viewModel.performExport(data: data, timePeriod: timePeriod)
                 onDismiss()
             }

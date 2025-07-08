@@ -283,10 +283,10 @@ public final class OverviewViewModel: ObservableObject {
         
         do {
             // Load all data concurrently
-            async let summaryTask = loadBudgetSummary()
-            async let transactionsTask = loadRecentTransactions()
-            async let spendingTask = loadSpendingData()
-            async let categoriesTask = loadCategoryBreakdown()
+            async let summaryTask<Void, Never>= loadBudgetSummary()
+            async let transactionsTask<Void, Never>= loadRecentTransactions()
+            async let spendingTask<Void, Never>= loadSpendingData()
+            async let categoriesTask<Void, Never>= loadCategoryBreakdown()
             
             let _ = try await (summaryTask, transactionsTask, spendingTask, categoriesTask)
             
@@ -315,10 +315,10 @@ public final class OverviewViewModel: ObservableObject {
         
         do {
             // Load all data concurrently
-            async let summaryTask = loadBudgetSummary()
-            async let transactionsTask = loadRecentTransactions()
-            async let spendingTask = loadSpendingData()
-            async let categoriesTask = loadCategoryBreakdown()
+            async let summaryTask<Void, Never>= loadBudgetSummary()
+            async let transactionsTask<Void, Never>= loadRecentTransactions()
+            async let spendingTask<Void, Never>= loadSpendingData()
+            async let categoriesTask<Void, Never>= loadCategoryBreakdown()
             
             let _ = try await (summaryTask, transactionsTask, spendingTask, categoriesTask)
             
@@ -351,10 +351,10 @@ public final class OverviewViewModel: ObservableObject {
         
         do {
             // Load data for the new timeframe
-            async let summaryTask = loadBudgetSummary()
-            async let transactionsTask = loadRecentTransactions()
-            async let spendingTask = loadSpendingData()
-            async let categoriesTask = loadCategoryBreakdown()
+            async let summaryTask<Void, Never>= loadBudgetSummary()
+            async let transactionsTask<Void, Never>= loadRecentTransactions()
+            async let spendingTask<Void, Never>= loadSpendingData()
+            async let categoriesTask<Void, Never>= loadCategoryBreakdown()
             
             let _ = try await (summaryTask, transactionsTask, spendingTask, categoriesTask)
             
@@ -607,7 +607,7 @@ public final class OverviewViewModel: ObservableObject {
         budgetManager.$entries
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                Task { [weak self] in
+                Task<Void, Never>{ [weak self] in
                     await self?.handleDataChange()
                 }
             }
@@ -616,7 +616,7 @@ public final class OverviewViewModel: ObservableObject {
         budgetManager.$monthlyBudgets
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                Task { [weak self] in
+                Task<Void, Never>{ [weak self] in
                     await self?.handleDataChange()
                 }
             }
@@ -629,7 +629,7 @@ public final class OverviewViewModel: ObservableObject {
     private func setupRefreshTimer() {
         refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(withTimeInterval: dataRefreshInterval, repeats: true) { [weak self] _ in
-            Task { [weak self] in
+            Task<Void, Never>{ [weak self] in
                 await self?.refreshIfNeeded()
             }
         }
@@ -836,7 +836,7 @@ extension OverviewViewModel {
     /// Create test view model with mock data
     static func createTestViewModel() -> OverviewViewModel {
         let viewModel = OverviewViewModel()
-        Task {
+        Task<Void, Never>{
             await viewModel.loadTestData()
         }
         return viewModel

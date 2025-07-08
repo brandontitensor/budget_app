@@ -176,7 +176,7 @@ struct PurchasesView: View {
             .alert("Purchase Error", isPresented: $showingErrorDetails, presenting: localError) { error in
                 if error.isRetryable && retryCount < maxRetries {
                     Button("Retry") {
-                        Task {
+                       Task<Void, Never>{
                             await performRetry()
                         }
                     }
@@ -212,7 +212,7 @@ struct PurchasesView: View {
                 scheduleFilterUpdate()
             }
             .errorAlert(onRetry: {
-                Task {
+               Task<Void, Never>{
                     await performGlobalRetry()
                 }
             })
@@ -338,7 +338,7 @@ struct PurchasesView: View {
                         error: error,
                         onDismiss: { clearLocalError() },
                         onRetry: error.isRetryable ? {
-                            Task { await performRetry() }
+                           Task<Void, Never>{ await performRetry() }
                         } : nil
                     )
                 }
@@ -355,7 +355,7 @@ struct PurchasesView: View {
                         showingUpdatePurchase = true
                     },
                     onDelete: {
-                        Task {
+                       Task<Void, Never>{
                             await deletePurchase(entry)
                         }
                     }
@@ -430,7 +430,7 @@ struct PurchasesView: View {
     // MARK: - Data Management
     
     private func setupView() {
-        Task {
+       Task<Void, Never>{
             await loadInitialData()
         }
     }
@@ -498,7 +498,7 @@ struct PurchasesView: View {
         let updateTime = Date()
         lastFilterUpdate = updateTime
         
-        Task {
+       Task<Void, Never>{
             try? await Task.sleep(nanoseconds: UInt64(filterDebounceInterval * 1_000_000_000))
             
             // Only proceed if this is still the latest update
@@ -601,7 +601,7 @@ struct PurchasesView: View {
     }
     
     private func deleteEntries(at offsets: IndexSet) {
-        Task {
+       Task<Void, Never>{
             for index in offsets {
                 let entry = displayedEntries[index]
                 await deletePurchase(entry)

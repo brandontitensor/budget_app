@@ -206,7 +206,7 @@ public final class SettingsViewModel: ObservableObject {
         setupPerformanceMonitoring()
         
         // Load initial data
-        Task {
+       Task<Void, Never>{
             await loadInitialData()
         }
     }
@@ -231,7 +231,7 @@ public final class SettingsViewModel: ObservableObject {
         budgetManager.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
-                Task { [weak self] in
+               Task<Void, Never>{ [weak self] in
                     await self?.updateDataStatistics()
                 }
             }
@@ -241,7 +241,7 @@ public final class SettingsViewModel: ObservableObject {
         notificationManager.objectWillChange
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in
-                Task { [weak self] in
+               Task<Void, Never>{ [weak self] in
                     await self?.updateNotificationStatistics()
                 }
             }
@@ -1258,7 +1258,7 @@ extension SettingsViewModel {
         let viewModel = SettingsViewModel()
         
         // Load test data
-        Task {
+       Task<Void, Never>{
             await viewModel.loadTestData()
         }
         

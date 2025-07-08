@@ -132,17 +132,17 @@ struct BudgetView: View {
                 titleVisibility: .visible
             ) {
                 Button("This month only") {
-                    Task { await addCategory(includeFutureMonths: false) }
+                    Task<Void, Never>{ await addCategory(includeFutureMonths: false) }
                 }
                 Button("All future months") {
-                    Task { await addCategory(includeFutureMonths: true) }
+                    Task<Void, Never>{ await addCategory(includeFutureMonths: true) }
                 }
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Do you want to add this category to future months as well?")
             }
             .errorAlert(onRetry: {
-                Task { await retryFailedOperation() }
+                Task<Void, Never>{ await retryFailedOperation() }
             })
         }
         .handleErrors(context: "Budget View")
@@ -399,7 +399,7 @@ struct BudgetView: View {
             }
             
             Button("Try Again") {
-                Task { await loadCurrentBudgets() }
+                Task<Void, Never>{ await loadCurrentBudgets() }
             }
             .buttonStyle(.borderedProminent)
             .tint(themeManager.primaryColor)
@@ -541,7 +541,7 @@ struct BudgetView: View {
     
     // MARK: - Helper Methods
     private func setupView() {
-        Task {
+        Task<Void, Never>{
             await loadCurrentBudgets()
         }
     }
@@ -554,7 +554,7 @@ struct BudgetView: View {
     }
     
     private func handleSaveAction() {
-        Task {
+        Task<Void, Never>{
             await saveBudgets()
         }
     }
@@ -563,7 +563,7 @@ struct BudgetView: View {
         if newYear > calendar.component(.year, from: Date()) {
             showingFutureYearAlert = true
         } else {
-            Task {
+            Task<Void, Never>{
                 await loadCurrentBudgets()
             }
         }

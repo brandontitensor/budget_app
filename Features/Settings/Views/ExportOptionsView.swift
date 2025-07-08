@@ -625,7 +625,7 @@ struct ExportOptionsView: View {
     }
     
     private func updatePreviewIfNeeded() {
-        Task {
+       Task<Void, Never>{
             await generatePreview()
         }
     }

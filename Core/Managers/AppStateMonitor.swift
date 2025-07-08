@@ -147,21 +147,21 @@ public final class AppStateMonitor: ObservableObject {
         return Date().timeIntervalSince(appLaunchTime)
     }
     
-    // MARK: - Background Task Management
+    // MARK: - BackgroundTask<Void, Never>Management
     
     /// Perform background tasks with proper lifecycle management
     public func performBackgroundTasks() async {
         print("🔄 AppStateMonitor: Starting background tasks")
         
-        // Start background task to ensure completion
+        // Start backgroundTask<Void, Never>to ensure completion
         backgroundTaskIdentifier = await UIApplication.shared.beginBackgroundTask { [weak self] in
-            Task { @MainActor [weak self] in
+           Task<Void, Never>{ @MainActor [weak self] in
                 self?.endBackgroundTask()
             }
         }
         
         defer {
-            Task { @MainActor [weak self] in
+           Task<Void, Never>{ @MainActor [weak self] in
                 self?.endBackgroundTask()
             }
         }
@@ -199,7 +199,7 @@ public final class AppStateMonitor: ObservableObject {
     }
     
     @objc private func handleMemoryWarning() {
-        Task { @MainActor in
+       Task<Void, Never>{ @MainActor in
             print("⚠️ AppStateMonitor: Memory warning received")
             
             // Clean up state transition history
@@ -316,7 +316,7 @@ public final class AppStateMonitor: ObservableObject {
     private func setupSessionTimer() {
         sessionTimer?.invalidate()
         sessionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in
+           Task<Void, Never>{ @MainActor [weak self] in
                 self?.updateSessionDuration()
             }
         }

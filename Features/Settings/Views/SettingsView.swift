@@ -790,7 +790,7 @@ struct SettingsView: View {
     
     private func handleNotificationToggle(_ enabled: Bool) {
         if enabled {
-            Task {
+           Task<Void, Never>{
                 do {
                     let granted = try await notificationManager.requestAuthorization()
                     await MainActor.run {
@@ -830,7 +830,7 @@ struct SettingsView: View {
     private func performExport() {
         setLoading("export", true)
         
-        Task {
+       Task<Void, Never>{
             do {
                 let url = try await CSVExport.exportBudgetEntries(
                     budgetManager.entries,
@@ -875,7 +875,7 @@ struct SettingsView: View {
     private func handleCategoryMapping(_ mappings: [String: String]) {
         setLoading("import", true)
         
-        Task {
+       Task<Void, Never>{
             do {
                 let importResults = CSVImport.ImportResults(
                     data: pendingImportData,
@@ -920,7 +920,7 @@ struct SettingsView: View {
         setLoading("reset", true)
         isProcessing = true
         
-        Task {
+       Task<Void, Never>{
             do {
                 try await budgetManager.resetAllData()
                 try await settingsManager.resetToDefaults()
@@ -950,7 +950,7 @@ struct SettingsView: View {
     }
     
     private func performRefresh() {
-        Task {
+       Task<Void, Never>{
             await performAsyncRefresh()
         }
     }
@@ -995,7 +995,7 @@ struct SettingsView: View {
     private func performDiagnostics() {
         setLoading("diagnostics", true)
         
-        Task {
+       Task<Void, Never>{
             do {
                 // Run notification diagnostics
                 let notificationDiagnostic = await notificationManager.performSystemDiagnostic()
@@ -1046,7 +1046,7 @@ struct SettingsView: View {
     private func clearCaches() {
         setLoading("clearCache", true)
         
-        Task {
+       Task<Void, Never>{
             do {
                 // Clear budget manager caches
                 budgetManager.invalidateCacheForTesting()
@@ -1096,7 +1096,7 @@ struct SettingsView: View {
             setLoading("import", true)
             isProcessing = true
             
-            Task {
+           Task<Void, Never>{
                 do {
                     let importResults = try await budgetManager.importBudgets(from: url)
                     
@@ -1157,7 +1157,7 @@ struct SettingsView: View {
             setLoading("import", true)
             isProcessing = true
             
-            Task {
+           Task<Void, Never>{
                 do {
                     let importResults = try await budgetManager.importPurchases(from: url)
                     
@@ -1167,7 +1167,7 @@ struct SettingsView: View {
                         
                         if unmappedCategories.isEmpty {
                             // No new categories, process directly
-                            Task {
+                           Task<Void, Never>{
                                 do {
                                     try await budgetManager.processImportedPurchases(importResults, categoryMappings: [:])
                                     
@@ -1447,7 +1447,7 @@ struct BackupOptionsView: View {
     private func createBackup() {
         isCreatingBackup = true
         
-        Task {
+       Task<Void, Never>{
             do {
                 let backupURL = try await settingsManager.createBackup()
                 await MainActor.run {

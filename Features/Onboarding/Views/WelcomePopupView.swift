@@ -128,7 +128,7 @@ struct WelcomePopupView: View {
             setupInitialState()
         }
         .errorAlert(onRetry: {
-            Task {
+            Task<Void, Never>{
                 await retryCurrentStep()
             }
         })
@@ -716,7 +716,7 @@ struct WelcomePopupView: View {
             impactFeedback.impactOccurred()
         }
         
-        Task {
+        Task<Void, Never>{
             await processCurrentStep()
         }
     }
@@ -960,7 +960,7 @@ extension WelcomePopupView {
 extension WelcomePopupView {
     private func preloadNextStepContent() {
         // Preload images and resources for the next step to ensure smooth transitions
-        Task {
+        Task<Void, Never>{
             switch currentStep {
             case .welcome:
                 // Preload personalization icons

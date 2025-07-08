@@ -343,25 +343,6 @@ struct FilterCriteria {
     }
 }
 
-struct ValidationResult {
-    let isValid: Bool
-    let warnings: [String]
-    
-    var hasWarnings: Bool {
-        !warnings.isEmpty
-    }
-    
-    var summary: String {
-        if isValid && !hasWarnings {
-            return "Configuration is valid"
-        } else if isValid && hasWarnings {
-            return "\(warnings.count) warning\(warnings.count == 1 ? "" : "s")"
-        } else {
-            return "Configuration has issues"
-        }
-    }
-}
-
 struct DisplayConfiguration {
     let showPercentages: Bool
     let showTrends: Bool

@@ -3,7 +3,7 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
-//  Updated: 7/6/25 - Fixed Swift 6 compliance, optional chaining, and environment object issues
+//  Updated: 7/7/25 - Fixed Swift 6 compliance, missing isPresented parameter, and environment object issues
 //
 
 import SwiftUI
@@ -75,12 +75,12 @@ struct ContentView: View {
             }
         }
         .onAppear {
-            Task {
+            Task<Void, Never>{
                 await loadInitialData()
             }
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
-            Task {
+            Task<Void, Never>{
                 await handleScenePhaseChange(from: oldPhase, to: newPhase)
             }
         }
@@ -123,7 +123,7 @@ struct ContentView: View {
                         .multilineTextAlignment(.center)
                     
                     Button("Retry") {
-                        Task {
+                        Task<Void, Never>{
                             await loadInitialData()
                         }
                     }
@@ -157,7 +157,7 @@ struct ContentView: View {
             
             VStack(spacing: 12) {
                 Button("Try Recovery") {
-                    Task {
+                    Task<Void, Never>{
                         await performGlobalRecovery()
                     }
                 }
@@ -187,11 +187,7 @@ struct ContentView: View {
                         .tag(index)
                 }
             }
-            .onChange(of: selectedTab) { _, newValue in
-                Task {
-                    await refreshTabData(index: newValue)
-                }
-            }
+            .accentColor(themeManager.primaryColor)
             
             // Floating Action Button
             VStack {
@@ -199,84 +195,74 @@ struct ContentView: View {
                 HStack {
                     Spacer()
                     
-                    VStack(spacing: 16) {
-                        if showingActionButtons {
-                            actionButtons
-                                .transition(.asymmetric(
-                                    insertion: .scale.combined(with: .opacity),
-                                    removal: .scale.combined(with: .opacity)
-                                ))
-                        }
-                        
-                        FloatingActionButton(
-                            showingOptions: showingActionButtons,
-                            isAnimating: isAnimating,
-                            isEnabled: isAppReady && !dataLoadingState.isLoading
-                        ) {
-                            withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                                showingActionButtons.toggle()
+                    if showingActionButtons {
+                        VStack(spacing: 16) {
+                            ActionButton(
+                                title: "Add Purchase",
+                                systemImage: "cart.badge.plus",
+                                color: .blue
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    showingActionButtons = false
+                                }
+                                showingAddPurchase = true
+                            }
+                            
+                            ActionButton(
+                                title: "Update Budget",
+                                systemImage: "slider.horizontal.3",
+                                color: .green
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    showingActionButtons = false
+                                }
+                                showingUpdateBudget = true
                             }
                         }
+                        .transition(.scale.combined(with: .opacity))
                     }
-                    .padding(.trailing, 20)
-                    .padding(.bottom, 90)
+                    
+                    FloatingActionButton(
+                        showingOptions: showingActionButtons,
+                        isAnimating: isAnimating,
+                        isEnabled: isAppReady
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showingActionButtons.toggle()
+                        }
+                        
+                        // Haptic feedback
+                        if settingsManager.enableHapticFeedback {
+                            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                            impactFeedback.impactOccurred()
+                        }
+                    }
                 }
+                .padding(.trailing, 20)
+                .padding(.bottom, 30)
             }
         }
-    }
-    
-    // MARK: - Action Buttons
-    private var actionButtons: some View {
-        VStack(spacing: 12) {
-            ActionButton(
-                title: "Add Purchase",
-                systemImage: "plus.circle.fill",
-                color: .green
-            ) {
-                showingAddPurchase = true
-                showingActionButtons = false
-            }
-            
-            ActionButton(
-                title: "Update Budget",
-                systemImage: "slider.horizontal.3",
-                color: .blue
-            ) {
-                showingUpdateBudget = true
-                showingActionButtons = false
-            }
-            
-            ActionButton(
-                title: "Save Data",
-                systemImage: "square.and.arrow.down.fill",
-                color: .orange
-            ) {
-                Task {
-                    await saveAppData(context: "Manual save")
-                    showingActionButtons = false
-                }
+        .onChange(of: selectedTab) { _, newValue in
+            Task<Void, Never>{
+                await refreshTabData(index: newValue)
             }
         }
     }
     
     // MARK: - Lifecycle Methods
     
-    /// Load initial data when view appears
+    /// Load initial app data
     private func loadInitialData() async {
         await MainActor.run {
             dataLoadingState = .loading
         }
         
         let result = await AsyncErrorHandler.execute(
-            context: "Loading initial data"
+            context: "Loading initial app data",
+            errorTransform: { .dataLoad(underlying: $0) }
         ) {
-            // Load budget data
+            // Load budget manager data
             await budgetManager.loadData()
-            
-            // Settings are loaded automatically in SettingsManager init
-            // No need to call loadSettings() explicitly
-            
-            // Mark app as ready
             return true
         }
         
@@ -285,14 +271,19 @@ struct ContentView: View {
                 dataLoadingState = .loaded
                 isAppReady = true
                 
-                // Show welcome popup for first-time users
-                if settingsManager.isFirstLaunch {
-                    showingWelcomePopup = true
+                // Handle pending deep link
+                if let pendingLink = pendingDeepLink {
+                    handleDeepLink(pendingLink)
+                    pendingDeepLink = nil
                 }
                 
-                print("✅ ContentView: Initial data loaded successfully")
+                // Show welcome popup for first-time users
+                if !settingsManager.hasSeenWelcome {
+                    showingWelcomePopup = true
+                    settingsManager.hasSeenWelcome = true
+                }
             } else {
-                dataLoadingState = .failed(.generic(message: "Failed to load initial data"))
+                dataLoadingState = .failed(.generic(message: "Failed to load app data"))
             }
         }
     }
@@ -306,6 +297,8 @@ struct ContentView: View {
             await saveAppData(context: "App became inactive")
         case .background:
             await saveAppData(context: "App entered background")
+            // Schedule background app refresh if needed
+            await scheduleBackgroundRefresh()
         @unknown default:
             break
         }
@@ -382,6 +375,20 @@ struct ContentView: View {
         }
     }
     
+    /// Schedule background refresh
+    private func scheduleBackgroundRefresh() async {
+        let result = await AsyncErrorHandler.execute(
+            context: "Scheduling background refresh"
+        ) {
+            await appStateMonitor.scheduleBackgroundRefresh()
+            return true
+        }
+        
+        if result != nil {
+            print("✅ ContentView: Background refresh scheduled")
+        }
+    }
+    
     // MARK: - Error Handling
     
     /// Handle global errors
@@ -438,7 +445,7 @@ struct ContentView: View {
     
     /// Restart the app
     private func restartApp() {
-        Task {
+        Task<Void, Never>{
             await MainActor.run {
                 isAppReady = false
                 showingErrorRecovery = false
@@ -551,8 +558,6 @@ struct ActionButton: View {
         .accessibilityHint("Double tap to \(title.lowercased())")
     }
 }
-
-
 
 // MARK: - Preview Provider
 

@@ -107,7 +107,7 @@ struct PurchaseEntryView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Add") {
-                        Task {
+                       Task<Void, Never>{
                             await submitPurchase()
                         }
                     }
@@ -126,7 +126,7 @@ struct PurchaseEntryView: View {
             .alert("Purchase Error", isPresented: $showingErrorDetails, presenting: submissionError) { error in
                 if error.isRetryable && retryCount < maxRetries {
                     Button("Retry") {
-                        Task {
+                       Task<Void, Never>{
                             await submitPurchase()
                         }
                     }

@@ -264,7 +264,7 @@ struct SpendingPieChart: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .chartDataChanged)) { _ in
-            Task {
+            Task<Void, Never>{
                 await refreshChart()
             }
         }
@@ -800,7 +800,7 @@ struct SpendingPieChart: View {
                 if error.isRetryable {
                     Button("Try Again") {
                         chartError = nil
-                        Task {
+                        Task<Void, Never>{
                             await refreshChart()
                         }
                     }

@@ -180,7 +180,7 @@ struct BudgetOverviewView: View {
             await performRefresh()
         }
         .errorAlert(onRetry: {
-            Task {
+            Task<Void, Never>{
                 await performRefresh()
             }
         })
@@ -284,7 +284,7 @@ struct BudgetOverviewView: View {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 selectedTimeframe = timeframe
                             }
-                            Task {
+                            Task<Void, Never>{
                                 await loadDataForTimeframe(timeframe)
                             }
                         }
@@ -303,7 +303,7 @@ struct BudgetOverviewView: View {
                 ErrorCard(
                     error: error,
                     onRetry: {
-                        Task {
+                        Task<Void, Never>{
                             await loadBudgetSummary()
                         }
                     }
@@ -337,7 +337,7 @@ struct BudgetOverviewView: View {
                 ErrorCard(
                     error: error,
                     onRetry: {
-                        Task {
+                        Task<Void, Never>{
                             await loadSpendingData()
                         }
                     }
@@ -409,7 +409,7 @@ struct BudgetOverviewView: View {
                 ErrorCard(
                     error: error,
                     onRetry: {
-                        Task {
+                        Task<Void, Never>{
                             await loadRecentTransactions()
                         }
                     }
@@ -527,7 +527,7 @@ struct BudgetOverviewView: View {
             }
             
             Button("Refresh") {
-                Task {
+                Task<Void, Never>{
                     await performRefresh()
                 }
             }
@@ -548,7 +548,7 @@ struct BudgetOverviewView: View {
     private var toolbarContent: some View {
         HStack(spacing: 16) {
             Button(action: {
-                Task {
+                Task<Void, Never>{
                     await performRefresh()
                 }
             }) {
@@ -825,7 +825,7 @@ struct BudgetOverviewView: View {
         // Cancel previous refresh task
         refreshTask?.cancel()
         
-        refreshTask = Task {
+        refreshTask = Task<Void, Never>{
             async let summaryTask = loadBudgetSummary()
             async let transactionsTask = loadRecentTransactions()
             async let spendingTask = loadSpendingData()
@@ -843,7 +843,7 @@ struct BudgetOverviewView: View {
     private func handleDataChange() {
         // Debounce rapid changes
         refreshTask?.cancel()
-        refreshTask = Task {
+        refreshTask = Task<Void, Never>{
             try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
             
             guard !Task.isCancelled else { return }

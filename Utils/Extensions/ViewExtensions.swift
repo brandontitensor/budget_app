@@ -3,36 +3,15 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 5/30/25.
-//  Updated: 7/7/25 - Fixed iOS extension compatibility, CGSize properties, deprecated APIs, and accessibility casting
+//  Updated: 7/7/25 - Complete rewrite to remove all conflicting modifiers and SwiftUI ambiguities
 //
 
 import SwiftUI
 import UIKit
 
-// MARK: - Layout and Frame Extensions
+// MARK: - Layout Extensions (Non-conflicting)
 
 public extension View {
-    /// Set frame with minimum and maximum constraints
-    func frame(
-        minWidth: CGFloat? = nil,
-        idealWidth: CGFloat? = nil,
-        maxWidth: CGFloat? = nil,
-        minHeight: CGFloat? = nil,
-        idealHeight: CGFloat? = nil,
-        maxHeight: CGFloat? = nil,
-        alignment: Alignment = .center
-    ) -> some View {
-        frame(
-            minWidth: minWidth,
-            idealWidth: idealWidth,
-            maxWidth: maxWidth,
-            minHeight: minHeight,
-            idealHeight: idealHeight,
-            maxHeight: maxHeight,
-            alignment: alignment
-        )
-    }
-    
     /// Center view in available space
     func centered() -> some View {
         HStack {
@@ -40,14 +19,6 @@ public extension View {
             self
             Spacer()
         }
-    }
-    
-    /// Add padding with EdgeInsets
-    func padding(_ insets: EdgeInsets) -> some View {
-        padding(.top, insets.top)
-            .padding(.leading, insets.leading)
-            .padding(.bottom, insets.bottom)
-            .padding(.trailing, insets.trailing)
     }
     
     /// Fill available width
@@ -64,130 +35,37 @@ public extension View {
     func fillMaxSize(alignment: Alignment = .center) -> some View {
         frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
     }
-}
-
-// MARK: - Navigation Extensions
-
-public extension View {
-    /// Navigation link with modern API
-    @ViewBuilder
-    func navigationLink<Destination: View>(
-        value: some Hashable,
-        @ViewBuilder destination: @escaping () -> Destination
-    ) -> some View {
-        if #available(iOS 16.0, *) {
-            NavigationLink(value: value) {
-                self
-            }
-        } else {
-            NavigationLink(destination: destination()) {
-                self
-            }
-        }
+    
+    /// Set a fixed size
+    func fixedSize(width: CGFloat, height: CGFloat, alignment: Alignment = .center) -> some View {
+        frame(width: width, height: height, alignment: alignment)
     }
     
-    /// Navigation bar configuration
-    func navigationBarConfiguration(
-        title: String,
-        displayMode: NavigationBarItem.TitleDisplayMode = .automatic,
-        backgroundColor: Color? = nil,
-        foregroundColor: Color? = nil
-    ) -> some View {
-        navigationBarTitle(title, displayMode: displayMode)
-            .onAppear {
-                if let backgroundColor = backgroundColor {
-                    let appearance = UINavigationBarAppearance()
-                    appearance.configureWithOpaqueBackground()
-                    appearance.backgroundColor = UIColor(backgroundColor)
-                    
-                    if let foregroundColor = foregroundColor {
-                        appearance.titleTextAttributes = [.foregroundColor: UIColor(foregroundColor)]
-                        appearance.largeTitleTextAttributes = [.foregroundColor: UIColor(foregroundColor)]
-                    }
-                    
-                    UINavigationBar.appearance().standardAppearance = appearance
-                    UINavigationBar.appearance().scrollEdgeAppearance = appearance
-                }
-            }
+    /// Set minimum size constraints
+    func minSize(width: CGFloat? = nil, height: CGFloat? = nil, alignment: Alignment = .center) -> some View {
+        frame(minWidth: width, minHeight: height, alignment: alignment)
     }
     
-    /// Hide navigation bar
-    func hideNavigationBar() -> some View {
-        navigationBarHidden(true)
+    /// Set maximum size constraints
+    func maxSize(width: CGFloat? = nil, height: CGFloat? = nil, alignment: Alignment = .center) -> some View {
+        frame(maxWidth: width, maxHeight: height, alignment: alignment)
+    }
+    
+    /// Apply custom padding with EdgeInsets
+    func customPadding(_ insets: EdgeInsets) -> some View {
+        padding(.top, insets.top)
+            .padding(.leading, insets.leading)
+            .padding(.bottom, insets.bottom)
+            .padding(.trailing, insets.trailing)
+    }
+    
+    /// Apply uniform padding to all edges
+    func uniformPadding(_ value: CGFloat) -> some View {
+        padding(.all, value)
     }
 }
 
-// MARK: - Keyboard Extensions
-
-public extension View {
-    /// Dismiss keyboard when tapped outside
-    func dismissKeyboardOnTap() -> some View {
-        onTapGesture {
-            #if !targetEnvironment(macCatalyst)
-            if !ProcessInfo.processInfo.environment.keys.contains("XCODE_RUNNING_FOR_PREVIEWS") {
-                // Only dismiss keyboard in non-extension environments
-                hideKeyboard()
-            }
-            #endif
-        }
-    }
-    
-    /// Custom keyboard toolbar
-    func keyboardToolbar(
-        leadingItems: [ToolbarItem] = [],
-        trailingItems: [ToolbarItem] = [],
-        onDone: @escaping () -> Void = {}
-    ) -> some View {
-        toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                ForEach(leadingItems.indices, id: \.self) { index in
-                    leadingItems[index]
-                }
-                
-                Spacer()
-                
-                ForEach(trailingItems.indices, id: \.self) { index in
-                    trailingItems[index]
-                }
-                
-                Button("Done") {
-                    onDone()
-                    hideKeyboard()
-                }
-            }
-        }
-    }
-    
-    /// Observe keyboard show/hide events
-    func onKeyboardChange(perform action: @escaping (Bool, CGFloat) -> Void) -> some View {
-        modifier(KeyboardObserver(onChange: action))
-    }
-    
-    private func hideKeyboard() {
-        #if !targetEnvironment(macCatalyst)
-        // Check if we're in an app extension environment
-        if Bundle.main.bundlePath.hasSuffix(".appex") {
-            // We're in an extension, use alternative method
-            UIApplication.shared.sendAction(
-                #selector(UIResponder.resignFirstResponder),
-                to: nil,
-                from: nil,
-                for: nil
-            )
-        } else {
-            // We're in the main app, safe to use UIApplication.shared
-            UIApplication.shared.sendAction(
-                #selector(UIResponder.resignFirstResponder),
-                to: nil,
-                from: nil,
-                for: nil
-            )
-        }
-        #endif
-    }
-}
-
-// MARK: - Styling and Appearance Extensions
+// MARK: - Custom Styling Extensions
 
 public extension View {
     /// Apply card-style appearance
@@ -195,10 +73,10 @@ public extension View {
         backgroundColor: Color = Color(.systemBackground),
         cornerRadius: CGFloat = 12,
         shadowLevel: ShadowLevel = .medium,
-        padding: CGFloat = 16
+        internalPadding: CGFloat = 16
     ) -> some View {
         self
-            .padding(padding)
+            .padding(.all, internalPadding)
             .background(backgroundColor)
             .cornerRadius(cornerRadius)
             .shadow(
@@ -244,38 +122,31 @@ public extension View {
                 .strokeBorder(gradient, lineWidth: lineWidth)
         )
     }
-}
-
-// MARK: - Shadow Level
-
-public enum ShadowLevel {
-    case none, light, medium, heavy
     
-    var opacity: Double {
-        switch self {
-        case .none: return 0
-        case .light: return 0.1
-        case .medium: return 0.2
-        case .heavy: return 0.3
-        }
+    /// Apply neumorphism effect
+    func neumorphism(
+        backgroundColor: Color = Color(.systemBackground),
+        cornerRadius: CGFloat = 12,
+        internalPadding: CGFloat = 16
+    ) -> some View {
+        self
+            .padding(.all, internalPadding)
+            .background(backgroundColor)
+            .cornerRadius(cornerRadius)
+            .shadow(color: .black.opacity(0.2), radius: 8, x: 4, y: 4)
+            .shadow(color: .white.opacity(0.8), radius: 8, x: -4, y: -4)
     }
     
-    var radius: CGFloat {
-        switch self {
-        case .none: return 0
-        case .light: return 2
-        case .medium: return 4
-        case .heavy: return 8
-        }
-    }
-    
-    var offset: CGFloat {
-        switch self {
-        case .none: return 0
-        case .light: return 1
-        case .medium: return 2
-        case .heavy: return 4
-        }
+    /// Apply subtle border
+    func subtleBorder(
+        color: Color = Color(.systemGray4),
+        width: CGFloat = 1,
+        cornerRadius: CGFloat = 8
+    ) -> some View {
+        overlay(
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .stroke(color, lineWidth: width)
+        )
     }
 }
 
@@ -319,6 +190,44 @@ public extension View {
         duration: Double = 1.5
     ) -> some View {
         modifier(ShimmerModifier(active: active, duration: duration))
+    }
+    
+    /// Add fade in animation
+    func fadeIn(duration: Double = 0.5, delay: Double = 0) -> some View {
+        opacity(0)
+            .onAppear {
+                withAnimation(.easeIn(duration: duration).delay(delay)) {
+                    // SwiftUI will handle the opacity animation
+                }
+            }
+    }
+    
+    /// Add slide in animation
+    func slideIn(
+        from edge: Edge = .bottom,
+        distance: CGFloat = 50,
+        duration: Double = 0.5,
+        delay: Double = 0
+    ) -> some View {
+        let initialOffset: CGSize = {
+            switch edge {
+            case .top: return CGSize(width: 0, height: -distance)
+            case .bottom: return CGSize(width: 0, height: distance)
+            case .leading: return CGSize(width: -distance, height: 0)
+            case .trailing: return CGSize(width: distance, height: 0)
+            }
+        }()
+        
+        return modifier(SlideInModifier(
+            initialOffset: initialOffset,
+            duration: duration,
+            delay: delay
+        ))
+    }
+    
+    /// Add shake animation
+    func shakeAnimation(trigger: Binding<Bool>) -> some View {
+        modifier(ShakeModifier(trigger: trigger))
     }
 }
 
@@ -402,6 +311,15 @@ public extension View {
             self
         }
     }
+    
+    @ViewBuilder
+    func iOS17<Content: View>(_ modifier: (Self) -> Content) -> some View {
+        if #available(iOS 17.0, *) {
+            modifier(self)
+        } else {
+            self
+        }
+    }
 }
 
 // MARK: - Accessibility Extensions
@@ -424,11 +342,6 @@ public extension View {
         ))
     }
     
-    /// Add accessibility actions
-    func accessibilityActions(_ actions: [AccessibilityAction]) -> some View {
-        modifier(AccessibilityActionsModifier(actions: actions))
-    }
-    
     /// Make view accessible for VoiceOver navigation
     func voiceOverAccessible(
         label: String,
@@ -439,6 +352,11 @@ public extension View {
             .accessibilityLabel(label)
             .accessibilityHint(hint ?? "")
             .accessibilitySortPriority(sortPriority)
+    }
+    
+    /// Add accessibility actions
+    func accessibilityActions(_ actions: [BudgetAccessibilityAction]) -> some View {
+        modifier(AccessibilityActionsModifier(actions: actions))
     }
 }
 
@@ -485,6 +403,23 @@ public extension View {
             onPress()
         }
     }
+    
+    /// Add tap gesture with haptic feedback
+    func tapWithHaptic(
+        style: UIImpactFeedbackGenerator.FeedbackStyle = .light,
+        onTap: @escaping () -> Void
+    ) -> some View {
+        onTapGesture {
+            let impactFeedback = UIImpactFeedbackGenerator(style: style)
+            impactFeedback.impactOccurred()
+            onTap()
+        }
+    }
+    
+    /// Add double tap gesture
+    func onDoubleTap(perform action: @escaping () -> Void) -> some View {
+        onTapGesture(count: 2, perform: action)
+    }
 }
 
 // MARK: - Performance Extensions
@@ -501,11 +436,6 @@ public extension View {
         ))
     }
     
-    /// Cache view rendering for performance
-    func cached<Key: Hashable>(key: Key) -> some View {
-        modifier(CacheModifier(key: key))
-    }
-    
     /// Lazy loading for expensive views
     func lazyLoad(isVisible: Bool) -> some View {
         Group {
@@ -515,6 +445,11 @@ public extension View {
                 Color.clear
             }
         }
+    }
+    
+    /// Cache view for performance
+    func cachedView<Key: Hashable>(key: Key) -> some View {
+        modifier(CacheModifier(key: key))
     }
 }
 
@@ -544,26 +479,166 @@ public extension View {
             debounceTime: debounceTime
         ))
     }
+}
+
+// MARK: - Keyboard Extensions
+
+public extension View {
+    /// Dismiss keyboard when tapped outside
+    func dismissKeyboardOnTap() -> some View {
+        onTapGesture {
+            hideKeyboard()
+        }
+    }
     
-    /// Observe changes with Equatable constraint
-    func onChange<T: Equatable>(
-        of value: T,
-        initial: Bool = false,
-        _ action: @escaping (_ oldValue: T, _ newValue: T) -> Void
+    /// Hide keyboard
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
+    }
+    
+    /// Observe keyboard show/hide events
+    func onKeyboardChange(perform action: @escaping (Bool, CGFloat) -> Void) -> some View {
+        modifier(KeyboardObserver(onChange: action))
+    }
+}
+
+// MARK: - Error Handling Extensions
+
+public extension View {
+    /// Add error alert with retry capability
+    func errorAlert(
+        isPresented: Binding<Bool> = .constant(false),
+        error: Binding<AppError?> = .constant(nil),
+        onRetry: (() -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil
     ) -> some View {
-        if #available(iOS 17.0, *) {
-            return onChange(of: value, initial: initial, action)
-        } else {
-            return onChange(of: value) { newValue in
-                action(value, newValue)
+        modifier(ErrorAlertModifier(
+            isPresented: isPresented,
+            error: error,
+            onRetry: onRetry,
+            onDismiss: onDismiss
+        ))
+    }
+    
+    /// Handle errors with inline display
+    func inlineError(
+        error: AppError?,
+        onDismiss: (() -> Void)? = nil,
+        onRetry: (() -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading) {
+            self
+            
+            if let error = error {
+                InlineErrorView(
+                    error: error,
+                    onDismiss: onDismiss,
+                    onRetry: onRetry
+                )
             }
+        }
+    }
+}
+
+// MARK: - Navigation Extensions
+
+public extension View {
+    /// Navigation link with modern API
+    @ViewBuilder
+    func navigationLink<Destination: View>(
+        value: some Hashable,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) -> some View {
+        if #available(iOS 16.0, *) {
+            NavigationLink(value: value) {
+                self
+            }
+        } else {
+            NavigationLink(destination: destination()) {
+                self
+            }
+        }
+    }
+    
+    /// Hide navigation bar
+    func hideNavigationBar() -> some View {
+        navigationBarHidden(true)
+    }
+    
+    /// Custom navigation bar title
+    func customNavigationTitle(
+        _ title: String,
+        displayMode: NavigationBarItem.TitleDisplayMode = .automatic
+    ) -> some View {
+        navigationTitle(title)
+            .navigationBarTitleDisplayMode(displayMode)
+    }
+}
+
+// MARK: - Loading Extensions
+
+public extension View {
+    /// Show loading overlay
+    func loadingOverlay(
+        isLoading: Bool,
+        message: String = "Loading..."
+    ) -> some View {
+        overlay(
+            Group {
+                if isLoading {
+                    LoadingOverlay(message: message)
+                }
+            }
+        )
+    }
+    
+    /// Redacted for loading state
+    func redactedLoading(_ isLoading: Bool) -> some View {
+        redacted(reason: isLoading ? .placeholder : [])
+    }
+}
+
+// MARK: - Shadow Level Enum
+
+public enum ShadowLevel {
+    case none, light, medium, heavy
+    
+    var opacity: Double {
+        switch self {
+        case .none: return 0
+        case .light: return 0.1
+        case .medium: return 0.2
+        case .heavy: return 0.3
+        }
+    }
+    
+    var radius: CGFloat {
+        switch self {
+        case .none: return 0
+        case .light: return 2
+        case .medium: return 4
+        case .heavy: return 8
+        }
+    }
+    
+    var offset: CGFloat {
+        switch self {
+        case .none: return 0
+        case .light: return 1
+        case .medium: return 2
+        case .heavy: return 4
         }
     }
 }
 
 // MARK: - Supporting Types
 
-public struct AccessibilityAction {
+public struct BudgetAccessibilityAction {
     let name: String
     let handler: () -> Void
     
@@ -573,33 +648,9 @@ public struct AccessibilityAction {
     }
 }
 
-public struct ToolbarItem {
-    let placement: ToolbarItemPlacement
-    let content: AnyView
-    
-    public init<Content: View>(placement: ToolbarItemPlacement, @ViewBuilder content: () -> Content) {
-        self.placement = placement
-        self.content = AnyView(content())
-    }
-}
+
 
 // MARK: - View Modifiers
-
-struct KeyboardObserver: ViewModifier {
-    let onChange: (Bool, CGFloat) -> Void
-    
-    func body(content: Content) -> some View {
-        content
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
-                if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect {
-                    onChange(true, keyboardFrame.height)
-                }
-            }
-            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-                onChange(false, 0)
-            }
-    }
-}
 
 struct ShimmerModifier: ViewModifier {
     let active: Bool
@@ -609,26 +660,23 @@ struct ShimmerModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay(
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.clear,
-                                Color.white.opacity(0.3),
-                                Color.clear
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .offset(x: phase)
-                    .opacity(active ? 1 : 0)
-                    .animation(
-                        active ?
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        .clear,
+                        .white.opacity(0.6),
+                        .clear
+                    ]),
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+                .rotationEffect(.degrees(30))
+                .offset(x: phase)
+                .animation(
+                    active ?
                         Animation.linear(duration: duration).repeatForever(autoreverses: false) :
                         .default,
-                        value: phase
-                    )
+                    value: phase
+                )
             )
             .onAppear {
                 if active {
@@ -638,7 +686,51 @@ struct ShimmerModifier: ViewModifier {
     }
 }
 
-// MARK: - Accessibility Modifiers
+struct SlideInModifier: ViewModifier {
+    let initialOffset: CGSize
+    let duration: Double
+    let delay: Double
+    @State private var offset: CGSize
+    
+    init(initialOffset: CGSize, duration: Double, delay: Double) {
+        self.initialOffset = initialOffset
+        self.duration = duration
+        self.delay = delay
+        self._offset = State(initialValue: initialOffset)
+    }
+    
+    func body(content: Content) -> some View {
+        content
+            .offset(offset)
+            .onAppear {
+                withAnimation(.easeOut(duration: duration).delay(delay)) {
+                    offset = .zero
+                }
+            }
+    }
+}
+
+struct ShakeModifier: ViewModifier {
+    @Binding var trigger: Bool
+    @State private var shakeOffset: CGFloat = 0
+    
+    func body(content: Content) -> some View {
+        content
+            .offset(x: shakeOffset)
+            .onChange(of: trigger) { _, newValue in
+                if newValue {
+                    withAnimation(.easeInOut(duration: 0.1).repeatCount(3, autoreverses: true)) {
+                        shakeOffset = 10
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        shakeOffset = 0
+                        trigger = false
+                    }
+                }
+            }
+    }
+}
 
 struct AccessibilityModifier: ViewModifier {
     let label: String?
@@ -648,49 +740,47 @@ struct AccessibilityModifier: ViewModifier {
     let identifier: String?
     
     func body(content: Content) -> some View {
-        var modifiedContent = content
+        var result = content
         
         if let label = label {
-            modifiedContent = modifiedContent.accessibilityLabel(label)
+            result = result.accessibilityLabel(label)
         }
         
         if let hint = hint {
-            modifiedContent = modifiedContent.accessibilityHint(hint)
+            result = result.accessibilityHint(hint)
         }
         
         if let value = value {
-            modifiedContent = modifiedContent.accessibilityValue(value)
+            result = result.accessibilityValue(value)
         }
         
         if !traits.isEmpty {
-            modifiedContent = modifiedContent.accessibilityAddTraits(traits)
+            result = result.accessibilityAddTraits(traits)
         }
         
         if let identifier = identifier {
-            modifiedContent = modifiedContent.accessibilityIdentifier(identifier)
+            result = result.accessibilityIdentifier(identifier)
         }
         
-        return modifiedContent
+        return result
     }
 }
 
 struct AccessibilityActionsModifier: ViewModifier {
-    let actions: [AccessibilityAction]
+    let actions: [BudgetAccessibilityAction]
     
     func body(content: Content) -> some View {
-        var modifiedContent = content
+        var result = content
         
         for action in actions {
-            modifiedContent = modifiedContent.accessibilityAction(named: action.name) {
+            result = result.accessibilityAction(named: action.name) {
                 action.handler()
             }
         }
         
-        return modifiedContent
+        return result
     }
 }
-
-// MARK: - Performance Modifiers
 
 struct PerformanceMonitorModifier: ViewModifier {
     let identifier: String
@@ -720,8 +810,6 @@ struct CacheModifier<Key: Hashable>: ViewModifier {
     }
 }
 
-// MARK: - Data Modifiers
-
 struct ValidationBindingModifier<T: Equatable>: ViewModifier {
     let binding: Binding<T>
     let validation: (T) -> ValidationResult
@@ -732,9 +820,10 @@ struct ValidationBindingModifier<T: Equatable>: ViewModifier {
             content
             
             if case .invalid(let error) = validationResult {
-                Text(error.errorDescription ?? "Invalid input")
+                Text(error.errorDescription ?? "Validation error")
                     .font(.caption)
                     .foregroundColor(.red)
+                    .padding(.top, 4)
                     .transition(.opacity)
             }
         }
@@ -748,46 +837,140 @@ struct AutoSaveModifier<T: Codable & Equatable>: ViewModifier {
     let value: T
     let key: String
     let debounceTime: TimeInterval
-    @State private var saveTimer: Timer?
+    @State private var saveTask: Task<Void, Never>?
     
     func body(content: Content) -> some View {
         content
             .onChange(of: value) { _, newValue in
-                saveTimer?.invalidate()
-                saveTimer = Timer.scheduledTimer(withTimeInterval: debounceTime, repeats: false) { _ in
-                    if let data = try? JSONEncoder().encode(newValue) {
-                        UserDefaults.standard.set(data, forKey: key)
+                saveTask?.cancel()
+                saveTask = Task<Void, Never> {
+                    try? await Task.sleep(nanoseconds: UInt64(debounceTime * 1_000_000_000))
+                    
+                    if !Task.isCancelled {
+                        await MainActor.run {
+                            saveValue(newValue)
+                        }
                     }
                 }
             }
     }
+    
+    private func saveValue(_ value: T) {
+        if let encoded = try? JSONEncoder().encode(value) {
+            UserDefaults.standard.set(encoded, forKey: key)
+        }
+    }
 }
+
+struct KeyboardObserver: ViewModifier {
+    let onChange: (Bool, CGFloat) -> Void
+    @State private var keyboardHeight: CGFloat = 0
+    
+    func body(content: Content) -> some View {
+        content
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { notification in
+                if let keyboardFrame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue {
+                    let height = keyboardFrame.cgRectValue.height
+                    keyboardHeight = height
+                    onChange(true, height)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                keyboardHeight = 0
+                onChange(false, 0)
+            }
+    }
+}
+
+struct ErrorAlertModifier: ViewModifier {
+    @Binding var isPresented: Bool
+    @Binding var error: AppError?
+    let onRetry: (() -> Void)?
+    let onDismiss: (() -> Void)?
+    
+    func body(content: Content) -> some View {
+        content
+            .alert("Error", isPresented: $isPresented, presenting: error) { error in
+                if let onRetry = onRetry {
+                    Button("Retry") {
+                        onRetry()
+                    }
+                }
+                
+                Button("OK", role: .cancel) {
+                    onDismiss?()
+                }
+            } message: { error in
+                Text(error.errorDescription ?? "An error occurred")
+            }
+    }
+}
+
+// MARK: - Supporting Views
+
+struct LoadingOverlay: View {
+    let message: String
+    
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                ProgressView()
+                    .scaleEffect(1.2)
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.white)
+            }
+            .padding(.all, 24)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(.ultraThinMaterial)
+            )
+        }
+    }
+}
+
 
 // MARK: - Preview Support
 
 #if DEBUG
 struct ViewExtensions_Previews: PreviewProvider {
     static var previews: some View {
-        VStack(spacing: 20) {
-            Text("Card Style")
-                .cardStyle()
-            
-            Text("Glass Morphism")
-                .glassMorphism()
-            
-            Text("Glow Effect")
-                .glow(color: .blue)
-            
-            Text("Accessibility Configured")
-                .accessibilityConfiguration(
-                    label: "Example text",
-                    hint: "This is an example"
-                )
-            
-            Text("Shimmer Effect")
-                .shimmerEffect()
+        ScrollView {
+            VStack(spacing: 20) {
+                Text("Card Style")
+                    .cardStyle()
+                
+                Text("Glass Morphism")
+                    .glassMorphism()
+                
+                Text("Glow Effect")
+                    .glow(color: .blue)
+                
+                Text("Accessibility Configured")
+                    .accessibilityConfiguration(
+                        label: "Example text",
+                        hint: "This is an example"
+                    )
+                
+                Text("Shimmer Effect")
+                    .shimmerEffect()
+                
+                Text("Fill Width")
+                    .fillWidth()
+                    .background(Color.blue.opacity(0.2))
+                
+                Text("Centered")
+                    .centered()
+                    .background(Color.green.opacity(0.2))
+            }
+            .padding(.all, 16)
         }
-        .padding()
+        .previewDisplayName("View Extensions")
     }
 }
 #endif

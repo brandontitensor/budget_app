@@ -247,7 +247,7 @@ public final class NotificationManager: NSObject, ObservableObject {
         setupNotificationCategories()
         
         // Check initial authorization state
-        Task {
+       Task<Void, Never>{
             await checkInitialAuthorizationState()
             await refreshNotificationLists()
         }
@@ -929,7 +929,7 @@ public final class NotificationManager: NSObject, ObservableObject {
     
     private func setupPeriodicStatusChecks() {
         Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-            Task { [weak self] in
+           Task<Void, Never>{ [weak self] in
                 await self?.updateAuthorizationState()
                 await self?.refreshNotificationLists()
                 await self?.cleanupOldNotifications()
@@ -1000,7 +1000,7 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         
         print("📱 NotificationManager: Received action '\(actionIdentifier)' for notification")
         
-        Task {
+       Task<Void, Never>{
             await handleNotificationAction(actionIdentifier: actionIdentifier, userInfo: userInfo)
             completionHandler()
         }

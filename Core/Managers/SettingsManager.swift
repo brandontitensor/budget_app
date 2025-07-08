@@ -1021,13 +1021,13 @@ public final class SettingsManager: ObservableObject {
     private func setupNotificationStateObservation() {
         // Monitor notification authorization changes
         Timer.scheduledTimer(withTimeInterval: 30.0, repeats: true) { [weak self] _ in
-            Task { [weak self] in
+           Task<Void, Never>{ [weak self] in
                 await self?.updateNotificationAuthorizationStatus()
             }
         }
         
         // Initial check
-        Task {
+       Task<Void, Never>{
             await updateNotificationAuthorizationStatus()
         }
     }
@@ -1047,7 +1047,7 @@ public final class SettingsManager: ObservableObject {
     }
     
     private func notificationStateChanged() {
-        Task {
+       Task<Void, Never>{
             await NotificationManager.shared.updateNotificationSchedule(settings: self)
             lastNotificationUpdate = Date()
         }
@@ -1081,7 +1081,7 @@ public final class SettingsManager: ObservableObject {
         // Schedule backup timer
         backupTimer?.invalidate()
         backupTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { [weak self] in
+           Task<Void, Never>{ [weak self] in
                 await self?.performAutomaticBackupIfNeeded()
             }
         }

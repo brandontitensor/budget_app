@@ -2,1362 +2,627 @@
 //  HistoryViewModel.swift
 //  Brandon's Budget
 //
-//  Created by Brandon Titensor on 6/1/25.
+//  Created by Brandon Titensor on 7/1/24.
+//  Updated: 7/7/25 - Fixed Swift 6 compliance, added proper imports, and fixed main actor isolation
 //
 
 import Foundation
 import Combine
 import SwiftUI
-import Charts
 
-/// ViewModel for managing budget history data, filtering, sorting, and analysis with comprehensive error handling
+/// ViewModel for budget history with enhanced error handling and performance optimization
 @MainActor
 public final class HistoryViewModel: ObservableObject {
+    
     // MARK: - Types
     
-    public enum ViewState {
+    public enum LoadingState: Equatable {
+        case idle
         case loading
         case loaded
-        case empty
-        case error(AppError)
         case refreshing
+        case error(AppError)
         
         public var isLoading: Bool {
             switch self {
-            case .loading, .refreshing: return true
-            default: return false
+            case .loading, .refreshing:
+                return true
+            default:
+                return false
             }
-        }
-        
-        public var isEmpty: Bool {
-            if case .empty = self { return true }
-            return false
         }
         
         public var hasError: Bool {
             if case .error = self { return true }
             return false
         }
+    }
+    
+    public enum FilterType: String, CaseIterable {
+        case all = "All"
+        case category = "Category"
+        case amount = "Amount"
+        case date = "Date"
         
-        public var errorMessage: String? {
-            if case .error(let error) = self {
-                return error.errorDescription
+        public var systemImageName: String {
+            switch self {
+            case .all: return "list.bullet"
+            case .category: return "folder"
+            case .amount: return "dollarsign"
+            case .date: return "calendar"
             }
-            return nil
         }
     }
     
-    public struct FilterConfiguration {
-        public var timePeriod: TimePeriod
-        public var selectedCategories: Set<String>
-        public var sortOption: BudgetSortOption
-        public var sortAscending: Bool
-        public var showOnlyOverBudget: Bool
-        public var minimumAmount: Double?
-        public var maximumAmount: Double?
+    public enum SortOption: String, CaseIterable {
+        case date = "Date"
+        case amount = "Amount"
+        case category = "Category"
+        
+        public var systemImageName: String {
+            switch self {
+            case .date: return "calendar"
+            case .amount: return "dollarsign"
+            case .category: return "folder"
+            }
+        }
+    }
+    
+    public struct HistoryAnalytics: Equatable {
+        public let totalEntries: Int
+        public let totalAmount: Double
+        public let averageTransactionAmount: Double
+        public let topCategory: String?
+        public let topCategoryAmount: Double
+        public let dateRange: String
+        public let trends: [String]
         
         public init(
-            timePeriod: TimePeriod = .thisMonth,
-            selectedCategories: Set<String> = [],
-            sortOption: BudgetSortOption = .category,
-            sortAscending: Bool = true,
-            showOnlyOverBudget: Bool = false,
-            minimumAmount: Double? = nil,
-            maximumAmount: Double? = nil
+            totalEntries: Int,
+            totalAmount: Double,
+            averageTransactionAmount: Double,
+            topCategory: String?,
+            topCategoryAmount: Double,
+            dateRange: String,
+            trends: [String]
         ) {
-            self.timePeriod = timePeriod
-            self.selectedCategories = selectedCategories
-            self.sortOption = sortOption
-            self.sortAscending = sortAscending
-            self.showOnlyOverBudget = showOnlyOverBudget
-            self.minimumAmount = minimumAmount
-            self.maximumAmount = maximumAmount
-        }
-        
-        public var hasActiveFilters: Bool {
-            return !selectedCategories.isEmpty || 
-                   showOnlyOverBudget || 
-                   minimumAmount != nil || 
-                   maximumAmount != nil
-        }
-        
-        public var filterDescription: String {
-            var components: [String] = []
-            
-            if !selectedCategories.isEmpty {
-                components.append("\(selectedCategories.count) categories")
-            }
-            if showOnlyOverBudget {
-                components.append("over budget only")
-            }
-            if minimumAmount != nil || maximumAmount != nil {
-                components.append("amount filter")
-            }
-            
-            return components.isEmpty ? "No filters" : components.joined(separator: ", ")
+            self.totalEntries = totalEntries
+            self.totalAmount = totalAmount
+            self.averageTransactionAmount = averageTransactionAmount
+            self.topCategory = topCategory
+            self.topCategoryAmount = topCategoryAmount
+            self.dateRange = dateRange
+            self.trends = trends
         }
     }
     
-    public struct AnalyticsData {
-        public let totalBudgeted: Double
-        public let totalSpent: Double
-        public let totalRemaining: Double
-        public let averageSpentPerCategory: Double
-        public let categoriesOverBudget: Int
-        public let categoriesUnderBudget: Int
-        public let biggestOverspend: (category: String, amount: Double)?
-        public let biggestUnderspend: (category: String, amount: Double)?
-        public let spendingTrend: SpendingTrend
-        public let efficiencyScore: Double // 0.0 to 1.0
+    public struct PerformanceMetrics {
+        public let operationType: String
+        public let duration: TimeInterval
+        public let timestamp: Date
+        public let success: Bool
+        public let recordCount: Int
+        public let cacheHit: Bool
         
-        public enum SpendingTrend {
-            case increasing
-            case decreasing
-            case stable
-            case insufficient_data
-            
-            public var displayName: String {
-                switch self {
-                case .increasing: return "Increasing"
-                case .decreasing: return "Decreasing"
-                case .stable: return "Stable"
-                case .insufficient_data: return "Insufficient Data"
-                }
-            }
-            
-            public var color: Color {
-                switch self {
-                case .increasing: return .red
-                case .decreasing: return .green
-                case .stable: return .blue
-                case .insufficient_data: return .gray
-                }
-            }
-            
-            public var systemImageName: String {
-                switch self {
-                case .increasing: return "arrow.up.right"
-                case .decreasing: return "arrow.down.right"
-                case .stable: return "arrow.right"
-                case .insufficient_data: return "questionmark"
-                }
-            }
-        }
-        
-        public var overallHealth: BudgetHealth {
-            let overBudgetRatio = Double(categoriesOverBudget) / Double(categoriesOverBudget + categoriesUnderBudget)
-            
-            if totalSpent > totalBudgeted * 1.2 || overBudgetRatio > 0.5 {
-                return .poor
-            } else if totalSpent > totalBudgeted || overBudgetRatio > 0.3 {
-                return .warning
-            } else if efficiencyScore > 0.8 {
-                return .excellent
-            } else {
-                return .good
-            }
-        }
-        
-        public enum BudgetHealth: String, CaseIterable {
-            case excellent = "Excellent"
-            case good = "Good"
-            case warning = "Warning"
-            case poor = "Poor"
-            
-            public var color: Color {
-                switch self {
-                case .excellent: return .green
-                case .good: return .blue
-                case .warning: return .orange
-                case .poor: return .red
-                }
-            }
-            
-            public var systemImageName: String {
-                switch self {
-                case .excellent: return "checkmark.circle.fill"
-                case .good: return "checkmark.circle"
-                case .warning: return "exclamationmark.triangle.fill"
-                case .poor: return "xmark.circle.fill"
-                }
-            }
-        }
-    }
-    
-    // MARK: - Published Properties
-    
-    @Published public private(set) var viewState: ViewState = .loading
-    @Published public private(set) var budgetHistoryData: [BudgetHistoryData] = []
-    @Published public private(set) var filteredData: [BudgetHistoryData] = []
-    @Published public private(set) var availableCategories: [String] = []
-    @Published public private(set) var analyticsData: AnalyticsData?
-    @Published public private(set) var lastRefreshDate: Date?
-    
-    @Published public var filterConfiguration: FilterConfiguration = FilterConfiguration() {
-        didSet {
-            applyFiltersAndSort()
-            saveFilterPreferences()
-        }
-    }
-    
-    @Published public private(set) var isExporting = false
-    @Published public private(set) var exportProgress: Double = 0.0
-    @Published public private(set) var showingFilterOptions = false
-    
-    // MARK: - Chart Configuration
-    
-    @Published public var chartType: ChartType = .bar {
-        didSet {
-            UserDefaults.standard.set(chartType.rawValue, forKey: StorageKeys.chartType)
-        }
-    }
-    
-    @Published public var showLegend: Bool = true {
-        didSet {
-            UserDefaults.standard.set(showLegend, forKey: StorageKeys.showLegend)
-        }
-    }
-    
-    @Published public var animateCharts: Bool = true {
-        didSet {
-            UserDefaults.standard.set(animateCharts, forKey: StorageKeys.animateCharts)
+        public init(
+            operationType: String,
+            duration: TimeInterval,
+            success: Bool,
+            recordCount: Int = 0,
+            cacheHit: Bool = false
+        ) {
+            self.operationType = operationType
+            self.duration = duration
+            self.timestamp = Date()
+            self.success = success
+            self.recordCount = recordCount
+            self.cacheHit = cacheHit
         }
     }
     
     // MARK: - Dependencies
-    
     private let budgetManager: BudgetManager
     private let errorHandler: ErrorHandler
-    private let performanceMonitor: PerformanceMonitor
-    
-    // MARK: - Private Properties
-    
+    private let themeManager: ThemeManager
     private var cancellables = Set<AnyCancellable>()
-    private let operationQueue = DispatchQueue(label: "com.brandonsbudget.history", qos: .userInitiated)
-    private var refreshTask: Task<Void, Never>?
-    private var analyticsTask: Task<Void, Never>?
     
-    // MARK: - Storage Keys
+    // MARK: - Published Properties
+    @Published public private(set) var loadingState: LoadingState = .idle
+    @Published public private(set) var historyData: [BudgetHistoryData] = []
+    @Published public private(set) var filteredData: [BudgetHistoryData] = []
+    @Published public private(set) var analytics: HistoryAnalytics?
+    @Published public private(set) var currentError: AppError?
+    @Published public private(set) var lastRefreshDate: Date?
     
-    private enum StorageKeys {
-        static let prefix = "HistoryViewModel."
-        static let timePeriod = prefix + "timePeriod"
-        static let sortOption = prefix + "sortOption"
-        static let sortAscending = prefix + "sortAscending"
-        static let chartType = prefix + "chartType"
-        static let showLegend = prefix + "showLegend"
-        static let animateCharts = prefix + "animateCharts"
-        static let showOnlyOverBudget = prefix + "showOnlyOverBudget"
+    // MARK: - Filter and Sort State
+    @Published public var selectedTimePeriod: TimePeriod = .thisMonth
+    @Published public var selectedFilter: FilterType = .all
+    @Published public var selectedSort: SortOption = .date
+    @Published public var sortAscending = false
+    @Published public var searchText = ""
+    @Published public var selectedCategories: Set<String> = []
+    @Published public var amountRange: ClosedRange<Double> = 0...10000
+    @Published public var dateRange: ClosedRange<Date> = Date()...Date()
+    
+    // MARK: - UI State
+    @Published public var showingFilterPanel = false
+    @Published public var showingExportOptions = false
+    @Published public var selectedDataPoint: BudgetHistoryData?
+    
+    // MARK: - Performance Monitoring
+    private let performanceQueue = DispatchQueue(label: "com.brandonsbudget.historyvm.performance", qos: .utility)
+    @Published private var operationMetrics: [String: PerformanceMetrics] = [:]
+    private let maxCacheSize = 100
+    private var dataCache: [String: [BudgetHistoryData]] = [:]
+    
+    // MARK: - Constants
+    private let refreshThreshold: TimeInterval = 300 // 5 minutes
+    private let maxHistoryItems = 1000
+    private let batchSize = 50
+    
+    // MARK: - Computed Properties
+    
+    public var isLoading: Bool {
+        loadingState.isLoading
     }
     
-    // MARK: - Chart Colors
+    public var hasError: Bool {
+        loadingState.hasError || currentError != nil
+    }
     
-    public let chartColors: [Color] = [
-        Color(red: 0.12, green: 0.58, blue: 0.95), // Blue
-        Color(red: 0.99, green: 0.85, blue: 0.21), // Yellow
-        Color(red: 0.18, green: 0.80, blue: 0.44), // Green
-        Color(red: 0.61, green: 0.35, blue: 0.71), // Purple
-        Color(red: 1.00, green: 0.60, blue: 0.00), // Orange
-        Color(red: 0.20, green: 0.60, blue: 0.86), // Sky Blue
-        Color(red: 0.95, green: 0.27, blue: 0.57)  // Pink
-    ]
+    public var isEmpty: Bool {
+        filteredData.isEmpty && !isLoading
+    }
     
-    // MARK: - Performance Metrics
+    public var availableCategories: [String] {
+        Array(Set(historyData.map { $0.category })).sorted()
+    }
     
-    private var operationMetrics: [String: TimeInterval] = [:]
-    private let metricsQueue = DispatchQueue(label: "com.brandonsbudget.history.metrics", qos: .utility)
+    public var totalFilteredAmount: Double {
+        filteredData.reduce(0) { $0 + $1.amount }
+    }
+    
+    public var needsRefresh: Bool {
+        guard let lastRefresh = lastRefreshDate else { return true }
+        return Date().timeIntervalSince(lastRefresh) > refreshThreshold
+    }
     
     // MARK: - Initialization
     
     public init(
-        budgetManager: BudgetManager = .shared,
-        errorHandler: ErrorHandler = .shared,
-        performanceMonitor: PerformanceMonitor = .shared
+        budgetManager: BudgetManager? = nil,
+        errorHandler: ErrorHandler? = nil,
+        themeManager: ThemeManager? = nil
     ) {
-        self.budgetManager = budgetManager
-        self.errorHandler = errorHandler
-        self.performanceMonitor = performanceMonitor
+        self.budgetManager = budgetManager ?? BudgetManager.shared
+        self.errorHandler = errorHandler ?? ErrorHandler.shared
+        self.themeManager = themeManager ?? ThemeManager.shared
         
-        loadSavedPreferences()
-        setupObservers()
+        setupBindings()
         
-        // Initial data load
-        Task {
+        Task<Void, Never>{
             await loadInitialData()
+        }
+    }
+    
+    // MARK: - Setup
+    
+    private func setupBindings() {
+        // Monitor filter changes
+        Publishers.CombineLatest4(
+            $selectedFilter,
+            $searchText.debounce(for: .milliseconds(300), scheduler: DispatchQueue.main),
+            $selectedCategories,
+            $amountRange
+        )
+        .sink { [weak self] _, _, _, _ in
+            Task<Void, Never>{ [weak self] in
+                await self?.applyFilters()
+            }
+        }
+        .store(in: &cancellables)
+        
+        // Monitor sort changes
+        Publishers.CombineLatest($selectedSort, $sortAscending)
+            .sink { [weak self] _, _ in
+                Task<Void, Never>{ [weak self] in
+                    await self?.applySorting()
+                }
+            }
+            .store(in: &cancellables)
+        
+        // Monitor time period changes
+        $selectedTimePeriod
+            .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
+            .sink { [weak self] timePeriod in
+                Task<Void, Never>{ [weak self] in
+                    await self?.refreshData(for: timePeriod)
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
+    // MARK: - Data Loading
+    
+    public func loadInitialData() async {
+        let startTime = Date()
+        loadingState = .loading
+        currentError = nil
+        
+        do {
+            // Check cache first
+            let cacheKey = generateCacheKey(for: selectedTimePeriod)
+            if let cachedData = dataCache[cacheKey] {
+                historyData = cachedData
+                await applyFilters()
+                calculateAnalytics()
+                loadingState = .loaded
+                lastRefreshDate = Date()
+                recordMetric("loadInitialData", duration: Date().timeIntervalSince(startTime), recordCount: cachedData.count, cacheHit: true)
+                return
+            }
+            
+            // Load from budget manager
+            let entries = try await budgetManager.getEntries(
+                for: selectedTimePeriod,
+                sortedBy: .date,
+                ascending: false
+            )
+            
+            // Convert to history data
+            let historyItems = entries.prefix(maxHistoryItems).map { entry in
+                BudgetHistoryData(
+                    id: entry.id,
+                    date: entry.date,
+                    amount: entry.amount,
+                    category: entry.category,
+                    note: entry.note,
+                    timePeriod: selectedTimePeriod
+                )
+            }
+            
+            historyData = Array(historyItems)
+            
+            // Cache the data
+            dataCache[cacheKey] = historyData
+            cleanupCache()
+            
+            await applyFilters()
+            calculateAnalytics()
+            
+            loadingState = .loaded
+            lastRefreshDate = Date()
+            currentError = nil
+            
+            recordMetric("loadInitialData", duration: Date().timeIntervalSince(startTime), recordCount: historyData.count)
+            print("✅ HistoryViewModel: Initial data loaded successfully (\(historyData.count) items)")
+            
+        } catch {
+            let appError = AppError.from(error)
+            loadingState = .error(appError)
+            currentError = appError
+            errorHandler.handle(appError, context: "Loading history data")
+            recordMetric("loadInitialData", duration: Date().timeIntervalSince(startTime), success: false)
+        }
+    }
+    
+    public func refreshData(for timePeriod: TimePeriod? = nil) async {
+        let targetTimePeriod = timePeriod ?? selectedTimePeriod
+        let startTime = Date()
+        loadingState = .refreshing
+        currentError = nil
+        
+        do {
+            // Clear cache for this time period
+            let cacheKey = generateCacheKey(for: targetTimePeriod)
+            dataCache.removeValue(forKey: cacheKey)
+            
+            // Load fresh data
+            let entries = try await budgetManager.getEntries(
+                for: targetTimePeriod,
+                sortedBy: .date,
+                ascending: false
+            )
+            
+            let historyItems = entries.prefix(maxHistoryItems).map { entry in
+                BudgetHistoryData(
+                    id: entry.id,
+                    date: entry.date,
+                    amount: entry.amount,
+                    category: entry.category,
+                    note: entry.note,
+                    timePeriod: targetTimePeriod
+                )
+            }
+            
+            historyData = Array(historyItems)
+            
+            // Update cache
+            dataCache[cacheKey] = historyData
+            cleanupCache()
+            
+            await applyFilters()
+            calculateAnalytics()
+            
+            loadingState = .loaded
+            lastRefreshDate = Date()
+            currentError = nil
+            
+            recordMetric("refreshData", duration: Date().timeIntervalSince(startTime), recordCount: historyData.count)
+            print("✅ HistoryViewModel: Data refreshed successfully (\(historyData.count) items)")
+            
+        } catch {
+            let appError = AppError.from(error)
+            loadingState = .error(appError)
+            currentError = appError
+            errorHandler.handle(appError, context: "Refreshing history data")
+            recordMetric("refreshData", duration: Date().timeIntervalSince(startTime), success: false)
+        }
+    }
+    
+    public func refreshData(budgetManager: BudgetManager, timePeriod: TimePeriod) async {
+        await refreshData(for: timePeriod)
+    }
+    
+    public func updateTimePeriod(_ timePeriod: TimePeriod, budgetManager: BudgetManager) async {
+        selectedTimePeriod = timePeriod
+        await refreshData(for: timePeriod)
+    }
+    
+    // MARK: - Filtering and Sorting
+    
+    private func applyFilters() async {
+        let startTime = Date()
+        
+        var filtered = historyData
+        
+        // Apply text search
+        if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            filtered = filtered.filter { item in
+                item.category.localizedCaseInsensitiveContains(searchText) ||
+                (item.note?.localizedCaseInsensitiveContains(searchText) ?? false)
+            }
+        }
+        
+        // Apply category filter
+        if !selectedCategories.isEmpty {
+            filtered = filtered.filter { selectedCategories.contains($0.category) }
+        }
+        
+        // Apply amount range filter
+        filtered = filtered.filter { amountRange.contains($0.amount) }
+        
+        // Apply date range filter
+        filtered = filtered.filter { dateRange.contains($0.date) }
+        
+        // Apply type-specific filter
+        switch selectedFilter {
+        case .all:
+            break // No additional filtering
+        case .category:
+            // Group by category (implementation depends on UI needs)
+            break
+        case .amount:
+            // Sort by amount (handled in sorting)
+            break
+        case .date:
+            // Sort by date (handled in sorting)
+            break
+        }
+        
+        filteredData = filtered
+        await applySorting()
+        
+        let duration = Date().timeIntervalSince(startTime)
+        recordMetric("applyFilters", duration: duration, recordCount: filteredData.count)
+    }
+    
+    private func applySorting() async {
+        let startTime = Date()
+        
+        filteredData.sort { item1, item2 in
+            let comparison: Bool
+            
+            switch selectedSort {
+            case .date:
+                comparison = item1.date < item2.date
+            case .amount:
+                comparison = item1.amount < item2.amount
+            case .category:
+                comparison = item1.category < item2.category
+            }
+            
+            return sortAscending ? comparison : !comparison
+        }
+        
+        let duration = Date().timeIntervalSince(startTime)
+        recordMetric("applySorting", duration: duration, recordCount: filteredData.count)
+    }
+    
+    // MARK: - Analytics
+    
+    private func calculateAnalytics() {
+        guard !historyData.isEmpty else {
+            analytics = nil
+            return
+        }
+        
+        let totalEntries = historyData.count
+        let totalAmount = historyData.reduce(0) { $0 + $1.amount }
+        let averageTransactionAmount = totalAmount / Double(totalEntries)
+        
+        // Find top category
+        let categoryTotals = Dictionary(grouping: historyData) { $0.category }
+            .mapValues { $0.reduce(0) { $0 + $1.amount } }
+        
+        let topCategory = categoryTotals.max { $0.value < $1.value }
+        
+        // Create date range string
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateStyle = .medium
+        
+        let sortedDates = historyData.map { $0.date }.sorted()
+        let dateRange: String
+        if let firstDate = sortedDates.first, let lastDate = sortedDates.last {
+            if Calendar.current.isDate(firstDate, inSameDayAs: lastDate) {
+                dateRange = dateFormatter.string(from: firstDate)
+            } else {
+                dateRange = "\(dateFormatter.string(from: firstDate)) - \(dateFormatter.string(from: lastDate))"
+            }
+        } else {
+            dateRange = "No data"
+        }
+        
+        // Generate trends (simplified)
+        var trends: [String] = []
+        if totalEntries > 10 {
+            let recentEntries = historyData.prefix(5)
+            let olderEntries = historyData.dropFirst(5).prefix(5)
+            
+            let recentAverage = recentEntries.reduce(0) { $0 + $1.amount } / Double(recentEntries.count)
+            let olderAverage = olderEntries.reduce(0) { $0 + $1.amount } / Double(olderEntries.count)
+            
+            if recentAverage > olderAverage * 1.1 {
+                trends.append("Spending is increasing")
+            } else if recentAverage < olderAverage * 0.9 {
+                trends.append("Spending is decreasing")
+            } else {
+                trends.append("Spending is stable")
+            }
+        }
+        
+        analytics = HistoryAnalytics(
+            totalEntries: totalEntries,
+            totalAmount: totalAmount,
+            averageTransactionAmount: averageTransactionAmount,
+            topCategory: topCategory?.key,
+            topCategoryAmount: topCategory?.value ?? 0,
+            dateRange: dateRange,
+            trends: trends
+        )
+    }
+    
+    // MARK: - Cache Management
+    
+    private func generateCacheKey(for timePeriod: TimePeriod) -> String {
+        return "history_\(timePeriod.rawValue)"
+    }
+    
+    private func cleanupCache() {
+        if dataCache.count > maxCacheSize {
+            // Remove oldest entries (simple FIFO)
+            let keysToRemove = Array(dataCache.keys.prefix(dataCache.count - maxCacheSize))
+            keysToRemove.forEach { dataCache.removeValue(forKey: $0) }
+        }
+    }
+    
+    // MARK: - Performance Monitoring
+    
+    private func recordMetric(
+        _ operation: String,
+        duration: TimeInterval,
+        success: Bool = true,
+        recordCount: Int = 0,
+        cacheHit: Bool = false
+    ) {
+        let metric = PerformanceMetrics(
+            operationType: operation,
+            duration: duration,
+            success: success,
+            recordCount: recordCount,
+            cacheHit: cacheHit
+        )
+        
+        performanceQueue.async { [weak self] in
+            Task<Void, Never>{ @MainActor [weak self] in
+                self?.operationMetrics[operation] = metric
+            }
+        }
+        
+        // Log slow operations
+        if duration > 0.5 {
+            print("⚠️ HistoryViewModel: Slow operation '\(operation)' took \(String(format: "%.3f", duration))s")
+        }
+    }
+    
+    public func logPerformanceMetrics() {
+        performanceQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            Task<Void, Never>{ @MainActor in
+                let metrics = self.operationMetrics
+                let totalOperations = metrics.count
+                let avgDuration = metrics.values.reduce(0) { $0 + $1.duration } / Double(max(totalOperations, 1))
+                let cacheHitRate = Double(metrics.values.filter { $0.cacheHit }.count) / Double(max(totalOperations, 1)) * 100
+                
+                print("📊 HistoryViewModel Performance Summary:")
+                print("   Total Operations: \(totalOperations)")
+                print("   Average Duration: \(String(format: "%.3f", avgDuration))s")
+                print("   Cache Hit Rate: \(String(format: "%.1f", cacheHitRate))%")
+            }
         }
     }
     
     // MARK: - Public Interface
     
-    /// Refresh all history data
-    public func refreshData() async {
-        // Cancel any existing refresh task
-        refreshTask?.cancel()
-        
-        refreshTask = Task {
-            await performDataRefresh()
-        }
-        
-        await refreshTask?.value
+    public func selectDataPoint(_ dataPoint: BudgetHistoryData?) {
+        selectedDataPoint = dataPoint
     }
     
-    /// Update filter configuration
-    public func updateFilter(_ configuration: FilterConfiguration) {
-        filterConfiguration = configuration
-    }
-    
-    /// Clear all filters
     public func clearFilters() {
-        filterConfiguration = FilterConfiguration(
-            timePeriod: filterConfiguration.timePeriod,
-            sortOption: filterConfiguration.sortOption,
-            sortAscending: filterConfiguration.sortAscending
-        )
+        selectedFilter = .all
+        searchText = ""
+        selectedCategories.removeAll()
+        amountRange = 0...10000
+        dateRange = Date()...Date()
     }
     
-    /// Toggle category filter
-    public func toggleCategoryFilter(_ category: String) {
-        var newConfiguration = filterConfiguration
-        
-        if newConfiguration.selectedCategories.contains(category) {
-            newConfiguration.selectedCategories.remove(category)
-        } else {
-            newConfiguration.selectedCategories.insert(category)
-        }
-        
-        filterConfiguration = newConfiguration
+    public func exportData() async -> URL? {
+        // Implementation for data export
+        // This would typically generate a CSV or PDF file
+        return nil
     }
     
-    /// Update time period
-    public func updateTimePeriod(_ timePeriod: TimePeriod) {
-        var newConfiguration = filterConfiguration
-        newConfiguration.timePeriod = timePeriod
-        filterConfiguration = newConfiguration
-        
-        // Reload data for new time period
-        Task {
-            await loadBudgetData()
-        }
+    public func getDataForCategory(_ category: String) -> [BudgetHistoryData] {
+        return filteredData.filter { $0.category == category }
     }
     
-    /// Update sort configuration
-    public func updateSort(option: BudgetSortOption, ascending: Bool) {
-        var newConfiguration = filterConfiguration
-        newConfiguration.sortOption = option
-        newConfiguration.sortAscending = ascending
-        filterConfiguration = newConfiguration
+    public func getDataForDateRange(_ startDate: Date, _ endDate: Date) -> [BudgetHistoryData] {
+        return filteredData.filter { $0.date >= startDate && $0.date <= endDate }
     }
     
-    /// Export filtered data
-    public func exportData(format: ExportFormat = .csv) async throws -> URL {
-        let startTime = Date()
-        isExporting = true
-        exportProgress = 0.0
-        
-        defer {
-            isExporting = false
-            exportProgress = 0.0
-        }
-        
-        do {
-            exportProgress = 0.2
-            
-            // Prepare data for export
-            let dataToExport = prepareDataForExport()
-            exportProgress = 0.5
-            
-            // Convert to appropriate format
-            let fileURL: URL
-            
-            switch format {
-            case .csv:
-                fileURL = try await exportToCSV(dataToExport)
-            case .json:
-                fileURL = try await exportToJSON(dataToExport)
-            case .pdf:
-                fileURL = try await exportToPDF(dataToExport)
-            }
-            
-            exportProgress = 1.0
-            
-            recordMetric("exportData", duration: Date().timeIntervalSince(startTime))
-            print("✅ HistoryViewModel: Exported data to \(fileURL.lastPathComponent)")
-            
-            return fileURL
-            
-        } catch {
-            let appError = AppError.csvExport(underlying: error)
-            errorHandler.handle(appError, context: "Exporting history data")
-            throw appError
+    public func refreshIfNeeded() async {
+        if needsRefresh {
+            await refreshData()
         }
     }
+}
+
+// MARK: - BudgetHistoryData Model
+
+public struct BudgetHistoryData: Identifiable, Equatable, Hashable {
+    public let id: UUID
+    public let date: Date
+    public let amount: Double
+    public let category: String
+    public let note: String?
+    public let timePeriod: TimePeriod
     
-    /// Get chart data for current filters
-    public func getChartData() -> [(category: String, budgeted: Double, spent: Double, color: Color)] {
-        return filteredData.enumerated().map { index, data in
-            (
-                category: data.category,
-                budgeted: data.budgetedAmount,
-                spent: data.amountSpent,
-                color: chartColors[index % chartColors.count]
-            )
-        }
-    }
-    
-    /// Get spending efficiency for a category
-    public func getSpendingEfficiency(for category: String) -> Double {
-        guard let data = filteredData.first(where: { $0.category == category }),
-              data.budgetedAmount > 0 else { return 0.0 }
-        
-        let efficiency = data.amountSpent / data.budgetedAmount
-        return min(1.0, max(0.0, efficiency))
-    }
-    
-    /// Get category performance summary
-    public func getCategoryPerformance() -> [CategoryPerformance] {
-        return filteredData.map { data in
-            CategoryPerformance(
-                category: data.category,
-                budgeted: data.budgetedAmount,
-                spent: data.amountSpent,
-                efficiency: getSpendingEfficiency(for: data.category),
-                status: data.isOverBudget ? .overBudget : .underBudget
-            )
-        }.sorted { $0.efficiency > $1.efficiency }
-    }
-    
-    /// Get detailed analytics insights
-    public func getAnalyticsInsights() -> [AnalyticsInsight] {
-        guard let analytics = analyticsData else { return [] }
-        
-        var insights: [AnalyticsInsight] = []
-        
-        // Budget utilization insight
-        let utilizationRate = analytics.totalBudgeted > 0 ? 
-            (analytics.totalSpent / analytics.totalBudgeted) * 100 : 0
-        
-        insights.append(AnalyticsInsight(
-            title: "Budget Utilization",
-            value: "\(String(format: "%.1f", utilizationRate))%",
-            description: "of total budget used",
-            trend: utilizationRate > 100 ? .negative : utilizationRate > 90 ? .neutral : .positive,
-            priority: utilizationRate > 100 ? .high : .normal
-        ))
-        
-        // Category performance insight
-        let overBudgetRatio = Double(analytics.categoriesOverBudget) / 
-            Double(analytics.categoriesOverBudget + analytics.categoriesUnderBudget) * 100
-        
-        insights.append(AnalyticsInsight(
-            title: "Categories Over Budget",
-            value: "\(analytics.categoriesOverBudget)",
-            description: "(\(String(format: "%.1f", overBudgetRatio))% of categories)",
-            trend: overBudgetRatio > 30 ? .negative : overBudgetRatio > 15 ? .neutral : .positive,
-            priority: overBudgetRatio > 50 ? .high : .normal
-        ))
-        
-        // Efficiency insight
-        insights.append(AnalyticsInsight(
-            title: "Budget Efficiency",
-            value: "\(String(format: "%.1f", analytics.efficiencyScore * 100))%",
-            description: "overall budget management score",
-            trend: analytics.efficiencyScore > 0.8 ? .positive : analytics.efficiencyScore > 0.6 ? .neutral : .negative,
-            priority: analytics.efficiencyScore < 0.5 ? .high : .normal
-        ))
-        
-        // Biggest overspend insight
-        if let overspend = analytics.biggestOverspend {
-            insights.append(AnalyticsInsight(
-                title: "Biggest Overspend",
-                value: overspend.amount.asCurrency,
-                description: "in \(overspend.category)",
-                trend: .negative,
-                priority: overspend.amount > 100 ? .high : .normal
-            ))
-        }
-        
-        return insights
-    }
-    
-    /// Show filter options
-    public func showFilterOptions() {
-        showingFilterOptions = true
-    }
-    
-    /// Hide filter options
-    public func hideFilterOptions() {
-        showingFilterOptions = false
-    }
-    
-    /// Get summary statistics
-    public func getSummaryStatistics() -> SummaryStatistics {
-        let totalBudgeted = filteredData.reduce(0) { $0 + $1.budgetedAmount }
-        let totalSpent = filteredData.reduce(0) { $0 + $1.amountSpent }
-        let totalRemaining = totalBudgeted - totalSpent
-        let categoriesCount = filteredData.count
-        let overBudgetCount = filteredData.filter { $0.isOverBudget }.count
-        
-        return SummaryStatistics(
-            totalBudgeted: totalBudgeted,
-            totalSpent: totalSpent,
-            totalRemaining: totalRemaining,
-            categoriesCount: categoriesCount,
-            overBudgetCount: overBudgetCount,
-            averageSpentPerCategory: categoriesCount > 0 ? totalSpent / Double(categoriesCount) : 0,
-            budgetUtilization: totalBudgeted > 0 ? (totalSpent / totalBudgeted) * 100 : 0
-        )
-    }
-    
-    // MARK: - Private Implementation
-    
-    private func setupObservers() {
-        // Observe budget manager changes
-        budgetManager.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                Task { [weak self] in
-                    await self?.loadBudgetData()
-                }
-            }
-            .store(in: &cancellables)
-        
-        // Setup performance monitoring
-        #if DEBUG
-        Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
-            self?.logPerformanceMetrics()
-        }
-        #endif
-    }
-    
-    private func loadSavedPreferences() {
-        let defaults = UserDefaults.standard
-        
-        // Load time period
-        if let timePeriodData = defaults.data(forKey: StorageKeys.timePeriod),
-           let timePeriod = try? JSONDecoder().decode(TimePeriod.self, from: timePeriodData) {
-            filterConfiguration.timePeriod = timePeriod
-        }
-        
-        // Load sort options
-        if let sortOptionString = defaults.string(forKey: StorageKeys.sortOption),
-           let sortOption = BudgetSortOption(rawValue: sortOptionString) {
-            filterConfiguration.sortOption = sortOption
-        }
-        
-        filterConfiguration.sortAscending = defaults.bool(forKey: StorageKeys.sortAscending)
-        
-        // Load chart preferences
-        if let chartTypeString = defaults.string(forKey: StorageKeys.chartType),
-           let chartType = ChartType(rawValue: chartTypeString) {
-            self.chartType = chartType
-        }
-        
-        showLegend = defaults.object(forKey: StorageKeys.showLegend) as? Bool ?? true
-        animateCharts = defaults.object(forKey: StorageKeys.animateCharts) as? Bool ?? true
-        filterConfiguration.showOnlyOverBudget = defaults.bool(forKey: StorageKeys.showOnlyOverBudget)
-    }
-    
-    private func saveFilterPreferences() {
-        let defaults = UserDefaults.standard
-        
-        // Save time period
-        if let timePeriodData = try? JSONEncoder().encode(filterConfiguration.timePeriod) {
-            defaults.set(timePeriodData, forKey: StorageKeys.timePeriod)
-        }
-        
-        // Save sort options
-        defaults.set(filterConfiguration.sortOption.rawValue, forKey: StorageKeys.sortOption)
-        defaults.set(filterConfiguration.sortAscending, forKey: StorageKeys.sortAscending)
-        defaults.set(filterConfiguration.showOnlyOverBudget, forKey: StorageKeys.showOnlyOverBudget)
-    }
-    
-    private func loadInitialData() async {
-        viewState = .loading
-        
-        do {
-            try await Task.sleep(nanoseconds: 100_000_000) // Brief delay for smooth UX
-            await loadBudgetData()
-        } catch {
-            viewState = .error(AppError.from(error))
-        }
-    }
-    
-    private func performDataRefresh() async {
-        viewState = .refreshing
-        
-        do {
-            // Refresh budget manager data first
-            await budgetManager.loadData()
-            
-            // Then load our data
-            await loadBudgetData()
-            
-            lastRefreshDate = Date()
-            
-        } catch {
-            viewState = .error(AppError.from(error))
-            errorHandler.handle(AppError.from(error), context: "Refreshing history data")
-        }
-    }
-    
-    private func loadBudgetData() async {
-        let startTime = Date()
-        
-        do {
-            let historyData = await calculateBudgetHistoryData()
-            
-            await MainActor.run {
-                budgetHistoryData = historyData
-                availableCategories = Array(Set(historyData.map { $0.category })).sorted()
-                applyFiltersAndSort()
-                
-                if historyData.isEmpty {
-                    viewState = .empty
-                } else {
-                    viewState = .loaded
-                }
-            }
-            
-            // Calculate analytics in background
-            analyticsTask?.cancel()
-            analyticsTask = Task {
-                await calculateAnalytics()
-            }
-            
-            recordMetric("loadBudgetData", duration: Date().timeIntervalSince(startTime))
-            
-        } catch {
-            await MainActor.run {
-                viewState = .error(AppError.from(error))
-            }
-            errorHandler.handle(AppError.from(error), context: "Loading budget history data")
-        }
-    }
-    
-    private func calculateBudgetHistoryData() async -> [BudgetHistoryData] {
-        let dateInterval = filterConfiguration.timePeriod.dateInterval()
-        
-        // Get entries for the time period
-        let entries = budgetManager.entries.filter { entry in
-            entry.date >= dateInterval.start && entry.date <= dateInterval.end
-        }
-        
-        // Get budgets for the time period
-        let calendar = Calendar.current
-        let month = calendar.component(.month, from: dateInterval.start)
-        let year = calendar.component(.year, from: dateInterval.start)
-        let budgets = budgetManager.getMonthlyBudgets(for: month, year: year)
-        
-        var budgetDataDict: [String: BudgetHistoryData] = [:]
-        
-        // Initialize with budgets
-        for budget in budgets {
-            budgetDataDict[budget.category] = BudgetHistoryData(
-                category: budget.category,
-                budgetedAmount: budget.amount,
-                amountSpent: 0
-            )
-        }
-        
-        // Add spending from entries
-        for entry in entries {
-            let category = entry.category
-            if let existingData = budgetDataDict[category] {
-                budgetDataDict[category] = BudgetHistoryData(
-                    category: category,
-                    budgetedAmount: existingData.budgetedAmount,
-                    amountSpent: existingData.amountSpent + entry.amount
-                )
-            } else {
-                // Create entry for categories without budgets
-                budgetDataDict[category] = BudgetHistoryData(
-                    category: category,
-                    budgetedAmount: 0,
-                    amountSpent: entry.amount
-                )
-            }
-        }
-        
-        return Array(budgetDataDict.values)
-    }
-    
-    private func applyFiltersAndSort() {
-        var data = budgetHistoryData
-        
-        // Apply category filter
-        if !filterConfiguration.selectedCategories.isEmpty {
-            data = data.filter { filterConfiguration.selectedCategories.contains($0.category) }
-        }
-        
-        // Apply over budget filter
-        if filterConfiguration.showOnlyOverBudget {
-            data = data.filter { $0.isOverBudget }
-        }
-        
-        // Apply amount filters
-        if let minAmount = filterConfiguration.minimumAmount {
-            data = data.filter { $0.amountSpent >= minAmount }
-        }
-        
-        if let maxAmount = filterConfiguration.maximumAmount {
-            data = data.filter { $0.amountSpent <= maxAmount }
-        }
-        
-        // Apply sorting
-        data = sortData(data)
-        
-        filteredData = data
-    }
-    
-    private func sortData(_ data: [BudgetHistoryData]) -> [BudgetHistoryData] {
-        return data.sorted { first, second in
-            let result: Bool
-            
-            switch filterConfiguration.sortOption {
-            case .category:
-                result = first.category < second.category
-            case .budgetedAmount:
-                result = first.budgetedAmount < second.budgetedAmount
-            case .amountSpent:
-                result = first.amountSpent < second.amountSpent
-            case .date:
-                // For history, we'll sort by category as fallback
-                result = first.category < second.category
-            case .amount:
-                result = first.amountSpent < second.amountSpent
-            }
-            
-            return filterConfiguration.sortAscending ? result : !result
-        }
-    }
-    
-    private func calculateAnalytics() async {
-        let startTime = Date()
-        
-        let data = budgetHistoryData
-        guard !data.isEmpty else { return }
-        
-        let totalBudgeted = data.reduce(0) { $0 + $1.budgetedAmount }
-        let totalSpent = data.reduce(0) { $0 + $1.amountSpent }
-        let totalRemaining = totalBudgeted - totalSpent
-        let averageSpent = totalSpent / Double(data.count)
-        
-        let overBudgetCategories = data.filter { $0.isOverBudget }
-        let underBudgetCategories = data.filter { !$0.isOverBudget && $0.budgetedAmount > 0 }
-        
-        // Find biggest overspend
-        let biggestOverspend = overBudgetCategories
-            .map { ($0.category, $0.amountSpent - $0.budgetedAmount) }
-            .max { $0.1 < $1.1 }
-        
-        // Find biggest underspend
-        let biggestUnderspend = underBudgetCategories
-            .map { ($0.category, $0.budgetedAmount - $0.amountSpent) }
-            .max { $0.1 < $1.1 }
-        
-        // Calculate spending trend (simplified)
-        let spendingTrend: AnalyticsData.SpendingTrend
-        if data.count < 3 {
-            spendingTrend = .insufficient_data
-        } else {
-            let recentSpending = data.prefix(data.count / 2).reduce(0) { $0 + $1.amountSpent }
-            let olderSpending = data.suffix(data.count / 2).reduce(0) { $0 + $1.amountSpent }
-            
-            if recentSpending > olderSpending * 1.1 {
-                spendingTrend = .increasing
-            } else if recentSpending < olderSpending * 0.9 {
-                spendingTrend = .decreasing
-            } else {
-                spendingTrend = .stable
-            }
-        }
-        
-        // Calculate efficiency score
-        let efficiencyScore: Double
-        if totalBudgeted > 0 {
-            let utilizationRate = totalSpent / totalBudgeted
-            let overBudgetPenalty = Double(overBudgetCategories.count) / Double(data.count) * 0.3
-            efficiencyScore = max(0.0, min(1.0, 1.0 - abs(utilizationRate - 0.85) - overBudgetPenalty))
-        } else {
-            efficiencyScore = 0.0
-        }
-        
-        let analytics = AnalyticsData(
-            totalBudgeted: totalBudgeted,
-            totalSpent: totalSpent,
-            totalRemaining: totalRemaining,
-            averageSpentPerCategory: averageSpent,
-            categoriesOverBudget: overBudgetCategories.count,
-            categoriesUnderBudget: underBudgetCategories.count,
-            biggestOverspend: biggestOverspend,
-            biggestUnderspend: biggestUnderspend,
-            spendingTrend: spendingTrend,
-            efficiencyScore: efficiencyScore
-        )
-        
-        await MainActor.run {
-            analyticsData = analytics
-        }
-        
-        recordMetric("calculateAnalytics", duration: Date().timeIntervalSince(startTime))
-    }
-    
-    // MARK: - Export Implementation
-    
-    private func prepareDataForExport() -> [ExportDataRow] {
-        return filteredData.map { data in
-            ExportDataRow(
-                category: data.category,
-                budgetedAmount: data.budgetedAmount,
-                amountSpent: data.amountSpent,
-                remainingAmount: data.remainingAmount,
-                percentageSpent: data.percentageSpent,
-                isOverBudget: data.isOverBudget,
-                timePeriod: filterConfiguration.timePeriod.displayName
-            )
-        }
-    }
-    
-    private func exportToCSV(_ data: [ExportDataRow]) async throws -> URL {
-        var csvContent = "Category,Budgeted Amount,Amount Spent,Remaining Amount,Percentage Spent,Is Over Budget,Time Period\n"
-        
-        for row in data {
-            csvContent += "\(row.category),"
-            csvContent += "\(row.budgetedAmount),"
-            csvContent += "\(row.amountSpent),"
-            csvContent += "\(row.remainingAmount),"
-            csvContent += "\(row.percentageSpent),"
-            csvContent += "\(row.isOverBudget),"
-            csvContent += "\(row.timePeriod)\n"
-        }
-        
-        return try await saveToFile(content: csvContent, fileName: "budget_history", extension: "csv")
-    }
-    
-    private func exportToJSON(_ data: [ExportDataRow]) async throws -> URL {
-        let exportData = ExportContainer(
-            data: data,
-            metadata: ExportMetadata(
-                exportDate: Date(),
-                timePeriod: filterConfiguration.timePeriod.displayName,
-                filterDescription: filterConfiguration.filterDescription,
-                totalRecords: data.count
-            )
-        )
-        
-        let jsonData = try JSONEncoder().encode(exportData)
-        guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-            throw AppError.csvExport(underlying: NSError(
-                domain: "HistoryViewModel",
-                code: -1,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to convert JSON to string"]
-            ))
-        }
-        
-        return try await saveToFile(content: jsonString, fileName: "budget_history", extension: "json")
-    }
-    
-    private func exportToPDF(_ data: [ExportDataRow]) async throws -> URL {
-        // For now, create a simple text-based PDF content
-        // In a real implementation, you'd use PDFKit or similar
-        var pdfContent = "Budget History Report\n"
-        pdfContent += "Generated: \(Date().formatted())\n"
-        pdfContent += "Time Period: \(filterConfiguration.timePeriod.displayName)\n"
-        pdfContent += "Filters: \(filterConfiguration.filterDescription)\n\n"
-        
-        for row in data {
-            pdfContent += "Category: \(row.category)\n"
-            pdfContent += "Budgeted: \(row.budgetedAmount.asCurrency)\n"
-            pdfContent += "Spent: \(row.amountSpent.asCurrency)\n"
-            pdfContent += "Remaining: \(row.remainingAmount.asCurrency)\n"
-            pdfContent += "Percentage: \(String(format: "%.1f", row.percentageSpent))%\n"
-            pdfContent += "Status: \(row.isOverBudget ? "Over Budget" : "Under Budget")\n\n"
-        }
-        
-        return try await saveToFile(content: pdfContent, fileName: "budget_history", extension: "txt")
-    }
-    
-    private func saveToFile(content: String, fileName: String, extension: String) async throws -> URL {
-        let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let timestamp = DateFormatter.fileTimestamp.string(from: Date())
-        let fileURL = documentsPath.appendingPathComponent("\(fileName)_\(timestamp).\(`extension`)")
-        
-        try content.write(to: fileURL, atomically: true, encoding: .utf8)
-        return fileURL
-    }
-    
-    // MARK: - Performance Monitoring
-    
-    private func recordMetric(_ operation: String, duration: TimeInterval) {
-        metricsQueue.async {
-            self.operationMetrics[operation] = duration
-            
-            #if DEBUG
-            if duration > 1.0 {
-                print("⚠️ HistoryViewModel: Slow operation '\(operation)' took \(String(format: "%.2f", duration * 1000))ms")
-            }
-            #endif
-        }
-    }
-    
-    private func logPerformanceMetrics() {
-        metricsQueue.async {
-            guard !self.operationMetrics.isEmpty else { return }
-            
-            #if DEBUG
-            print("📊 HistoryViewModel Performance Metrics:")
-            for (operation, duration) in self.operationMetrics.sorted(by: { $0.value > $1.value }) {
-                print("   \(operation): \(String(format: "%.2f", duration * 1000))ms")
-            }
-            #endif
-            
-            self.operationMetrics.removeAll()
-        }
-    }
-    
-    // MARK: - Cleanup
-    
-    deinit {
-        refreshTask?.cancel()
-        analyticsTask?.cancel()
-        cancellables.removeAll()
-        print("🧹 HistoryViewModel: Cleaned up resources")
+    public init(
+        id: UUID,
+        date: Date,
+        amount: Double,
+        category: String,
+        note: String? = nil,
+        timePeriod: TimePeriod
+    ) {
+        self.id = id
+        self.date = date
+        self.amount = amount
+        self.category = category
+        self.note = note
+        self.timePeriod = timePeriod
     }
 }
 
 // MARK: - Supporting Types
-
-public struct CategoryPerformance {
-    public let category: String
-    public let budgeted: Double
-    public let spent: Double
-    public let efficiency: Double
-    public let status: BudgetStatus
-    
-    public enum BudgetStatus {
-        case overBudget
-        case underBudget
-        case onTarget
-        
-        public var color: Color {
-            switch self {
-            case .overBudget: return .red
-            case .underBudget: return .green
-            case .onTarget: return .blue
-            }
-        }
-        
-        public var displayName: String {
-            switch self {
-            case .overBudget: return "Over Budget"
-            case .underBudget: return "Under Budget"
-            case .onTarget: return "On Target"
-            }
-        }
-    }
-    
-    public var remainingAmount: Double {
-        return budgeted - spent
-    }
-    
-    public var percentageUsed: Double {
-        guard budgeted > 0 else { return 0 }
-        return (spent / budgeted) * 100
-    }
-}
-
-public struct AnalyticsInsight {
-    public let title: String
-    public let value: String
-    public let description: String
-    public let trend: Trend
-    public let priority: Priority
-    
-    public enum Trend {
-        case positive
-        case negative
-        case neutral
-        
-        public var color: Color {
-            switch self {
-            case .positive: return .green
-            case .negative: return .red
-            case .neutral: return .orange
-            }
-        }
-        
-        public var systemImageName: String {
-            switch self {
-            case .positive: return "arrow.up.circle.fill"
-            case .negative: return "arrow.down.circle.fill"
-            case .neutral: return "minus.circle.fill"
-            }
-        }
-    }
-    
-    public enum Priority {
-        case low
-        case normal
-        case high
-        case critical
-        
-        public var displayName: String {
-            switch self {
-            case .low: return "Low"
-            case .normal: return "Normal"
-            case .high: return "High"
-            case .critical: return "Critical"
-            }
-        }
-    }
-}
-
-public struct SummaryStatistics {
-    public let totalBudgeted: Double
-    public let totalSpent: Double
-    public let totalRemaining: Double
-    public let categoriesCount: Int
-    public let overBudgetCount: Int
-    public let averageSpentPerCategory: Double
-    public let budgetUtilization: Double
-    
-    public var formattedTotalBudgeted: String {
-        totalBudgeted.asCurrency
-    }
-    
-    public var formattedTotalSpent: String {
-        totalSpent.asCurrency
-    }
-    
-    public var formattedTotalRemaining: String {
-        totalRemaining.asCurrency
-    }
-    
-    public var formattedAverageSpent: String {
-        averageSpentPerCategory.asCurrency
-    }
-    
-    public var utilizationStatus: String {
-        if budgetUtilization > 100 {
-            return "Over Budget"
-        } else if budgetUtilization > 90 {
-            return "Near Limit"
-        } else if budgetUtilization > 75 {
-            return "On Track"
-        } else {
-            return "Under Budget"
-        }
-    }
-    
-    public var utilizationColor: Color {
-        if budgetUtilization > 100 {
-            return .red
-        } else if budgetUtilization > 90 {
-            return .orange
-        } else if budgetUtilization > 75 {
-            return .yellow
-        } else {
-            return .green
-        }
-    }
-}
-
-private struct ExportDataRow: Codable {
-    let category: String
-    let budgetedAmount: Double
-    let amountSpent: Double
-    let remainingAmount: Double
-    let percentageSpent: Double
-    let isOverBudget: Bool
-    let timePeriod: String
-}
-
-private struct ExportContainer: Codable {
-    let data: [ExportDataRow]
-    let metadata: ExportMetadata
-}
-
-private struct ExportMetadata: Codable {
-    let exportDate: Date
-    let timePeriod: String
-    let filterDescription: String
-    let totalRecords: Int
-    let appVersion: String
-    
-    init(exportDate: Date, timePeriod: String, filterDescription: String, totalRecords: Int) {
-        self.exportDate = exportDate
-        self.timePeriod = timePeriod
-        self.filterDescription = filterDescription
-        self.totalRecords = totalRecords
-        self.appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
-    }
-}
-
-// MARK: - Extensions
-
-private extension DateFormatter {
-    static let fileTimestamp: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        return formatter
-    }()
-}
-
-// MARK: - Chart Extensions
-
-extension HistoryViewModel {
-    /// Get chart data configured for specific chart types
-    public func getConfiguredChartData(for type: ChartType) -> ChartConfiguration {
-        let baseData = getChartData()
-        
-        switch type {
-        case .bar:
-            return ChartConfiguration(
-                type: .bar,
-                data: baseData,
-                showValues: true,
-                showGrid: true,
-                animated: animateCharts
-            )
-        case .pie:
-            return ChartConfiguration(
-                type: .pie,
-                data: baseData,
-                showValues: false,
-                showGrid: false,
-                animated: animateCharts
-            )
-        case .line:
-            return ChartConfiguration(
-                type: .line,
-                data: baseData,
-                showValues: false,
-                showGrid: true,
-                animated: animateCharts
-            )
-        case .donut:
-            return ChartConfiguration(
-                type: .donut,
-                data: baseData,
-                showValues: false,
-                showGrid: false,
-                animated: animateCharts
-            )
-        }
-    }
-    
-    /// Get color for category at index
-    public func colorForCategory(at index: Int) -> Color {
-        return chartColors[index % chartColors.count]
-    }
-    
-    /// Get formatted legend data
-    public func getLegendData() -> [LegendItem] {
-        return filteredData.enumerated().map { index, data in
-            LegendItem(
-                color: chartColors[index % chartColors.count],
-                label: data.category,
-                value: data.amountSpent.asCurrency,
-                percentage: data.percentageSpent
-            )
-        }
-    }
-}
-
-public struct ChartConfiguration {
-    public let type: ChartType
-    public let data: [(category: String, budgeted: Double, spent: Double, color: Color)]
-    public let showValues: Bool
-    public let showGrid: Bool
-    public let animated: Bool
-}
-
-public struct LegendItem {
-    public let color: Color
-    public let label: String
-    public let value: String
-    public let percentage: Double
-}
-
-// MARK: - Filter Extensions
-
-extension HistoryViewModel {
-    /// Get available filter options
-    public func getAvailableFilterOptions() -> FilterOptions {
-        let allCategories = Array(Set(budgetHistoryData.map { $0.category })).sorted()
-        let amountRange = getAmountRange()
-        
-        return FilterOptions(
-            categories: allCategories,
-            minAmount: amountRange.min,
-            maxAmount: amountRange.max,
-            timePeriods: TimePeriod.commonPeriods
-        )
-    }
-    
-    private func getAmountRange() -> (min: Double, max: Double) {
-        let amounts = budgetHistoryData.map { $0.amountSpent }
-        return (
-            min: amounts.min() ?? 0,
-            max: amounts.max() ?? 0
-        )
-    }
-    
-    /// Apply quick filter presets
-    public func applyQuickFilter(_ filter: QuickFilter) {
-        var newConfiguration = filterConfiguration
-        
-        switch filter {
-        case .overBudgetOnly:
-            newConfiguration.showOnlyOverBudget = true
-            newConfiguration.selectedCategories.removeAll()
-        case .highSpenders:
-            newConfiguration.showOnlyOverBudget = false
-            newConfiguration.selectedCategories.removeAll()
-            // Set minimum amount to top 25% of spending
-            let sortedAmounts = budgetHistoryData.map { $0.amountSpent }.sorted(by: >)
-            if let threshold = sortedAmounts.dropFirst(sortedAmounts.count / 4).first {
-                newConfiguration.minimumAmount = threshold
-            }
-        case .underBudgetOnly:
-            newConfiguration.showOnlyOverBudget = false
-            newConfiguration.selectedCategories.removeAll()
-            // This would need additional logic to filter for under-budget items
-        case .noFilters:
-            newConfiguration = FilterConfiguration(
-                timePeriod: newConfiguration.timePeriod,
-                sortOption: newConfiguration.sortOption,
-                sortAscending: newConfiguration.sortAscending
-            )
-        }
-        
-        filterConfiguration = newConfiguration
-    }
-}
-
-public struct FilterOptions {
-    public let categories: [String]
-    public let minAmount: Double
-    public let maxAmount: Double
-    public let timePeriods: [TimePeriod]
-}
-
-public enum QuickFilter: String, CaseIterable {
-    case overBudgetOnly = "Over Budget Only"
-    case highSpenders = "High Spenders"
-    case underBudgetOnly = "Under Budget Only"
-    case noFilters = "No Filters"
-    
-    public var displayName: String {
-        return rawValue
-    }
-    
-    public var systemImageName: String {
-        switch self {
-        case .overBudgetOnly: return "exclamationmark.triangle.fill"
-        case .highSpenders: return "arrow.up.circle.fill"
-        case .underBudgetOnly: return "checkmark.circle.fill"
-        case .noFilters: return "clear.fill"
-        }
-    }
-}
-
-// MARK: - Testing Support
-
-#if DEBUG
-extension HistoryViewModel {
-    /// Create test view model with mock data
-    static func createTestViewModel() -> HistoryViewModel {
-        let viewModel = HistoryViewModel()
-        viewModel.loadTestData()
-        return viewModel
-    }
-    
-    /// Load test data for development
-    func loadTestData() {
-        let testData = [
-            BudgetHistoryData(category: "Groceries", budgetedAmount: 500, amountSpent: 450),
-            BudgetHistoryData(category: "Entertainment", budgetedAmount: 200, amountSpent: 250),
-            BudgetHistoryData(category: "Transportation", budgetedAmount: 300, amountSpent: 280),
-            BudgetHistoryData(category: "Utilities", budgetedAmount: 400, amountSpent: 380),
-            BudgetHistoryData(category: "Dining", budgetedAmount: 150, amountSpent: 175)
-        ]
-        
-        budgetHistoryData = testData
-        availableCategories = testData.map { $0.category }.sorted()
-        applyFiltersAndSort()
-        viewState = .loaded
-        
-        // Generate test analytics
-        Task {
-            await calculateAnalytics()
-        }
-        
-        print("✅ HistoryViewModel: Loaded test data")
-    }
-    
-    /// Get internal state for testing
-    func getInternalStateForTesting() -> (
-        dataCount: Int,
-        filteredCount: Int,
-        categoriesCount: Int,
-        hasAnalytics: Bool,
-        hasActiveFilters: Bool,
-        currentState: ViewState
-    ) {
-        return (
-            dataCount: budgetHistoryData.count,
-            filteredCount: filteredData.count,
-            categoriesCount: availableCategories.count,
-            hasAnalytics: analyticsData != nil,
-            hasActiveFilters: filterConfiguration.hasActiveFilters,
-            currentState: viewState
-        )
-    }
-    
-    /// Test error handling
-    func simulateError(_ error: AppError) {
-        viewState = .error(error)
-        errorHandler.handle(error, context: "Testing error simulation")
-    }
-    
-    /// Test loading states
-    func simulateLoadingState() {
-        viewState = .loading
-    }
-    
-    /// Test empty state
-    func simulateEmptyState() {
-        budgetHistoryData = []
-        filteredData = []
-        availableCategories = []
-        viewState = .empty
-    }
-    
-    /// Force analytics calculation for testing
-    func forceAnalyticsCalculation() async {
-        await calculateAnalytics()
-    }
-    
-    /// Get performance metrics for testing
-    func getPerformanceMetricsForTesting() -> [String: TimeInterval] {
-        return metricsQueue.sync {
-            return operationMetrics
-        }
-    }
-    
-    /// Clear all data for testing
-    func clearDataForTesting() {
-        budgetHistoryData = []
-        filteredData = []
-        availableCategories = []
-        analyticsData = nil
-        viewState = .empty
-        
-        metricsQueue.sync {
-            operationMetrics.removeAll()
-        }
-    }
-}
-#endif

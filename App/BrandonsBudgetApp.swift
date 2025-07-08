@@ -33,7 +33,7 @@ struct BrandonsBudgetApp: App {
                 if isInitializing {
                     LaunchScreenView(error: initializationError)
                         .onAppear {
-                            Task {
+                            Task<Void, Never> {
                                 await performAppInitialization()
                             }
                         }

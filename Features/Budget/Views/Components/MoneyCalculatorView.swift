@@ -140,7 +140,7 @@ public struct MoneyCalculatorView: View {
             titleVisibility: .visible
         ) {
             Button("Confirm \(currentAmount.asCurrency)") {
-                Task { await saveAmount() }
+                Task<Void, Never>{ await saveAmount() }
             }
             Button("Edit Amount", role: .cancel) {
                 showingConfirmation = false
@@ -377,7 +377,7 @@ public struct MoneyCalculatorView: View {
         if currentAmount >= 100 {
             showingConfirmation = true
         } else {
-            Task {
+            Task<Void, Never>{
                 await saveAmount()
             }
         }
@@ -467,16 +467,6 @@ public struct MoneyCalculatorView: View {
     }
 }
 
-// MARK: - Extensions
-
-private extension Double {
-    var asCurrency: String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.locale = Locale.current
-        return formatter.string(from: NSNumber(value: self)) ?? "$\(String(format: "%.2f", self))"
-    }
-}
 
 // MARK: - Accessibility Extensions
 
@@ -487,7 +477,7 @@ extension MoneyCalculatorView {
             .accessibilityElement(children: .contain)
             .accessibilityAction(.default) {
                 if canSave {
-                    Task {
+                    Task<Void, Never>{
                         await saveAmount()
                     }
                 }

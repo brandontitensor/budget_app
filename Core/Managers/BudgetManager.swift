@@ -100,7 +100,7 @@ public final class BudgetManager: ObservableObject {
     // MARK: - Initialization
     private init() {
         setupNotifications()
-        Task {
+       Task<Void, Never>{
             await loadInitialData()
         }
     }
@@ -117,7 +117,7 @@ public final class BudgetManager: ObservableObject {
         // App lifecycle notifications
         NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)
             .sink { [weak self] _ in
-                Task { [weak self] in
+               Task<Void, Never>{ [weak self] in
                     try? await self?.saveCurrentState()
                 }
             }
@@ -125,7 +125,7 @@ public final class BudgetManager: ObservableObject {
         
         NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
             .sink { [weak self] _ in
-                Task { [weak self] in
+               Task<Void, Never>{ [weak self] in
                     try? await self?.performBackgroundSave()
                 }
             }
@@ -491,7 +491,7 @@ public final class BudgetManager: ObservableObject {
     
     private func updateWidgetData() {
         debouncer.run { [weak self] in
-            Task { [weak self] in
+           Task<Void, Never>{ [weak self] in
                 await self?.performWidgetDataUpdate()
             }
         }
