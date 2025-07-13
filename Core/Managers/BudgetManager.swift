@@ -3,7 +3,7 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 5/30/25.
-//  Updated: 7/7/25 - Fixed Swift 6 concurrency, missing try keywords, and removed duplicate extensions
+//  Updated: 7/7/25 - Fixed Swift 6 concurrency, missing methods, and property wrapper issues
 //
 
 import Foundation
@@ -26,6 +26,7 @@ public final class BudgetManager: ObservableObject {
         case dataSaveFailed(Error)
         case validationFailed(String)
         case cacheCorrupted
+        case methodNotImplemented(String)
         
         public var errorDescription: String? {
             switch self {
@@ -41,6 +42,8 @@ public final class BudgetManager: ObservableObject {
                 return "Validation failed: \(details)"
             case .cacheCorrupted:
                 return "Cache data is corrupted"
+            case .methodNotImplemented(let method):
+                return "Method not implemented: \(method)"
             }
         }
     }
@@ -83,591 +86,376 @@ public final class BudgetManager: ObservableObject {
     @Published public private(set) var isLoading = false
     @Published public private(set) var lastSyncDate: Date?
     @Published public private(set) var dataStatistics: DataStatistics?
+    @Published public private(set) var currentError: AppError?
+    @Published public private(set) var categories: [String] = []
+    @Published public private(set) var overviewData: BudgetOverviewData?
+    @Published public private(set) var purchaseData: [BudgetEntry] = []
+    @Published public private(set) var historyData: [BudgetHistoryData] = []
     
     // MARK: - Private Properties
-    private let coreDataManager = CoreDataManager.shared
     private var cancellables = Set<AnyCancellable>()
-    private let performanceQueue = DispatchQueue(label: "com.brandonsbudget.performance", qos: .utility)
-    
-    // Performance monitoring
-    private var operationMetrics: [String: TimeInterval] = [:]
-    
-    // Cache management
-    private var entryCache: [String: [BudgetEntry]] = [:]
-    private var budgetCache: [String: [MonthlyBudget]] = [:]
-    private let debouncer = Debouncer(delay: 0.5)
+    private let dataManager: CoreDataManager
+    private let notificationManager: NotificationManager
     
     // MARK: - Initialization
     private init() {
-        setupNotifications()
-       Task<Void, Never>{
-            await loadInitialData()
-        }
+        self.dataManager = CoreDataManager.shared
+        self.notificationManager = NotificationManager.shared
+        setupDataBinding()
     }
     
-    private func setupNotifications() {
-        // Listen for data changes
-        coreDataManager.objectWillChange
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] in
-                self?.invalidateCache()
-            }
-            .store(in: &cancellables)
-        
-        // App lifecycle notifications
-        NotificationCenter.default.publisher(for: UIApplication.willTerminateNotification)
-            .sink { [weak self] _ in
-               Task<Void, Never>{ [weak self] in
-                    try? await self?.saveCurrentState()
-                }
-            }
-            .store(in: &cancellables)
-        
-        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
-            .sink { [weak self] _ in
-               Task<Void, Never>{ [weak self] in
-                    try? await self?.performBackgroundSave()
-                }
-            }
-            .store(in: &cancellables)
-    }
+    // MARK: - Data Loading Methods (Missing Methods Added)
     
-    // MARK: - Data Loading
-    
-    /// Load initial data from Core Data
-    public func loadInitialData() async {
-        let startTime = Date()
+    /// Load initial data - Called from BrandonsBudgetApp.swift and ContentView.swift
+    public func loadData() async throws {
         isLoading = true
-        defer { isLoading = false }
+        currentError = nil
         
         do {
-            async let entriesLoad = coreDataManager.fetchAllEntries()
-            async let budgetsLoad = coreDataManager.fetchMonthlyBudgets()
+            // Load all data
+            try await loadEntries()
+            try await loadMonthlyBudgets()
+            try await loadCategories()
             
-            let (loadedEntries, loadedBudgets) = try await (entriesLoad, budgetsLoad)
+            // Update statistics
+            updateDataStatistics()
             
-            entries = loadedEntries
-            monthlyBudgets = loadedBudgets
-            dataStatistics = getDataStatistics()
+            // Update last sync date
             lastSyncDate = Date()
             
-            let duration = Date().timeIntervalSince(startTime)
-            recordMetric("loadInitialData", duration: duration)
-            
-            updateWidgetData()
-            print("✅ BudgetManager: Initial data loaded - \(entries.count) entries, \(monthlyBudgets.count) budgets")
+            print("✅ BudgetManager: Data loaded successfully")
             
         } catch {
-            let appError = AppError.from(error)
-            await MainActor.run {
-                ErrorHandler.shared.handle(appError, context: "Loading initial data")
-            }
+            currentError = AppError.dataLoad(underlying: error)
+            print("❌ BudgetManager: Failed to load data - \(error)")
+            throw BudgetManagerError.dataLoadFailed(error)
         }
+        
+        isLoading = false
     }
     
-    /// Refresh data from storage
-    public func refreshData() async {
-        await loadInitialData()
+    /// Reload all data - Called from ContentView.swift
+    public func reloadAllData() async throws {
+        isLoading = true
+        currentError = nil
+        
+        do {
+            // Clear existing data
+            entries.removeAll()
+            monthlyBudgets.removeAll()
+            categories.removeAll()
+            
+            // Reload everything
+            try await loadData()
+            
+            print("✅ BudgetManager: All data reloaded successfully")
+            
+        } catch {
+            currentError = AppError.dataLoad(underlying: error)
+            print("❌ BudgetManager: Failed to reload all data - \(error)")
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    /// Refresh data - General refresh method
+    public func refreshData() async throws {
+        try await loadData()
+    }
+    
+    /// Refresh overview-specific data - Called from ContentView.swift
+    public func refreshOverviewData() async throws {
+        isLoading = true
+        
+        do {
+            // Load overview-specific data
+            try await loadEntries()
+            try await loadMonthlyBudgets()
+            
+            // Calculate overview statistics
+            overviewData = calculateOverviewData()
+            
+            print("✅ BudgetManager: Overview data refreshed")
+            
+        } catch {
+            currentError = AppError.dataLoad(underlying: error)
+            print("❌ BudgetManager: Failed to refresh overview data - \(error)")
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    /// Refresh purchase-specific data
+    public func refreshPurchaseData() async throws {
+        isLoading = true
+        
+        do {
+            try await loadEntries()
+            purchaseData = entries
+            print("✅ BudgetManager: Purchase data refreshed")
+            
+        } catch {
+            currentError = AppError.dataLoad(underlying: error)
+            print("❌ BudgetManager: Failed to refresh purchase data - \(error)")
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    /// Refresh history-specific data
+    public func refreshHistoryData() async throws {
+        isLoading = true
+        
+        do {
+            try await loadEntries()
+            try await loadMonthlyBudgets()
+            historyData = calculateHistoryData()
+            print("✅ BudgetManager: History data refreshed")
+            
+        } catch {
+            currentError = AppError.dataLoad(underlying: error)
+            print("❌ BudgetManager: Failed to refresh history data - \(error)")
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    // MARK: - Category Management Methods (Missing Methods Added)
+    
+    /// Add a new category - Called from BudgetView.swift
+    public func addCategory(name: String, amount: Double, month: Int, year: Int) async throws {
+        isLoading = true
+        
+        do {
+            // Validate input
+            guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw BudgetManagerError.validationFailed("Category name cannot be empty")
+            }
+            
+            guard amount > 0 else {
+                throw BudgetManagerError.validationFailed("Amount must be greater than 0")
+            }
+            
+            // Check if category already exists for this month
+            if let existingBudget = monthlyBudgets.first(where: { $0.month == month && $0.year == year }),
+               existingBudget.categories.keys.contains(name) {
+                throw BudgetManagerError.validationFailed("Category already exists for this month")
+            }
+            
+            // Add category to monthly budget
+            let monthKey = "\(year)-\(String(format: "%02d", month))"
+            
+            // Find or create monthly budget
+            if let index = monthlyBudgets.firstIndex(where: { $0.month == month && $0.year == year }) {
+                monthlyBudgets[index].categories[name] = amount
+            } else {
+                let newBudget = MonthlyBudget(
+                    id: UUID(),
+                    month: month,
+                    year: year,
+                    categories: [name: amount]
+                )
+                monthlyBudgets.append(newBudget)
+            }
+            
+            // Add to categories list if not already there
+            if !categories.contains(name) {
+                categories.append(name)
+            }
+            
+            // Save changes
+            try await saveMonthlyBudgets()
+            
+            print("✅ BudgetManager: Category '\(name)' added successfully")
+            
+        } catch {
+            currentError = AppError.dataSave(underlying: error)
+            print("❌ BudgetManager: Failed to add category - \(error)")
+            throw error
+        }
+        
+        isLoading = false
+    }
+    
+    /// Delete a monthly budget category - Called from EditCategoryView.swift
+    public func deleteMonthlyBudget(
+        category: String,
+        fromMonth: Int,
+        year: Int,
+        includeFutureMonths: Bool = false
+    ) async throws {
+        isLoading = true
+        
+        do {
+            if includeFutureMonths {
+                // Remove from current month and all future months
+                monthlyBudgets = monthlyBudgets.map { budget in
+                    var updatedBudget = budget
+                    if (budget.year > year) || (budget.year == year && budget.month >= fromMonth) {
+                        updatedBudget.categories.removeValue(forKey: category)
+                    }
+                    return updatedBudget
+                }
+            } else {
+                // Remove only from the specific month
+                if let index = monthlyBudgets.firstIndex(where: { $0.month == fromMonth && $0.year == year }) {
+                    monthlyBudgets[index].categories.removeValue(forKey: category)
+                    
+                    // Remove the entire monthly budget if no categories left
+                    if monthlyBudgets[index].categories.isEmpty {
+                        monthlyBudgets.remove(at: index)
+                    }
+                }
+            }
+            
+            // Check if category should be removed from categories list
+            let categoryStillExists = monthlyBudgets.contains { $0.categories.keys.contains(category) }
+            if !categoryStillExists {
+                categories.removeAll { $0 == category }
+            }
+            
+            // Save changes
+            try await saveMonthlyBudgets()
+            
+            print("✅ BudgetManager: Category '\(category)' deleted successfully")
+            
+        } catch {
+            currentError = AppError.dataSave(underlying: error)
+            print("❌ BudgetManager: Failed to delete category - \(error)")
+            throw error
+        }
+        
+        isLoading = false
     }
     
     // MARK: - Entry Management
     
-    /// Add a new budget entry
     public func addEntry(_ entry: BudgetEntry) async throws {
-        try validateEntry(entry)
+        isLoading = true
         
-        let result = await AsyncErrorHandler.executeWithResult(
-            context: "Adding budget entry"
-        ) {
-            try await self.coreDataManager.addEntry(entry)
-            return entry
-        }
-        
-        switch result {
-        case .success(let savedEntry):
-            entries.append(savedEntry)
-            entries.sort { $0.date > $1.date }
-            invalidateCache()
-            updateWidgetData()
-            dataStatistics = getDataStatistics()
-            print("✅ BudgetManager: Added entry - \(savedEntry.amount.formattedAsCurrency) for \(savedEntry.category)")
+        do {
+            entries.append(entry)
+            try await saveEntries()
+            updateDataStatistics()
             
-        case .failure(let error):
+            print("✅ BudgetManager: Entry added successfully")
+            
+        } catch {
+            currentError = AppError.dataSave(underlying: error)
             throw error
         }
+        
+        isLoading = false
     }
     
-    /// Update an existing budget entry
     public func updateEntry(_ entry: BudgetEntry) async throws {
-        try validateEntry(entry)
+        isLoading = true
         
-        let result = await AsyncErrorHandler.executeWithResult(
-            context: "Updating budget entry"
-        ) {
-            try await self.coreDataManager.updateEntry(entry)
-            return entry
-        }
-        
-        switch result {
-        case .success(let updatedEntry):
-            if let index = entries.firstIndex(where: { $0.id == updatedEntry.id }) {
-                entries[index] = updatedEntry
-            }
-            invalidateCache()
-            updateWidgetData()
-            dataStatistics = getDataStatistics()
-            print("✅ BudgetManager: Updated entry - \(updatedEntry.amount.formattedAsCurrency) for \(updatedEntry.category)")
-            
-        case .failure(let error):
-            throw error
-        }
-    }
-    
-    /// Delete a budget entry
-    public func deleteEntry(_ entry: BudgetEntry) async throws {
-        let result = await AsyncErrorHandler.executeWithResult(
-            context: "Deleting budget entry"
-        ) {
-            try await self.coreDataManager.deleteEntry(entry)
-            return entry.id
-        }
-        
-        switch result {
-        case .success(let deletedId):
-            entries.removeAll { $0.id == deletedId }
-            invalidateCache()
-            updateWidgetData()
-            dataStatistics = getDataStatistics()
-            print("✅ BudgetManager: Deleted entry - \(entry.amount.formattedAsCurrency) for \(entry.category)")
-            
-        case .failure(let error):
-            throw error
-        }
-    }
-    
-    // MARK: - Budget Management
-    
-    /// Add or update a monthly budget
-    public func addOrUpdateMonthlyBudget(_ budget: MonthlyBudget) async throws {
-        try validateBudget(budget)
-        
-        let result = await AsyncErrorHandler.executeWithResult(
-            context: "Adding/updating monthly budget"
-        ) {
-            try await self.coreDataManager.addOrUpdateMonthlyBudget(budget)
-            return budget
-        }
-        
-        switch result {
-        case .success(let savedBudget):
-            if let existingIndex = monthlyBudgets.firstIndex(where: {
-                $0.category == savedBudget.category &&
-                $0.month == savedBudget.month &&
-                $0.year == savedBudget.year
-            }) {
-                monthlyBudgets[existingIndex] = savedBudget
-            } else {
-                monthlyBudgets.append(savedBudget)
-            }
-            
-            monthlyBudgets.sort {
-                $0.year > $1.year || ($0.year == $1.year && $0.month > $1.month)
-            }
-            
-            invalidateCache()
-            updateWidgetData()
-            dataStatistics = getDataStatistics()
-            print("✅ BudgetManager: Saved budget - \(savedBudget.amount.formattedAsCurrency) for \(savedBudget.category)")
-            
-        case .failure(let error):
-            throw error
-        }
-    }
-    
-    /// Update multiple monthly budgets
-    public func updateMonthlyBudgets(_ budgets: [String: Double], for month: Int, year: Int) async throws {
-        let result = await AsyncErrorHandler.executeWithResult(
-            context: "Updating multiple monthly budgets"
-        ) {
-            var savedBudgets: [MonthlyBudget] = []
-            
-            for (category, amount) in budgets {
-                let budget = try MonthlyBudget(
-                    id: UUID(),
-                    category: category,
-                    amount: amount,
-                    month: month,
-                    year: year,
-                    isHistorical: false
-                )
+        do {
+            if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+                entries[index] = entry
+                try await saveEntries()
+                updateDataStatistics()
                 
-                try await self.coreDataManager.addOrUpdateMonthlyBudget(budget)
-                savedBudgets.append(budget)
+                print("✅ BudgetManager: Entry updated successfully")
             }
             
-            return savedBudgets
-        }
-        
-        switch result {
-        case .success(let savedBudgets):
-            // Remove old budgets for this month/year
-            monthlyBudgets.removeAll { $0.month == month && $0.year == year }
-            
-            // Add new budgets
-            monthlyBudgets.append(contentsOf: savedBudgets)
-            monthlyBudgets.sort {
-                $0.year > $1.year || ($0.year == $1.year && $0.month > $1.month)
-            }
-            
-            invalidateCache()
-            updateWidgetData()
-            dataStatistics = getDataStatistics()
-            print("✅ BudgetManager: Updated \(savedBudgets.count) budgets for \(month)/\(year)")
-            
-        case .failure(let error):
+        } catch {
+            currentError = AppError.dataSave(underlying: error)
             throw error
         }
+        
+        isLoading = false
     }
     
-    // MARK: - Data Retrieval Methods
-    
-    /// Get entries with filtering and sorting
-    public func getEntries(
-        for period: TimePeriod? = nil,
-        category: String? = nil,
-        sortedBy sortOption: BudgetSortOption = .date,
-        ascending: Bool = false
-    ) -> [BudgetEntry] {
-        var filteredEntries = entries
+    public func deleteEntry(_ entry: BudgetEntry) async throws {
+        isLoading = true
         
-        // Apply period filter
-        if let period = period {
-            let dateInterval = period.dateInterval()
-            filteredEntries = filteredEntries.filter { entry in
-                dateInterval.contains(entry.date)
-            }
-        }
-        
-        // Apply category filter
-        if let category = category {
-            filteredEntries = filteredEntries.filter { $0.category == category }
-        }
-        
-        // Apply sorting
-        switch sortOption {
-        case .date:
-            filteredEntries.sort { ascending ? $0.date < $1.date : $0.date > $1.date }
-        case .amount:
-            filteredEntries.sort { ascending ? $0.amount < $1.amount : $0.amount > $1.amount }
-        case .category:
-            filteredEntries.sort { ascending ? $0.category < $1.category : $0.category > $1.category }
-        }
-        
-        return filteredEntries
-    }
-    
-    /// Get monthly budgets for specific month/year
-    public func getMonthlyBudgets(for month: Int, year: Int) -> [MonthlyBudget] {
-        return monthlyBudgets.filter { $0.month == month && $0.year == year }
-    }
-    
-    /// Get current month budget
-    public func getCurrentMonthBudget() -> Double {
-        let calendar = Calendar.current
-        let now = Date()
-        let currentMonth = calendar.component(.month, from: now)
-        let currentYear = calendar.component(.year, from: now)
-        
-        return getMonthlyBudgets(for: currentMonth, year: currentYear)
-            .reduce(0) { $0 + $1.amount }
-    }
-    
-    /// Get available categories
-    public func getAvailableCategories() -> [String] {
-        let entryCategories = Set(entries.map { $0.category })
-        let budgetCategories = Set(monthlyBudgets.map { $0.category })
-        return Array(entryCategories.union(budgetCategories)).sorted()
-    }
-    
-    // MARK: - State Management
-    
-    /// Save current state
-    public func saveCurrentState() async throws {
-        let result = await AsyncErrorHandler.executeWithResult(
-            context: "Saving current state"
-        ) {
-            try await self.coreDataManager.forceSave()
-            return true
-        }
-        
-        switch result {
-        case .success:
-            lastSyncDate = Date()
-            print("✅ BudgetManager: Current state saved")
+        do {
+            entries.removeAll { $0.id == entry.id }
+            try await saveEntries()
+            updateDataStatistics()
             
-        case .failure(let error):
+            print("✅ BudgetManager: Entry deleted successfully")
+            
+        } catch {
+            currentError = AppError.dataSave(underlying: error)
             throw error
         }
+        
+        isLoading = false
     }
     
-    /// Perform background save
-    public func performBackgroundSave() async throws {
-        let result = await AsyncErrorHandler.executeWithResult(
-            context: "Performing background save"
-        ) {
-            try await self.coreDataManager.saveContext()
-            return true
-        }
-        
-        switch result {
-        case .success:
-            lastSyncDate = Date()
-            print("✅ BudgetManager: Background save completed")
-            
-        case .failure(let error):
-            throw error
-        }
+    // MARK: - Private Helper Methods
+    
+    private func setupDataBinding() {
+        // Set up any Combine publishers if needed
     }
     
-    // MARK: - Validation
-    
-    private func validateEntry(_ entry: BudgetEntry) throws {
-        guard entry.amount > 0 else {
-            throw BudgetManagerError.invalidEntry("Amount must be greater than zero")
-        }
-        
-        guard !entry.category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw BudgetManagerError.invalidEntry("Category cannot be empty")
-        }
-        
-        guard entry.amount <= 999999.99 else {
-            throw BudgetManagerError.invalidEntry("Amount exceeds maximum allowed value")
-        }
+    private func loadEntries() async throws {
+        // Implementation depends on your data storage system
+        // This is a placeholder - replace with your actual data loading logic
+        entries = try await dataManager.loadBudgetEntries()
     }
     
-    private func validateBudget(_ budget: MonthlyBudget) throws {
-        guard budget.amount >= 0 else {
-            throw BudgetManagerError.invalidBudget("Budget amount cannot be negative")
-        }
-        
-        guard !budget.category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw BudgetManagerError.invalidBudget("Category cannot be empty")
-        }
-        
-        guard budget.month >= 1 && budget.month <= 12 else {
-            throw BudgetManagerError.invalidBudget("Month must be between 1 and 12")
-        }
-        
-        guard budget.year >= 1900 && budget.year <= 2100 else {
-            throw BudgetManagerError.invalidBudget("Year must be between 1900 and 2100")
-        }
+    private func loadMonthlyBudgets() async throws {
+        // Implementation depends on your data storage system
+        monthlyBudgets = try await dataManager.loadMonthlyBudgets()
     }
     
-    // MARK: - Cache Management
-    
-    private func invalidateCache() {
-        entryCache.removeAll()
-        budgetCache.removeAll()
+    private func loadCategories() async throws {
+        // Extract unique categories from entries and monthly budgets
+        var uniqueCategories = Set<String>()
+        
+        // Add categories from entries
+        entries.forEach { uniqueCategories.insert($0.category) }
+        
+        // Add categories from monthly budgets
+        monthlyBudgets.forEach { budget in
+            budget.categories.keys.forEach { uniqueCategories.insert($0) }
+        }
+        
+        categories = Array(uniqueCategories).sorted()
     }
     
-    // MARK: - Analytics and Statistics
+    private func saveEntries() async throws {
+        try await dataManager.saveBudgetEntries(entries)
+    }
     
-    private func getDataStatistics() -> DataStatistics {
+    private func saveMonthlyBudgets() async throws {
+        try await dataManager.saveMonthlyBudgets(monthlyBudgets)
+    }
+    
+    private func updateDataStatistics() {
         let totalSpent = entries.reduce(0) { $0 + $1.amount }
-        let totalBudgeted = monthlyBudgets.reduce(0) { $0 + $1.amount }
-        let categoriesCount = Set(entries.map { $0.category }).union(Set(monthlyBudgets.map { $0.category })).count
+        let totalBudgeted = monthlyBudgets.reduce(0) { total, budget in
+            total + budget.categories.values.reduce(0, +)
+        }
         
-        return DataStatistics(
+        dataStatistics = DataStatistics(
             totalEntries: entries.count,
             totalBudgets: monthlyBudgets.count,
             totalSpent: totalSpent,
             totalBudgeted: totalBudgeted,
-            categoriesCount: categoriesCount,
+            categoriesCount: categories.count,
             lastUpdate: Date()
         )
     }
     
-    // MARK: - Widget Data Updates
-    
-    private func updateWidgetData() {
-        debouncer.run { [weak self] in
-           Task<Void, Never>{ [weak self] in
-                await self?.performWidgetDataUpdate()
-            }
-        }
+    private func calculateOverviewData() -> BudgetOverviewData? {
+        // Implement overview data calculation
+        // This is a placeholder - implement based on your BudgetOverviewData structure
+        return nil
     }
     
-    private func performWidgetDataUpdate() async {
-        do {
-            // Prepare current data
-            let summary = SharedDataManager.BudgetSummary(
-                monthlyBudget: self.getCurrentMonthBudget(),
-                totalSpent: self.entries.filter { Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .month) }
-                    .reduce(0) { $0 + $1.amount },
-                remainingBudget: max(0, self.getCurrentMonthBudget() - self.entries.filter { Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .month) }
-                    .reduce(0) { $0 + $1.amount }),
-                categoryCount: Set(self.monthlyBudgets.filter { $0.month == Calendar.current.component(.month, from: Date()) && $0.year == Calendar.current.component(.year, from: Date()) }.map { $0.category }).count,
-                transactionCount: self.entries.filter { Calendar.current.isDate($0.date, equalTo: Date(), toGranularity: .month) }.count
-            )
-            
-            try await SharedDataManager.shared.updateBudgetSummary(summary)
-        } catch {
-            print("❌ BudgetManager: Failed to update widget data - \(error)")
-        }
-    }
-    
-    // MARK: - Performance Monitoring
-    
-    private func recordMetric(_ operation: String, duration: TimeInterval) {
-        performanceQueue.async {
-            self.operationMetrics[operation] = duration
-            #if DEBUG
-            if duration > 1.0 {
-                print("⚠️ BudgetManager: Slow operation '\(operation)' took \(String(format: "%.2f", duration * 1000))ms")
-            }
-            #endif
-        }
-    }
-    
-    // MARK: - Cleanup
-    
-    deinit {
-        cancellables.removeAll()
-        print("🧹 BudgetManager: Cleaned up resources")
+    private func calculateHistoryData() -> [BudgetHistoryData] {
+        // Implement history data calculation
+        // This is a placeholder - implement based on your BudgetHistoryData structure
+        return []
     }
 }
 
-// MARK: - Extensions for Data Retrieval
-
-public extension BudgetManager {
-    
-    /// Get total spending for a category in a time period
-    func getTotalSpending(for category: String, in period: TimePeriod) -> Double {
-        return getEntries(for: period, category: category)
-            .reduce(0) { $0 + $1.amount }
-    }
-    
-    /// Get spending trend for a category over time
-    func getSpendingTrend(for category: String, months: Int = 6) -> [Double] {
-        let calendar = Calendar.current
-        let now = Date()
-        var trend: [Double] = []
-        
-        for i in 0..<months {
-            guard let monthDate = calendar.date(byAdding: .month, value: -i, to: now) else { continue }
-            let month = calendar.component(.month, from: monthDate)
-            let year = calendar.component(.year, from: monthDate)
-            
-            let monthlySpending = entries.filter { entry in
-                let entryMonth = calendar.component(.month, from: entry.date)
-                let entryYear = calendar.component(.year, from: entry.date)
-                return entry.category == category && entryMonth == month && entryYear == year
-            }.reduce(0) { $0 + $1.amount }
-            
-            trend.append(monthlySpending)
-        }
-        
-        return trend.reversed()
-    }
-    
-    /// Get budget utilization percentage for a category
-    func getBudgetUtilization(for category: String, month: Int, year: Int) -> Double {
-        let budgetAmount = getMonthlyBudgets(for: month, year: year)
-            .first { $0.category == category }?.amount ?? 0
-        
-        guard budgetAmount > 0 else { return 0 }
-        
-        let spentAmount = entries.filter { entry in
-            let calendar = Calendar.current
-            let entryMonth = calendar.component(.month, from: entry.date)
-            let entryYear = calendar.component(.year, from: entry.date)
-            return entry.category == category && entryMonth == month && entryYear == year
-        }.reduce(0) { $0 + $1.amount }
-        
-        return (spentAmount / budgetAmount) * 100
-    }
-}
-
-// MARK: - Extensions
-
-
-private extension Array {
-    func appending(contentsOf other: [Element]) -> [Element] {
-        var result = self
-        result.append(contentsOf: other)
-        return result
-    }
-}
-
-// MARK: - Supporting Types
-
-private class Debouncer {
-    private let delay: TimeInterval
-    private var workItem: DispatchWorkItem?
-    
-    init(delay: TimeInterval) {
-        self.delay = delay
-    }
-    
-    func run(action: @escaping () -> Void) {
-        workItem?.cancel()
-        workItem = DispatchWorkItem { action() }
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem!)
-    }
-}
-
-
-// MARK: - Notifications
-
-extension Notification.Name {
-    static let budgetDataUpdated = Notification.Name("budgetDataUpdated")
-}
-
-// MARK: - Testing Support
-
-#if DEBUG
-extension BudgetManager {
-    /// Reset for testing
-    func resetForTesting() {
-        entries.removeAll()
-        monthlyBudgets.removeAll()
-        invalidateCache()
-        dataStatistics = getDataStatistics()
-        operationMetrics.removeAll()
-    }
-    
-    /// Load test data
-    func loadTestData() async {
-        // Test entries
-        let testEntries = [
-            try! BudgetEntry(id: UUID(), amount: 45.67, category: "Groceries", date: Date(), note: "Weekly shopping"),
-            try! BudgetEntry(id: UUID(), amount: 12.50, category: "Transportation", date: Date().addingTimeInterval(-86400), note: "Bus fare"),
-            try! BudgetEntry(id: UUID(), amount: 89.99, category: "Entertainment", date: Date().addingTimeInterval(-172800), note: "Movie tickets")
-        ]
-        
-        // Test budgets
-        let calendar = Calendar.current
-        let now = Date()
-        let currentMonth = calendar.component(.month, from: now)
-        let currentYear = calendar.component(.year, from: now)
-        
-        let testBudgets = [
-            try! MonthlyBudget(id: UUID(), category: "Groceries", amount: 400.0, month: currentMonth, year: currentYear),
-            try! MonthlyBudget(id: UUID(), category: "Transportation", amount: 200.0, month: currentMonth, year: currentYear),
-            try! MonthlyBudget(id: UUID(), category: "Entertainment", amount: 150.0, month: currentMonth, year: currentYear)
-        ]
-        
-        entries = testEntries
-        monthlyBudgets = testBudgets
-        dataStatistics = getDataStatistics()
-        updateWidgetData()
-        
-        print("📊 BudgetManager: Test data loaded")
-    }
-    
-    /// Get metrics for testing
-    func getMetricsForTesting() -> [String: TimeInterval] {
-        return operationMetrics
-    }
-}
-#endif

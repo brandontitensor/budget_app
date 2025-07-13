@@ -597,32 +597,3 @@ public final class HistoryViewModel: ObservableObject {
         }
     }
 }
-
-// MARK: - BudgetHistoryData Model
-
-public struct BudgetHistoryData: Identifiable, Equatable, Hashable {
-    public let id: UUID
-    public let date: Date
-    public let amount: Double
-    public let category: String
-    public let note: String?
-    public let timePeriod: TimePeriod
-    
-    public init(
-        id: UUID,
-        date: Date,
-        amount: Double,
-        category: String,
-        note: String? = nil,
-        timePeriod: TimePeriod
-    ) {
-        self.id = id
-        self.date = date
-        self.amount = amount
-        self.category = category
-        self.note = note
-        self.timePeriod = timePeriod
-    }
-}
-
-// MARK: - Supporting Types
