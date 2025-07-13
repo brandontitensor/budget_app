@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/19/24.
-//  Updated: 7/7/25 - Fixed Hashable conformance and private method visibility
 //
 
 import SwiftUI

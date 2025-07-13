@@ -3,8 +3,8 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
-//  Updated: 6/1/25 - Enhanced with centralized error handling and improved architecture
 //
+
 import SwiftUI
 
 /// View for managing monthly budgets and categories with enhanced error handling and state management

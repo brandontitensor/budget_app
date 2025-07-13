@@ -2,9 +2,7 @@
 //  EditCategoryView.swift
 //  Brandon's Budget
 //
-//  Created by Brandon Titensor on 11/8/24.
-//  Updated: 6/1/25 - Enhanced with centralized error handling and improved UX
-//
+
 import SwiftUI
 
 /// View for editing budget categories with enhanced validation, error handling, and user experience

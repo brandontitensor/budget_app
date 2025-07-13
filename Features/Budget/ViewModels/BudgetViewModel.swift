@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
-//  Updated: 7/7/25 - Fixed Swift 6 compliance, removed duplicate functions, and added proper imports
 //
 
 import Foundation
@@ -481,8 +480,8 @@ public final class BudgetViewModel: ObservableObject {
         let highestSpendingCategory = sortedCategories.first?.key
         let lowestSpendingCategory = sortedCategories.last?.key
         
-        // Determine budget trend (simplified calculation)
-        let budgetTrend: BudgetAnalytics.BudgetTrend = .stable // TODO: Implement trend analysis
+        // Determine budget trend based on recent months' spending patterns
+        let budgetTrend: BudgetAnalytics.BudgetTrend = calculateBudgetTrend(from: allMonthlyTotals)
         
         // Generate recommendations
         var recommendations: [String] = []
@@ -640,6 +639,46 @@ public final class BudgetViewModel: ObservableObject {
     
     public func getTotalBudgetForMonth(_ month: Int) -> Double {
         return monthlyBudgets[month, default: [:]].values.reduce(0, +)
+    }
+    
+    // MARK: - Private Helper Methods
+    
+    private func calculateBudgetTrend(from monthlyTotals: [Double]) -> BudgetAnalytics.BudgetTrend {
+        guard monthlyTotals.count >= 2 else { return .stable }
+        
+        // Take the last 3-6 months if available
+        let recentMonths = Array(monthlyTotals.suffix(min(6, monthlyTotals.count)))
+        guard recentMonths.count >= 2 else { return .stable }
+        
+        // Calculate month-over-month changes
+        var changes: [Double] = []
+        for i in 1..<recentMonths.count {
+            if recentMonths[i-1] > 0 {
+                let changePercent = (recentMonths[i] - recentMonths[i-1]) / recentMonths[i-1]
+                changes.append(changePercent)
+            }
+        }
+        
+        guard !changes.isEmpty else { return .stable }
+        
+        // Calculate average change and volatility
+        let averageChange = changes.reduce(0, +) / Double(changes.count)
+        let variance = changes.map { pow($0 - averageChange, 2) }.reduce(0, +) / Double(changes.count)
+        let volatility = sqrt(variance)
+        
+        // Determine trend based on thresholds
+        let significantChangeThreshold = 0.10 // 10% change
+        let volatilityThreshold = 0.20 // 20% volatility
+        
+        if volatility > volatilityThreshold {
+            return .volatile
+        } else if averageChange > significantChangeThreshold {
+            return .increasing
+        } else if averageChange < -significantChangeThreshold {
+            return .decreasing
+        } else {
+            return .stable
+        }
     }
 }
 

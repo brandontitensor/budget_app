@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/1/25.
-//  Centralized validation utilities with comprehensive error handling and type safety
 //
 
 import Foundation

@@ -6,14 +6,8 @@
 //
 
 
-//
-//  TimePeriod.swift
-//  Brandon's Budget
-//
-//  Extracted from SharedTypes.swift for better code organization
-//
-
 import Foundation
+import SwiftUI
 
 // MARK: - Time Period
 public enum TimePeriod: Equatable, Hashable, Codable, Sendable {
@@ -113,10 +107,6 @@ public enum TimePeriod: Equatable, Hashable, Codable, Sendable {
             let endOfYesterday = calendar.date(byAdding: .day, value: 1, to: startOfYesterday) ?? yesterday
             return DateInterval(start: startOfYesterday, end: endOfYesterday)
             
-        case .thisWeek:
-            let startOfWeek = calendar.date(
-                from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
-            ) ?? now
         case .thisWeek:
             let startOfWeek = calendar.date(
                 from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)

@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/8/24.
-//  Updated: 7/7/25 - Fixed Color.tertiary usage, ImportType visibility, and configuration issues
 //
 
 import SwiftUI

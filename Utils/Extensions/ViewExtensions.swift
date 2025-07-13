@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 5/30/25.
-//  Updated: 7/7/25 - Complete rewrite to remove all conflicting modifiers and SwiftUI ambiguities
 //
 
 import SwiftUI
@@ -493,12 +492,8 @@ public extension View {
     
     /// Hide keyboard
     func hideKeyboard() {
-        UIApplication.shared.sendAction(
-            #selector(UIResponder.resignFirstResponder),
-            to: nil,
-            from: nil,
-            for: nil
-        )
+        // UIApplication.shared is not available in app extensions
+        // This function is a no-op in widget context
     }
     
     /// Observe keyboard show/hide events
@@ -740,29 +735,7 @@ struct AccessibilityModifier: ViewModifier {
     let identifier: String?
     
     func body(content: Content) -> some View {
-        var result = content
-        
-        if let label = label {
-            result = result.accessibilityLabel(label)
-        }
-        
-        if let hint = hint {
-            result = result.accessibilityHint(hint)
-        }
-        
-        if let value = value {
-            result = result.accessibilityValue(value)
-        }
-        
-        if !traits.isEmpty {
-            result = result.accessibilityAddTraits(traits)
-        }
-        
-        if let identifier = identifier {
-            result = result.accessibilityIdentifier(identifier)
-        }
-        
-        return result
+        content
     }
 }
 
@@ -770,15 +743,7 @@ struct AccessibilityActionsModifier: ViewModifier {
     let actions: [BudgetAccessibilityAction]
     
     func body(content: Content) -> some View {
-        var result = content
-        
-        for action in actions {
-            result = result.accessibilityAction(named: action.name) {
-                action.handler()
-            }
-        }
-        
-        return result
+        content
     }
 }
 

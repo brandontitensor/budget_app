@@ -2,8 +2,6 @@
 //  AppEnums.swift
 //  Brandon's Budget
 //
-//  Extracted from SharedTypes.swift for better code organization
-//
 
 import Foundation
 
@@ -356,7 +354,7 @@ public enum BackupFrequency: String, CaseIterable, Codable {
 extension CaseIterable where Self: RawRepresentable, RawValue == String {
     /// Get all display names for picker views
     static var allDisplayNames: [String] {
-        return allCases.map { ($0 as! any CustomStringConvertible).displayName }
+        return allCases.map { $0.rawValue }
     }
 }
 

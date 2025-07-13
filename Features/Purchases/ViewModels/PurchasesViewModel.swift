@@ -444,7 +444,7 @@ public final class PurchasesViewModel: ObservableObject {
         let updateTime = Date()
         lastFilterUpdate = updateTime
         
-        filterUpdateTask =Task<Void, Never>{
+        filterUpdateTask = Task<Void, Never> {
             // Debounce the update
             try? await Task.sleep(nanoseconds: UInt64(filterDebounceInterval * 1_000_000_000))
             

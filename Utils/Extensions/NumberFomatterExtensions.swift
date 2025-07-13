@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/8/24.
-//  Updated: 7/7/25 - Fixed duplicate function declarations and improved thread safety
 //
 
 import Foundation
@@ -346,13 +345,13 @@ public extension String {
 // MARK: - Locale Extension
 public extension Locale {
     /// Get currency symbol for locale
-    var currencySymbol: String {
-        return currencySymbol ?? "$"
+    var safeCurrencySymbol: String {
+        return self.currencySymbol ?? "$"
     }
     
     /// Get currency code for locale
-    var currencyCode: String {
-        return currencyCode ?? "USD"
+    var safeCurrencyCode: String {
+        return self.currencyCode ?? "USD"
     }
     
     /// Format currency with this locale

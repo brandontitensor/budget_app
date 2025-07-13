@@ -19,6 +19,14 @@ struct BudgetCategoryRow: View {
         amount.asCurrency
     }
     
+    private var progressPercentage: Double {
+        // Since we don't have spent amount data in this component,
+        // we'll use a placeholder calculation based on amount relative to a common budget
+        // This could be enhanced by passing spent amount as a parameter
+        let normalizedProgress = min(amount / 1000.0, 1.0) // Assume $1000 as reference
+        return max(0.1, normalizedProgress) // Minimum 10% for visual consistency
+    }
+    
     // MARK: - Body
     var body: some View {
         HStack {
@@ -77,7 +85,7 @@ struct BudgetCategoryRow: View {
             // Foreground
             Rectangle()
                 .fill(themeManager.primaryColor)
-                .frame(width: width * 0.4) // TODO: Calculate based on spent amount
+                .frame(width: width * progressPercentage)
                 .cornerRadius(4)
         }
     }

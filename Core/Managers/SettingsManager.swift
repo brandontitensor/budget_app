@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/8/24.
-//  Updated: 5/30/25 - Enhanced with centralized error handling, improved validation, and better code organization
 //
 
 import Foundation

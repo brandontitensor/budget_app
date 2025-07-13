@@ -5,14 +5,6 @@
 //  Created by Brandon Titensor on 6/4/25.
 //
 
-
-//
-//  ErrorViews.swift
-//  Brandon's Budget
-//
-//  Created by Brandon Titensor on 6/4/25.
-//
-
 import SwiftUI
 
 // MARK: - Error State Views

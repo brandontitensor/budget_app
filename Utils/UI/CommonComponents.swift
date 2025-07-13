@@ -1,10 +1,8 @@
 //
 //  CommonComponents.swift
 //  Brandon's Budget
-//
 //  Created by Brandon Titensor on 6/1/25.
-//  Updated: 7/7/25 - Fixed ValidationResult conflicts, ThemeManager references, and type conversions
-//
+
 
 import SwiftUI
 import Foundation

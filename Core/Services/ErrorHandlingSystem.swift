@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created on 5/30/25.
-//  Updated: 7/5/25 - Complete and enhanced error handling system
 //
 
 import SwiftUI

@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/29/24.
-//  Updated: 6/3/25 - Enhanced with centralized error handling, improved validation, and better user experience
 //
 
 import SwiftUI

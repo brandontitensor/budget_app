@@ -5,15 +5,6 @@
 //  Created by Brandon Titensor on 6/1/25.
 //
 
-
-//
-//  OverviewViewModel.swift
-//  Brandon's Budget
-//
-//  Created by Brandon Titensor on 6/1/25.
-//  Enhanced with centralized error handling and improved performance
-//
-
 import Foundation
 import Combine
 import SwiftUI

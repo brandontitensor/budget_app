@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
-//  Updated: 7/7/25 - Fixed Swift 6 concurrency, let constant assignment, and AppError conformance
 //
 
 import CoreData
@@ -778,4 +777,104 @@ extension MonthlyBudget {
     }
 }
 
+// MARK: - Missing BudgetManager Interface Methods
+extension CoreDataManager {
+    
+    /// Load all budget entries (wrapper for fetchAllEntries)
+    public func loadBudgetEntries() async throws -> [BudgetEntry] {
+        return try await fetchAllEntries()
+    }
+    
+    /// Save multiple budget entries
+    public func saveBudgetEntries(_ entries: [BudgetEntry]) async throws {
+        return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            backgroundContext.perform {
+                do {
+                    // First, clear existing entries to avoid duplicates
+                    let fetchRequest: NSFetchRequest<BudgetEntryMO> = BudgetEntryMO.fetchRequest()
+                    let existingEntries = try self.backgroundContext.fetch(fetchRequest)
+                    
+                    for entry in existingEntries {
+                        self.backgroundContext.delete(entry)
+                    }
+                    
+                    // Add all new entries
+                    for entry in entries {
+                        let managedObject = BudgetEntryMO(context: self.backgroundContext)
+                        managedObject.id = entry.id
+                        managedObject.amount = entry.amount
+                        managedObject.category = entry.category
+                        managedObject.date = entry.date
+                        managedObject.note = entry.note
+                    }
+                    
+                    try self.backgroundContext.save()
+                    
+                    DispatchQueue.main.async {
+                        do {
+                            try self.mainContext.save()
+                            continuation.resume()
+                        } catch {
+                            continuation.resume(throwing: AppError.dataSave(underlying: error))
+                        }
+                    }
+                    
+                } catch {
+                    continuation.resume(throwing: AppError.dataSave(underlying: error))
+                }
+            }
+        }
+    }
+    
+    /// Load all monthly budgets (wrapper for fetchMonthlyBudgets)
+    public func loadMonthlyBudgets() async throws -> [MonthlyBudget] {
+        return try await fetchMonthlyBudgets()
+    }
+    
+    /// Save multiple monthly budgets
+    public func saveMonthlyBudgets(_ budgets: [MonthlyBudget]) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            backgroundContext.perform {
+                do {
+                    // Clear existing monthly budgets to avoid duplicates
+                    let fetchRequest: NSFetchRequest<MonthlyBudgetMO> = MonthlyBudgetMO.fetchRequest()
+                    let existingBudgets = try self.backgroundContext.fetch(fetchRequest)
+                    
+                    for budget in existingBudgets {
+                        self.backgroundContext.delete(budget)
+                    }
+                    
+                    // Convert and save new budgets
+                    // Note: The MonthlyBudget struct has a categories dictionary, but MonthlyBudgetMO 
+                    // has individual category/amount pairs. We need to flatten the structure.
+                    for budget in budgets {
+                        for (category, amount) in budget.categories {
+                            let managedObject = MonthlyBudgetMO(context: self.backgroundContext)
+                            managedObject.id = budget.id
+                            managedObject.month = Int16(budget.month)
+                            managedObject.year = Int16(budget.year)
+                            managedObject.category = category
+                            managedObject.amount = amount
+                            managedObject.isHistorical = false // Default value
+                        }
+                    }
+                    
+                    try self.backgroundContext.save()
+                    
+                    DispatchQueue.main.async {
+                        do {
+                            try self.mainContext.save()
+                            continuation.resume()
+                        } catch {
+                            continuation.resume(throwing: AppError.dataSave(underlying: error))
+                        }
+                    }
+                    
+                } catch {
+                    continuation.resume(throwing: AppError.dataSave(underlying: error))
+                }
+            }
+        }
+    }
+}
 

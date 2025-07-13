@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/4/25.
-//  Updated: 7/6/25 - Fixed Swift 6 compliance, system constants, and generic inference
 //
 
 import Foundation

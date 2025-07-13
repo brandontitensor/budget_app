@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
-//  Updated: 7/7/25 - Fixed Swift 6 compliance, missing isPresented parameter, and environment object issues
 //
 
 import SwiftUI

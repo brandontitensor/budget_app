@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 6/30/24.
-//  Updated: 7/6/25 - Fixed Swift 6 compliance, ObservedObject issues, and method calls
 //
 
 import SwiftUI

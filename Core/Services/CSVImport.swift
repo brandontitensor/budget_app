@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 5/29/25.
-//  Updated: 5/30/25 - Enhanced with centralized error handling and improved validation
 //
 
 import Foundation
@@ -73,8 +72,8 @@ public enum CSVImport {
             self.strictValidation = strictValidation
         }
         
-        static let `default` = ImportConfiguration()
-        static let strict = ImportConfiguration(strictValidation: true, skipInvalidRows: false)
+        public static let `default` = ImportConfiguration()
+        public static let strict = ImportConfiguration(skipInvalidRows: false, strictValidation: true)
     }
     
     // MARK: - Data Structures
@@ -215,7 +214,7 @@ public enum CSVImport {
     public static func importPurchases(
         from url: URL,
         existingCategories: [String] = [],
-        configuration: ImportConfiguration = .default
+        configuration: ImportConfiguration = ImportConfiguration.default
     ) async throws -> ImportResults<PurchaseImportData> {
         return try await performImport(
             from: url,
@@ -230,7 +229,7 @@ public enum CSVImport {
     public static func importBudgets(
         from url: URL,
         existingCategories: [String] = [],
-        configuration: ImportConfiguration = .default
+        configuration: ImportConfiguration = ImportConfiguration.default
     ) async throws -> ImportResults<BudgetImportData> {
         return try await performImport(
             from: url,
@@ -286,7 +285,7 @@ public enum CSVImport {
         expectedType: ImportType,
         existingCategories: [String],
         configuration: ImportConfiguration,
-        parseFunction: ([[String: String]], ImportConfiguration, [String]) throws -> ImportResults<T>
+        parseFunction: @escaping ([[String: String]], ImportConfiguration, [String]) throws -> ImportResults<T>
     ) async throws -> ImportResults<T> {
         return try await withCheckedThrowingContinuation { continuation in
             Task {

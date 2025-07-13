@@ -6,13 +6,6 @@
 //
 
 
-//
-//  FormatHelpers.swift
-//  Brandon's Budget
-//
-//  Created by Brandon Titensor on 6/4/25.
-//
-
 import Foundation
 
 /// Collection of formatting utilities for the app with proper localization and validation
@@ -29,17 +22,15 @@ public enum FormatHelpers {
         public init(currencyCode: String = "USD", locale: Locale = .current) {
             self.locale = locale
             self.currencyCode = currencyCode
-            self.formatter = NumberFormatter()
             
-            setupFormatter()
-        }
-        
-        private mutating func setupFormatter() {
-            formatter.numberStyle = .currency
-            formatter.locale = locale
-            formatter.currencyCode = currencyCode
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 2
+            let numberFormatter = NumberFormatter()
+            numberFormatter.numberStyle = .currency
+            numberFormatter.locale = locale
+            numberFormatter.currencyCode = currencyCode
+            numberFormatter.minimumFractionDigits = 2
+            numberFormatter.maximumFractionDigits = 2
+            
+            self.formatter = numberFormatter
         }
         
         /// Format amount as currency string
@@ -49,20 +40,23 @@ public enum FormatHelpers {
         
         /// Format amount with custom decimal places
         public func format(_ amount: Double, decimalPlaces: Int) -> String {
-            formatter.minimumFractionDigits = decimalPlaces
-            formatter.maximumFractionDigits = decimalPlaces
-            defer {
-                formatter.minimumFractionDigits = 2
-                formatter.maximumFractionDigits = 2
-            }
-            return formatter.string(from: NSNumber(value: amount)) ?? "$0.00"
+            let customFormatter = NumberFormatter()
+            customFormatter.numberStyle = .currency
+            customFormatter.locale = locale
+            customFormatter.currencyCode = currencyCode
+            customFormatter.minimumFractionDigits = decimalPlaces
+            customFormatter.maximumFractionDigits = decimalPlaces
+            return customFormatter.string(from: NSNumber(value: amount)) ?? "$0.00"
         }
         
         /// Format amount without currency symbol
         public func formatAmount(_ amount: Double) -> String {
-            formatter.numberStyle = .decimal
-            defer { formatter.numberStyle = .currency }
-            return formatter.string(from: NSNumber(value: amount)) ?? "0.00"
+            let decimalFormatter = NumberFormatter()
+            decimalFormatter.numberStyle = .decimal
+            decimalFormatter.locale = locale
+            decimalFormatter.minimumFractionDigits = 2
+            decimalFormatter.maximumFractionDigits = 2
+            return decimalFormatter.string(from: NSNumber(value: amount)) ?? "0.00"
         }
         
         /// Format amount with compact notation (K, M, B)
@@ -221,7 +215,7 @@ public enum FormatHelpers {
     // MARK: - Number Formatting
     
     /// General number formatting utilities
-    public struct NumberFormatter {
+    public struct NumberFormatterHelper {
         
         /// Format large numbers with separators (1000 -> "1,000")
         public static func formatWithSeparators(_ value: Double) -> String {
@@ -447,7 +441,7 @@ extension Double {
     
     /// Format with separators
     public var formattedWithSeparators: String {
-        return FormatHelpers.NumberFormatter.formatWithSeparators(self)
+        return FormatHelpers.NumberFormatterHelper.formatWithSeparators(self)
     }
 }
 

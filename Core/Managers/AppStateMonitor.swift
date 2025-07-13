@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created on 7/5/25.
-//  Updated: 7/6/25 - Fixed Swift 6 concurrency, unreachable catch blocks, and access control issues
 //
 
 import SwiftUI

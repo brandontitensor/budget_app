@@ -1,23 +1,198 @@
 //
 //  BudgetWidget.swift
-//  Brandon's Budget
+//  Budget WidgetExtension
 //
-//  Created by Brandon Titensor on 7/3/24.
-//  Updated: 6/4/25 - Enhanced with improved data handling, error states, and better visual design
+//  Self-contained widget implementation that doesn't depend on main app files
 //
 
 import WidgetKit
 import SwiftUI
+import Foundation
+
+// MARK: - Widget-Only Data Types
+
+/// Lightweight budget summary for widget use
+struct WidgetBudgetSummary: Codable, Sendable {
+    let monthlyBudget: Double
+    let totalSpent: Double
+    let remainingBudget: Double
+    let percentageUsed: Double
+    let isOverBudget: Bool
+    let categoryCount: Int
+    let transactionCount: Int
+    let lastUpdated: Date
+    let currentMonth: String
+    
+    init(
+        monthlyBudget: Double,
+        totalSpent: Double,
+        remainingBudget: Double? = nil,
+        categoryCount: Int,
+        transactionCount: Int,
+        currentMonth: String? = nil
+    ) {
+        self.monthlyBudget = monthlyBudget
+        self.totalSpent = totalSpent
+        self.remainingBudget = remainingBudget ?? (monthlyBudget - totalSpent)
+        self.percentageUsed = monthlyBudget > 0 ? (totalSpent / monthlyBudget) * 100 : 0
+        self.isOverBudget = totalSpent > monthlyBudget
+        self.categoryCount = categoryCount
+        self.transactionCount = transactionCount
+        self.lastUpdated = Date()
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        self.currentMonth = currentMonth ?? formatter.string(from: Date())
+    }
+}
+
+/// Lightweight recent transaction for widget use
+struct WidgetRecentTransaction: Codable, Identifiable, Sendable {
+    let id: UUID
+    let amount: Double
+    let category: String
+    let date: Date
+    let note: String?
+    
+    init(amount: Double, category: String, date: Date, note: String? = nil) {
+        self.id = UUID()
+        self.amount = amount
+        self.category = category
+        self.date = date
+        self.note = note
+    }
+}
+
+/// Lightweight category spending for widget use
+struct WidgetCategorySpending: Codable, Identifiable, Sendable {
+    let id: String
+    let name: String
+    let amount: Double
+    let percentage: Double
+    let color: String
+    
+    init(name: String, amount: Double, percentage: Double, color: String = "#007AFF") {
+        self.id = name
+        self.name = name
+        self.amount = amount
+        self.percentage = percentage
+        self.color = color
+    }
+}
+
+/// Complete widget data package
+struct WidgetData: Codable, Sendable {
+    let budgetSummary: WidgetBudgetSummary
+    let recentTransactions: [WidgetRecentTransaction]
+    let topCategories: [WidgetCategorySpending]
+    let lastUpdated: Date
+    let appVersion: String
+    
+    init(
+        budgetSummary: WidgetBudgetSummary,
+        recentTransactions: [WidgetRecentTransaction] = [],
+        topCategories: [WidgetCategorySpending] = []
+    ) {
+        self.budgetSummary = budgetSummary
+        self.recentTransactions = Array(recentTransactions.prefix(5))
+        self.topCategories = Array(topCategories.prefix(5))
+        self.lastUpdated = Date()
+        self.appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+}
+
+// MARK: - Widget Extensions
+
+extension Double {
+    /// Format as currency string for widget use
+    fileprivate var asCurrency: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.locale = .current
+        return formatter.string(from: NSNumber(value: self)) ?? "$0.00"
+    }
+}
+
+extension Date {
+    /// Format relative time for widget display
+    fileprivate var formattedRelative: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        return formatter.localizedString(for: self, relativeTo: Date())
+    }
+}
+
+extension WidgetBudgetSummary {
+    func formattedMonthlyBudget() -> String {
+        return monthlyBudget.asCurrency
+    }
+    
+    func formattedTotalSpent() -> String {
+        return totalSpent.asCurrency
+    }
+    
+    func formattedRemainingBudget() -> String {
+        return remainingBudget.asCurrency
+    }
+    
+    var compactStatus: String {
+        if isOverBudget {
+            return "Over Budget"
+        } else {
+            return "\(Int(percentageUsed))% used"
+        }
+    }
+    
+    var statusMessage: String {
+        if isOverBudget {
+            let overAmount = totalSpent - monthlyBudget
+            return "Over budget by \(overAmount.asCurrency)"
+        } else if remainingBudget <= 0 {
+            return "Budget fully used"
+        } else {
+            return "\(remainingBudget.asCurrency) remaining"
+        }
+    }
+    
+    var widgetDisplayText: String {
+        if isOverBudget {
+            return "Over Budget"
+        } else {
+            return "On Track"
+        }
+    }
+}
+
+extension WidgetRecentTransaction {
+    func formattedAmount() -> String {
+        return amount.asCurrency
+    }
+    
+    func relativeDate() -> String {
+        return date.formattedRelative
+    }
+}
+
+extension WidgetCategorySpending {
+    func formattedAmount() -> String {
+        return amount.asCurrency
+    }
+    
+    func formattedPercentage() -> String {
+        return "\(Int(percentage))%"
+    }
+}
 
 // MARK: - Widget Entry
 
-/// Timeline entry for budget widget with comprehensive data
+/// Timeline entry for budget widget
 struct BudgetWidgetEntry: TimelineEntry {
     let date: Date
-    let budgetSummary: SharedDataManager.BudgetSummary?
-    let recentTransactions: [SharedDataManager.RecentTransaction]
-    let topCategories: [SharedDataManager.CategorySpending]
-    let widgetData: SharedDataManager.WidgetData?
+    let budgetSummary: WidgetBudgetSummary?
+    let recentTransactions: [WidgetRecentTransaction]
+    let topCategories: [WidgetCategorySpending]
     let errorState: WidgetErrorState?
     let lastUpdateDate: Date?
     
@@ -56,7 +231,7 @@ struct BudgetWidgetEntry: TimelineEntry {
         return budgetSummary != nil && errorState == nil
     }
     
-    // MARK: - Widget Entry Types
+    // MARK: - Widget Error State
     
     enum WidgetErrorState {
         case noData
@@ -105,21 +280,20 @@ struct BudgetWidgetEntry: TimelineEntry {
     
     static let placeholder = BudgetWidgetEntry(
         date: Date(),
-        budgetSummary: SharedDataManager.BudgetSummary(
+        budgetSummary: WidgetBudgetSummary(
             monthlyBudget: 2500.0,
             totalSpent: 1750.0,
-            remainingBudget: 750.0,
             categoryCount: 8,
             transactionCount: 45
         ),
         recentTransactions: [
-            SharedDataManager.RecentTransaction(
+            WidgetRecentTransaction(
                 amount: 45.67,
                 category: "Groceries",
                 date: Date(),
                 note: "Weekly shopping"
             ),
-            SharedDataManager.RecentTransaction(
+            WidgetRecentTransaction(
                 amount: 12.50,
                 category: "Transportation",
                 date: Date().addingTimeInterval(-86400),
@@ -127,10 +301,9 @@ struct BudgetWidgetEntry: TimelineEntry {
             )
         ],
         topCategories: [
-            SharedDataManager.CategorySpending(name: "Groceries", amount: 450.0, percentage: 18.0),
-            SharedDataManager.CategorySpending(name: "Utilities", amount: 350.0, percentage: 14.0)
+            WidgetCategorySpending(name: "Groceries", amount: 450.0, percentage: 18.0),
+            WidgetCategorySpending(name: "Utilities", amount: 350.0, percentage: 14.0)
         ],
-        widgetData: nil,
         errorState: nil,
         lastUpdateDate: Date()
     )
@@ -140,7 +313,6 @@ struct BudgetWidgetEntry: TimelineEntry {
         budgetSummary: nil,
         recentTransactions: [],
         topCategories: [],
-        widgetData: nil,
         errorState: .noData,
         lastUpdateDate: nil
     )
@@ -148,33 +320,23 @@ struct BudgetWidgetEntry: TimelineEntry {
 
 // MARK: - Widget Provider
 
-/// Timeline provider for budget widget with enhanced data handling
+/// Timeline provider for budget widget
 struct BudgetWidgetProvider: TimelineProvider {
-    private let sharedDataManager = SharedDataManager.shared
-    private let performanceMonitor = PerformanceMonitor.shared
-    
-    // MARK: - TimelineProvider Implementation
     
     func placeholder(in context: Context) -> BudgetWidgetEntry {
         return BudgetWidgetEntry.placeholder
     }
     
     func getSnapshot(in context: Context, completion: @escaping (BudgetWidgetEntry) -> Void) {
-        performanceMonitor.startTiming("WidgetSnapshot")
-        defer { performanceMonitor.endTiming("WidgetSnapshot") }
-        
         let entry = createEntry()
         completion(entry)
     }
     
     func getTimeline(in context: Context, completion: @escaping (Timeline<BudgetWidgetEntry>) -> Void) {
-        performanceMonitor.startTiming("WidgetTimeline")
-        defer { performanceMonitor.endTiming("WidgetTimeline") }
-        
         let currentDate = Date()
         let entry = createEntry()
         
-        // Determine next update time based on data freshness and error state
+        // Determine next update time
         let nextUpdate = calculateNextUpdateTime(from: currentDate, entry: entry)
         
         let timeline = Timeline(
@@ -183,72 +345,75 @@ struct BudgetWidgetProvider: TimelineProvider {
         )
         
         completion(timeline)
-        
-        #if DEBUG
-        print("🔄 BudgetWidget: Timeline updated - Next refresh: \(nextUpdate)")
-        #endif
     }
     
     // MARK: - Entry Creation
     
     private func createEntry() -> BudgetWidgetEntry {
-        // Check data health
-        let dataHealth = sharedDataManager.getDataHealth()
-        
-        // Handle critical errors
-        if !dataHealth.isHealthy {
-            let errorState = mapDataHealthToErrorState(dataHealth)
+        // Access UserDefaults directly for widget
+        let appGroupIdentifier = "group.com.brandontitensor.BrandonsBudget"
+        guard let userDefaults = UserDefaults(suiteName: appGroupIdentifier) else {
             return BudgetWidgetEntry(
                 date: Date(),
                 budgetSummary: nil,
                 recentTransactions: [],
                 topCategories: [],
-                widgetData: nil,
-                errorState: errorState,
+                errorState: .appGroupUnavailable,
                 lastUpdateDate: nil
             )
         }
         
-        // Get widget data
-        let widgetData = sharedDataManager.getWidgetData()
-        let budgetSummary = sharedDataManager.getBudgetSummary()
+        // Try to load widget data
+        var widgetData: WidgetData?
+        var budgetSummary: WidgetBudgetSummary?
+        
+        // First try the complete widget data
+        if let widgetDataData = userDefaults.data(forKey: "WidgetCompleteData") {
+            widgetData = try? JSONDecoder().decode(WidgetData.self, from: widgetDataData)
+            budgetSummary = widgetData?.budgetSummary
+        }
+        
+        // Fallback to individual budget summary
+        if budgetSummary == nil, let budgetSummaryData = userDefaults.data(forKey: "WidgetBudgetSummary") {
+            // Try to decode as the new WidgetBudgetSummary first
+            if let summary = try? JSONDecoder().decode(WidgetBudgetSummary.self, from: budgetSummaryData) {
+                budgetSummary = summary
+            } else {
+                // Fallback: create a basic summary from any available data
+                budgetSummary = WidgetBudgetSummary(
+                    monthlyBudget: userDefaults.double(forKey: "monthlyBudget"),
+                    totalSpent: userDefaults.double(forKey: "totalSpent"),
+                    categoryCount: userDefaults.integer(forKey: "categoryCount"),
+                    transactionCount: userDefaults.integer(forKey: "transactionCount")
+                )
+            }
+        }
         
         // Check for stale data
-        let errorState = checkForStaleData(widgetData: widgetData)
+        let errorState = checkForStaleData(widgetData: widgetData, budgetSummary: budgetSummary)
         
         return BudgetWidgetEntry(
             date: Date(),
             budgetSummary: budgetSummary,
             recentTransactions: widgetData?.recentTransactions ?? [],
             topCategories: widgetData?.topCategories ?? [],
-            widgetData: widgetData,
             errorState: errorState,
-            lastUpdateDate: widgetData?.lastUpdated
+            lastUpdateDate: widgetData?.lastUpdated ?? budgetSummary?.lastUpdated
         )
     }
     
-    private func mapDataHealthToErrorState(_ health: DataHealth) -> BudgetWidgetEntry.WidgetErrorState {
-        switch health.status {
-        case .critical:
-            return .appGroupUnavailable
-        case .error:
-            return .corruptedData
-        case .warning:
-            return .noData
-        case .healthy:
-            return .noData // Fallback
-        }
-    }
-    
-    private func checkForStaleData(widgetData: SharedDataManager.WidgetData?) -> BudgetWidgetEntry.WidgetErrorState? {
-        guard let widgetData = widgetData else {
+    private func checkForStaleData(widgetData: WidgetData?, budgetSummary: WidgetBudgetSummary?) -> BudgetWidgetEntry.WidgetErrorState? {
+        // Check if we have any data at all
+        guard budgetSummary != nil else {
             return .noData
         }
         
-        // Check if data is more than 2 hours old
-        let twoHoursAgo = Date().addingTimeInterval(-2 * 60 * 60)
-        if widgetData.lastUpdated < twoHoursAgo {
-            return .staleData
+        // Check if data is stale
+        if let widgetData = widgetData {
+            let twoHoursAgo = Date().addingTimeInterval(-2 * 60 * 60)
+            if widgetData.lastUpdated < twoHoursAgo {
+                return .staleData
+            }
         }
         
         return nil
@@ -301,7 +466,6 @@ struct BudgetWidget: Widget {
 struct BudgetWidgetView: View {
     let entry: BudgetWidgetEntry
     @Environment(\.widgetFamily) private var widgetFamily
-    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         Group {
@@ -326,15 +490,15 @@ struct BudgetWidgetView: View {
 
 // MARK: - Small Widget
 
-/// Compact widget for system small size
 struct SmallBudgetWidget: View {
     let entry: BudgetWidgetEntry
     
-    private var budgetSummary: SharedDataManager.BudgetSummary {
-        entry.budgetSummary ?? SharedDataManager.BudgetSummary(
+    private var budgetSummary: WidgetBudgetSummary {
+        entry.budgetSummary ?? WidgetBudgetSummary(
             monthlyBudget: 0,
             totalSpent: 0,
-            remainingBudget: 0
+            categoryCount: 0,
+            transactionCount: 0
         )
     }
     
@@ -377,7 +541,6 @@ struct SmallBudgetWidget: View {
                 .scaleEffect(y: 0.6)
         }
         .padding(12)
-        .widgetURL(URL(string: "brandonsbudget://overview"))
     }
     
     private var statusIcon: String {
@@ -393,15 +556,15 @@ struct SmallBudgetWidget: View {
 
 // MARK: - Medium Widget
 
-/// Medium-sized widget with more detailed information
 struct MediumBudgetWidget: View {
     let entry: BudgetWidgetEntry
     
-    private var budgetSummary: SharedDataManager.BudgetSummary {
-        entry.budgetSummary ?? SharedDataManager.BudgetSummary(
+    private var budgetSummary: WidgetBudgetSummary {
+        entry.budgetSummary ?? WidgetBudgetSummary(
             monthlyBudget: 0,
             totalSpent: 0,
-            remainingBudget: 0
+            categoryCount: 0,
+            transactionCount: 0
         )
     }
     
@@ -447,7 +610,7 @@ struct MediumBudgetWidget: View {
                     .progressViewStyle(LinearProgressViewStyle(tint: entry.statusColor))
             }
             
-            // Right side - Quick actions or recent transaction
+            // Right side - Quick action or recent transaction
             VStack(spacing: 8) {
                 Spacer()
                 
@@ -461,7 +624,6 @@ struct MediumBudgetWidget: View {
             }
         }
         .padding(16)
-        .widgetURL(URL(string: "brandonsbudget://overview"))
     }
     
     private var statusIndicator: some View {
@@ -491,7 +653,7 @@ struct MediumBudgetWidget: View {
         }
     }
     
-    private func recentTransactionView(_ transaction: SharedDataManager.RecentTransaction) -> some View {
+    private func recentTransactionView(_ transaction: WidgetRecentTransaction) -> some View {
         VStack(spacing: 4) {
             Text("Recent")
                 .font(.caption2)
@@ -512,16 +674,14 @@ struct MediumBudgetWidget: View {
     }
     
     private var quickActionButton: some View {
-        Link(destination: URL(string: "brandonsbudget://addPurchase")!) {
-            VStack(spacing: 4) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                
-                Text("Add")
-                    .font(.caption2)
-                    .foregroundColor(.blue)
-            }
+        VStack(spacing: 4) {
+            Image(systemName: "plus.circle.fill")
+                .font(.title2)
+                .foregroundColor(.blue)
+            
+            Text("Add")
+                .font(.caption2)
+                .foregroundColor(.blue)
         }
         .frame(width: 60, height: 60)
         .background(Color.blue.opacity(0.1))
@@ -531,15 +691,15 @@ struct MediumBudgetWidget: View {
 
 // MARK: - Large Widget
 
-/// Large widget with comprehensive budget overview
 struct LargeBudgetWidget: View {
     let entry: BudgetWidgetEntry
     
-    private var budgetSummary: SharedDataManager.BudgetSummary {
-        entry.budgetSummary ?? SharedDataManager.BudgetSummary(
+    private var budgetSummary: WidgetBudgetSummary {
+        entry.budgetSummary ?? WidgetBudgetSummary(
             monthlyBudget: 0,
             totalSpent: 0,
-            remainingBudget: 0
+            categoryCount: 0,
+            transactionCount: 0
         )
     }
     
@@ -551,7 +711,7 @@ struct LargeBudgetWidget: View {
             // Budget overview section
             budgetOverviewSection
             
-            // Bottom section - Recent transactions or top categories
+            // Bottom section
             if !entry.recentTransactions.isEmpty {
                 recentTransactionsSection
             } else if !entry.topCategories.isEmpty {
@@ -561,7 +721,6 @@ struct LargeBudgetWidget: View {
             }
         }
         .padding(16)
-        .widgetURL(URL(string: "brandonsbudget://overview"))
     }
     
     private var headerSection: some View {
@@ -659,18 +818,10 @@ struct LargeBudgetWidget: View {
     
     private var recentTransactionsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Recent Transactions")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(.secondary)
-                
-                Spacer()
-                
-                Link("View All", destination: URL(string: "brandonsbudget://purchases")!)
-                    .font(.caption2)
-                    .foregroundColor(.blue)
-            }
+            Text("Recent Transactions")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
             
             VStack(spacing: 4) {
                 ForEach(entry.recentTransactions.prefix(3), id: \.id) { transaction in
@@ -680,7 +831,7 @@ struct LargeBudgetWidget: View {
         }
     }
     
-    private func transactionRow(_ transaction: SharedDataManager.RecentTransaction) -> some View {
+    private func transactionRow(_ transaction: WidgetRecentTransaction) -> some View {
         HStack {
             Text(transaction.category)
                 .font(.caption2)
@@ -693,10 +844,6 @@ struct LargeBudgetWidget: View {
                 .font(.caption2)
                 .fontWeight(.medium)
                 .foregroundColor(.primary)
-            
-            Text(transaction.relativeDate())
-                .font(.caption2)
-                .foregroundColor(.secondary)
         }
     }
     
@@ -715,7 +862,7 @@ struct LargeBudgetWidget: View {
         }
     }
     
-    private func categoryRow(_ category: SharedDataManager.CategorySpending) -> some View {
+    private func categoryRow(_ category: WidgetCategorySpending) -> some View {
         HStack {
             Text(category.name)
                 .font(.caption2)
@@ -744,10 +891,6 @@ struct LargeBudgetWidget: View {
             Text("No recent activity")
                 .font(.caption)
                 .foregroundColor(.secondary)
-            
-            Link("Add Transaction", destination: URL(string: "brandonsbudget://addPurchase")!)
-                .font(.caption2)
-                .foregroundColor(.blue)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -756,7 +899,6 @@ struct LargeBudgetWidget: View {
 
 // MARK: - Error Widget
 
-/// Widget view for error states
 struct ErrorBudgetWidget: View {
     let entry: BudgetWidgetEntry
     @Environment(\.widgetFamily) private var widgetFamily
@@ -784,22 +926,9 @@ struct ErrorBudgetWidget: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            
-            if widgetFamily == .systemLarge {
-                Spacer()
-                
-                Link("Open App", destination: URL(string: "brandonsbudget://")!)
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(12)
-            }
         }
         .padding(widgetFamily == .systemSmall ? 12 : 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .widgetURL(URL(string: "brandonsbudget://"))
     }
 }
 
@@ -814,23 +943,6 @@ struct BudgetWidget_Previews: PreviewProvider {
                 .previewContext(WidgetPreviewContext(family: .systemSmall))
                 .previewDisplayName("Small - Normal")
             
-            // Small Widget - Over Budget
-            BudgetWidgetView(entry: BudgetWidgetEntry(
-                date: Date(),
-                budgetSummary: SharedDataManager.BudgetSummary(
-                    monthlyBudget: 2000,
-                    totalSpent: 2300,
-                    remainingBudget: -300
-                ),
-                recentTransactions: [],
-                topCategories: [],
-                widgetData: nil,
-                errorState: nil,
-                lastUpdateDate: Date()
-            ))
-            .previewContext(WidgetPreviewContext(family: .systemSmall))
-            .previewDisplayName("Small - Over Budget")
-            
             // Medium Widget
             BudgetWidgetView(entry: .placeholder)
                 .previewContext(WidgetPreviewContext(family: .systemMedium))
@@ -841,21 +953,10 @@ struct BudgetWidget_Previews: PreviewProvider {
                 .previewContext(WidgetPreviewContext(family: .systemLarge))
                 .previewDisplayName("Large")
             
-            // Error State - Small
+            // Error State
             BudgetWidgetView(entry: .errorEntry)
                 .previewContext(WidgetPreviewContext(family: .systemSmall))
-                .previewDisplayName("Error - Small")
-            
-            // Error State - Medium
-            BudgetWidgetView(entry: .errorEntry)
-                .previewContext(WidgetPreviewContext(family: .systemMedium))
-                .previewDisplayName("Error - Medium")
-            
-            // Dark Mode
-            BudgetWidgetView(entry: .placeholder)
-                .previewContext(WidgetPreviewContext(family: .systemMedium))
-                .environment(\.colorScheme, .dark)
-                .previewDisplayName("Dark Mode")
+                .previewDisplayName("Error State")
         }
     }
 }

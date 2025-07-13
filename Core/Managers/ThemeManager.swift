@@ -5,14 +5,6 @@
 //  Created by Brandon Titensor on 5/30/25.
 //
 
-
-//
-//  ThemeManager.swift
-//  Brandon's Budget
-//
-//  Extracted from SharedTypes.swift for better code organization
-//
-
 import SwiftUI
 import Foundation
 

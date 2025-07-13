@@ -6,14 +6,6 @@
 //
 
 
-//
-//  ColorConstants.swift
-//  Brandon's Budget
-//
-//  Created by Brandon Titensor on 6/1/25.
-//  Centralized color definitions and theme management for consistent UI appearance
-//
-
 import SwiftUI
 import Foundation
 

@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 11/8/24.
-//  Updated: 7/7/25 - Fixed Swift 6 concurrency issues and removed duplicate extensions
 //
 
 import Foundation
@@ -172,6 +171,34 @@ public final class SharedDataManager: ObservableObject {
                 }
             }
         }
+    }
+    
+    // MARK: - Data Health Types
+    
+    public enum HealthStatus: String, Codable, Sendable {
+        case healthy = "healthy"
+        case warning = "warning"
+        case error = "error"
+        case critical = "critical"
+    }
+    
+    public struct DataHealth: Codable, Equatable, Sendable {
+        public let isHealthy: Bool
+        public let status: HealthStatus
+        public let message: String?
+        public let lastChecked: Date
+        
+        public init(isHealthy: Bool, status: HealthStatus, message: String? = nil) {
+            self.isHealthy = isHealthy
+            self.status = status
+            self.message = message
+            self.lastChecked = Date()
+        }
+        
+        public static let healthy = DataHealth(isHealthy: true, status: .healthy)
+        public static let noData = DataHealth(isHealthy: false, status: .warning, message: "No data available")
+        public static let corrupted = DataHealth(isHealthy: false, status: .error, message: "Data is corrupted")
+        public static let critical = DataHealth(isHealthy: false, status: .critical, message: "Critical system error")
     }
     
     // MARK: - Published Properties
@@ -417,6 +444,61 @@ public final class SharedDataManager: ObservableObject {
         } catch {
             print("⚠️ SharedDataManager: Failed to decode widget data - \(error)")
             lastError = AppError.from(error)
+            return nil
+        }
+    }
+    
+    // MARK: - Widget Compatibility Methods
+    
+    /// Get data health status for widget error handling
+    public func getDataHealth() -> DataHealth {
+        guard userDefaults != nil else {
+            return .critical
+        }
+        
+        if currentBudgetSummary == nil {
+            return .noData
+        }
+        
+        // Check if data is stale (more than 24 hours old)
+        if let lastUpdate = lastSuccessfulUpdate {
+            let dayAgo = Date().addingTimeInterval(-24 * 60 * 60)
+            if lastUpdate < dayAgo {
+                return DataHealth(isHealthy: false, status: .warning, message: "Data is stale")
+            }
+        }
+        
+        return .healthy
+    }
+    
+    /// Get widget data (compatibility wrapper) - synchronous for widget use
+    public func getWidgetData() -> WidgetData? {
+        guard let userDefaults = userDefaults else { return nil }
+        
+        guard let data = userDefaults.data(forKey: widgetDataKey) else {
+            return nil
+        }
+        
+        do {
+            return try JSONDecoder().decode(WidgetData.self, from: data)
+        } catch {
+            print("⚠️ SharedDataManager: Failed to decode widget data synchronously - \(error)")
+            return nil
+        }
+    }
+    
+    /// Get budget summary (compatibility wrapper) - synchronous for widget use  
+    public func getBudgetSummary() -> BudgetSummary? {
+        guard let userDefaults = userDefaults else { return nil }
+        
+        guard let data = userDefaults.data(forKey: budgetSummaryKey) else {
+            return nil
+        }
+        
+        do {
+            return try JSONDecoder().decode(BudgetSummary.self, from: data)
+        } catch {
+            print("⚠️ SharedDataManager: Failed to decode budget summary synchronously - \(error)")
             return nil
         }
     }

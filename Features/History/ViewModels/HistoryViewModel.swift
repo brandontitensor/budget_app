@@ -3,7 +3,6 @@
 //  Brandon's Budget
 //
 //  Created by Brandon Titensor on 7/1/24.
-//  Updated: 7/7/25 - Fixed Swift 6 compliance, added proper imports, and fixed main actor isolation
 //
 
 import Foundation
