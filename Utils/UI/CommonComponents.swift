@@ -696,7 +696,7 @@ public struct CommonComponents {
                     .scaleEffect(isPressed ? 0.95 : 1.0)
             }
             .buttonStyle(.plain)
-            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) { _ in
+            .onLongPressGesture(minimumDuration: 0, maximumDistance: .infinity) {
                 withAnimation(.easeInOut(duration: 0.1)) {
                     isPressed = true
                 }

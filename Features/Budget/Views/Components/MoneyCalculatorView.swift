@@ -20,7 +20,7 @@ public struct MoneyCalculatorView: View {
     @State private var showingConfirmation = false
     
     // MARK: - Constants
-    private enum Constants {
+    enum Constants {
         static let buttonSize: CGFloat = 70
         static let spacing: CGFloat = 12
         static let maxDigits = 12
@@ -36,7 +36,7 @@ public struct MoneyCalculatorView: View {
         [.clear, .number(0), .delete]
     ]
     
-    private enum CalculatorButton: Equatable, Hashable {
+    enum CalculatorButton: Equatable, Hashable {
         case number(Int)
         case clear
         case delete

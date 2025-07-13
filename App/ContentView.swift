@@ -96,7 +96,7 @@ struct ContentView: View {
             BudgetView()
         }
         .sheet(isPresented: $showingWelcomePopup) {
-            WelcomePopupView()
+            WelcomePopupView(isPresented: $showingWelcomePopup)
         }
     }
     
@@ -261,7 +261,7 @@ struct ContentView: View {
             errorTransform: { .dataLoad(underlying: $0) }
         ) {
             // Load budget manager data
-            await budgetManager.loadData()
+            try await budgetManager.loadData()
             return true
         }
         
@@ -277,9 +277,9 @@ struct ContentView: View {
                 }
                 
                 // Show welcome popup for first-time users
-                if !settingsManager.hasSeenWelcome {
+                if settingsManager.isFirstLaunch {
                     showingWelcomePopup = true
-                    settingsManager.hasSeenWelcome = true
+                    settingsManager.isFirstLaunch = false
                 }
             } else {
                 dataLoadingState = .failed(.generic(message: "Failed to load app data"))
@@ -336,7 +336,7 @@ struct ContentView: View {
         let result = await AsyncErrorHandler.execute(
             context: "Refreshing app data"
         ) {
-            await budgetManager.refreshData()
+            try await budgetManager.refreshData()
             // Widget data is updated automatically by BudgetManager
             return true
         }
@@ -355,11 +355,11 @@ struct ContentView: View {
             // Refresh specific tab data based on index
             switch index {
             case 0: // Overview
-                await budgetManager.refreshOverviewData()
+                try await budgetManager.refreshOverviewData()
             case 1: // Purchases
-                await budgetManager.refreshPurchaseData()
+                try await budgetManager.refreshPurchaseData()
             case 2: // History
-                await budgetManager.refreshHistoryData()
+                try await budgetManager.refreshHistoryData()
             case 3: // Settings
                 // Settings don't need explicit loading
                 break
@@ -379,7 +379,7 @@ struct ContentView: View {
         let result = await AsyncErrorHandler.execute(
             context: "Scheduling background refresh"
         ) {
-            await appStateMonitor.scheduleBackgroundRefresh()
+            await appStateMonitor.performBackgroundTasks()
             return true
         }
         
@@ -420,7 +420,7 @@ struct ContentView: View {
             errorHandler.clearError()
             
             // Reload all data
-            await budgetManager.reloadAllData()
+            try await budgetManager.reloadAllData()
             
             // Validate data integrity
             let isValid = await budgetManager.validateDataIntegrity()

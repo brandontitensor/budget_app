@@ -183,7 +183,9 @@ public final class PerformanceMonitor: ObservableObject {
     }
     
     deinit {
-        stopMonitoring()
+        Task { @MainActor in
+            stopMonitoring()
+        }
     }
     
     // MARK: - Public Methods

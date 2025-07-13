@@ -152,3 +152,16 @@ struct PurchaseEntryView: View {
                 }
             } message: {
                 Text("Enter a name for the new category")
+            }
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func addNewCategory() {
+        // Implementation would go here
+        budgetManager.addCategory(newCategoryName, amount: 0)
+        newCategoryName = ""
+        showingNewCategoryAlert = false
+    }
+}

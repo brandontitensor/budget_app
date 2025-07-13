@@ -63,7 +63,7 @@ struct BudgetOverviewView: View {
         }
     }
     
-    private enum TimeFrame: String, CaseIterable {
+    enum TimeFrame: String, CaseIterable {
         case thisWeek = "This Week"
         case thisMonth = "This Month"
         case thisQuarter = "This Quarter"
@@ -88,7 +88,7 @@ struct BudgetOverviewView: View {
         }
     }
     
-    private struct BudgetSummaryData {
+    struct BudgetSummaryData {
         let totalBudgeted: Double
         let totalSpent: Double
         let remainingBudget: Double
@@ -122,7 +122,7 @@ struct BudgetOverviewView: View {
         }
     }
     
-    private struct CategoryBreakdown: Identifiable {
+    struct CategoryBreakdown: Identifiable {
         let id = UUID()
         let category: String
         let spent: Double
@@ -252,7 +252,7 @@ struct BudgetOverviewView: View {
                 Spacer()
                 
                 if let summary = budgetSummary {
-                    StatusIndicator(
+                    OverviewStatusIndicator(
                         color: summary.statusColor,
                         isAnimated: summary.isOverBudget
                     )
@@ -861,7 +861,7 @@ struct BudgetOverviewView: View {
 
 // MARK: - Supporting View Components
 
-private struct StatusIndicator: View {
+private struct OverviewStatusIndicator: View {
     let color: Color
     let isAnimated: Bool
     
@@ -916,7 +916,7 @@ private struct TimeFrameButton: View {
     }
 }
 
-private struct SectionHeader: View {
+private struct OverviewSectionHeader: View {
     let title: String
     let subtitle: String?
     let systemImage: String
@@ -953,7 +953,7 @@ private struct SectionHeader: View {
     }
 }
 
-private struct BudgetSummaryCard: View {
+private struct OverviewBudgetSummaryCard: View {
     let summary: BudgetOverviewView.BudgetSummaryData
     let themeColor: Color
     
@@ -976,7 +976,7 @@ private struct BudgetSummaryCard: View {
                 
                 Spacer()
                 
-                StatusIndicator(
+                OverviewStatusIndicator(
                     color: summary.statusColor,
                     isAnimated: summary.isOverBudget
                 )

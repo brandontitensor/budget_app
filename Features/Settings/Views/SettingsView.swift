@@ -1235,20 +1235,17 @@ struct SettingsView: View {
         }
     }
     
-    private func handleImportError(_ error: CSVImport.ImportError) {
-        switch error {
-        case .emptyFile:
-            importResultMessage = "The selected file is empty or contains no data"
-        case .invalidFormat(let reason):
-            importResultMessage = "Invalid file format"
-            importErrorDetails = reason
-        case .missingRequiredFields(let fields):
-            importResultMessage = "Missing required columns"
-            importErrorDetails = "Required: \(fields.joined(separator: ", "))"
+    private func handleImportError(_ error: Error) {
+        if let appError = error as? AppError, case .csvImport(let underlying) = appError {
+            importResultMessage = underlying.localizedDescription
+            importErrorDetails = (underlying as NSError).userInfo[NSLocalizedDescriptionKey] as? String ?? "An unknown error occurred"
+        } else {
+            importResultMessage = "Import failed"
+            importErrorDetails = error.localizedDescription
         }
         
         showingImportResult = true
-        let appError = AppError.from(error)
+        let appError = error as? AppError ?? AppError.csvImport(underlying: error)
         currentError = appError
         errorHandler.handle(appError, context: "Processing import file")
     }

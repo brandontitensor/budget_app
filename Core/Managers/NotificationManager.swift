@@ -8,6 +8,7 @@
 import UserNotifications
 import Combine
 import Foundation
+import SwiftUI
 
 /// Manages all notification-related functionality for the app with proper error handling and state management
 @MainActor
@@ -1630,7 +1631,7 @@ public class MockNotificationCenter: UNUserNotificationCenter {
         return requestAuthorizationResult.0
     }
     
-    public override func getNotificationSettings() async -> UNNotificationSettings {
+    public func getNotificationSettings() async -> UNNotificationSettings {
         // Return mock settings - would need to create a proper mock UNNotificationSettings
         return await super.getNotificationSettings()
     }
@@ -1642,11 +1643,11 @@ public class MockNotificationCenter: UNUserNotificationCenter {
         mockPendingRequests.append(request)
     }
     
-    public override func getPendingNotificationRequests() async -> [UNNotificationRequest] {
+    public func getPendingNotificationRequests() async -> [UNNotificationRequest] {
         return mockPendingRequests
     }
     
-    public override func getDeliveredNotifications() async -> [UNNotification] {
+    public func getDeliveredNotifications() async -> [UNNotification] {
         return mockDeliveredNotifications
     }
     

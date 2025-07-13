@@ -223,7 +223,7 @@ struct ImportOptionsView: View {
     private var quickStartSection: some View {
         Section(
             header: sectionHeader("Quick Start", systemImage: "bolt.fill"),
-            footer: Text("Choose what type of data you want to import.")
+            footer: Text("Choose what type of data you want to importData.")
         ) {
             ImportOptionButton(
                 type: .autoDetect,
@@ -431,7 +431,7 @@ struct ImportOptionsView: View {
                 
                 Section(
                     header: Text("Validation Settings"),
-                    footer: Text("Control how strictly data is validated during import.")
+                    footer: Text("Control how strictly data is validated during importData.")
                 ) {
                     Toggle("Validate Duplicates", isOn: createBinding(for: \.validateDuplicates))
                     Toggle("Skip Invalid Rows", isOn: createBinding(for: \.skipInvalidRows))
@@ -739,25 +739,25 @@ struct FormatInfoRow: View {
 }
 
 struct RecentImportRow: View {
-    let import: ImportOptionsView.RecentImport
+    let importData: ImportOptionsView.RecentImport
     let onRetry: () -> Void
     
     @EnvironmentObject private var themeManager: ThemeManager
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: import.statusIcon)
-                .foregroundColor(import.statusColor)
+            Image(systemName: importData.statusIcon)
+                .foregroundColor(importData.statusColor)
                 .font(.title3)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(import.fileName)
+                Text(importData.fileName)
                     .font(.headline)
                     .fontWeight(.medium)
                     .lineLimit(1)
                 
                 HStack(spacing: 8) {
-                    Text(import.type.displayName)
+                    Text(importData.type.displayName)
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
@@ -765,8 +765,8 @@ struct RecentImportRow: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    if import.success {
-                        Text("\(import.recordCount) records")
+                    if importData.success {
+                        Text("\(importData.recordCount) records")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     } else {
@@ -776,14 +776,14 @@ struct RecentImportRow: View {
                     }
                 }
                 
-                Text(import.formattedDate)
+                Text(importData.formattedDate)
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
             
             Spacer()
             
-            if !import.success {
+            if !importData.success {
                 Button("Retry") {
                     onRetry()
                 }

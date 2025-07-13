@@ -165,7 +165,7 @@ struct BrandonsBudgetApp: App {
     
     /// Load initial data
     private func loadInitialData() async {
-        await budgetManager.loadData()
+        try? await budgetManager.loadData()
         await appStateMonitor.markDataRefreshed()
         print("✅ Initial data loaded")
     }
@@ -364,7 +364,7 @@ struct BrandonsBudgetApp: App {
     
     /// Refresh app data
     private func refreshAppData() async {
-        await budgetManager.refreshData()
+        try? await budgetManager.refreshData()
         await appStateMonitor.markDataRefreshed()
         print("✅ App data refreshed")
     }

@@ -243,16 +243,13 @@ struct CategoryMappingView: View {
                 }
                 
                 Spacer()
-            
-            Button("Change") {
-                onUnmap()
             }
-            .font(.caption)
-            .foregroundColor(.blue)
+            .padding(.vertical, 4)
         }
-        .padding(.vertical, 4)
     }
 }
+
+// MARK: - Supporting Views
 
 struct ValidationErrorRow: View {
     let category: String
@@ -288,9 +285,263 @@ struct ValidationErrorRow: View {
     }
 }
 
-// MARK: - Error Handling Extensions
+struct StatusIndicator: View {
+    let title: String
+    let count: Int
+    let total: Int
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("\(count)")
+                .font(.title2)
+                .fontWeight(.bold)
+                .foregroundColor(color)
+            
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
+            if total > 0 {
+                ProgressView(value: Double(count), total: Double(total))
+                    .progressViewStyle(LinearProgressViewStyle())
+                    .scaleEffect(0.8)
+                    .tint(color)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+struct CategoryMappingSectionHeader: View {
+    let title: String
+    let systemImage: String
+    
+    var body: some View {
+        HStack {
+            Image(systemName: systemImage)
+                .foregroundColor(.blue)
+            Text(title)
+        }
+    }
+}
+
+struct CategorySummaryCard: View {
+    let category: String
+    let count: Int
+    let amount: Double
+    let isProcessed: Bool
+    let hasError: Bool
+    let themeColor: Color
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(category)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                
+                Text("\(count) transactions")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(amount.asCurrency)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                
+                statusIndicator
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(.secondarySystemBackground))
+        )
+    }
+    
+    @ViewBuilder
+    private var statusIndicator: some View {
+        if hasError {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.red)
+                .font(.caption2)
+        } else if isProcessed {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(.green)
+                .font(.caption2)
+        } else {
+            Image(systemName: "circle")
+                .foregroundColor(.gray)
+                .font(.caption2)
+        }
+    }
+}
+
+struct UnmappedCategoryRow: View {
+    let category: String
+    let categoryData: (category: String, count: Int, totalAmount: Double)?
+    let existingCategories: [String]
+    let onMap: (String) -> Void
+    let onCreateNew: () -> Void
+    let validationError: String?
+    let themeColor: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(category)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                    
+                    if let data = categoryData {
+                        Text("\(data.count) transactions • \(data.totalAmount.asCurrency)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                if !existingCategories.isEmpty {
+                    Menu {
+                        ForEach(existingCategories, id: \.self) { existingCategory in
+                            Button(existingCategory) {
+                                onMap(existingCategory)
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text("Map to Existing")
+                                .font(.subheadline)
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                        }
+                        .foregroundColor(themeColor)
+                    }
+                }
+            }
+            
+            HStack {
+                Button("Create New Category") {
+                    onCreateNew()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                
+                Spacer()
+            }
+            
+            if let error = validationError {
+                InlineErrorView(
+                    error: AppError.validation(message: error),
+                    onDismiss: nil,
+                    onRetry: nil
+                )
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct MappedCategoryRow: View {
+    let originalCategory: String
+    let mappedCategory: String
+    let categoryData: (category: String, count: Int, totalAmount: Double)?
+    let onUnmap: () -> Void
+    let themeColor: Color
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                if originalCategory != mappedCategory {
+                    Text(originalCategory)
+                        .font(.subheadline)
+                        .strikethrough()
+                        .foregroundColor(.secondary)
+                    
+                    HStack {
+                        Image(systemName: "arrow.right")
+                            .foregroundColor(themeColor)
+                            .font(.caption)
+                        Text(mappedCategory)
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(themeColor)
+                    }
+                } else {
+                    Text(mappedCategory)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                
+                if let data = categoryData {
+                    Text("\(data.count) transactions • \(data.totalAmount.asCurrency)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            Button("Change") {
+                onUnmap()
+            }
+            .font(.caption)
+            .foregroundColor(.blue)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private struct CategoryStatusView: View {
+    let mappedCategories: [String]
+    let unmappedCategories: [String] 
+    let categories: [String]
+    let validationErrors: [String: String]
+    let hasValidationErrors: Bool
+    
+    var body: some View {
+        // Status indicators
+        HStack(spacing: 16) {
+            StatusIndicator(
+                title: "Mapped",
+                count: mappedCategories.count,
+                total: categories.count,
+                color: .green
+            )
+            
+            StatusIndicator(
+                title: "Remaining",
+                count: unmappedCategories.count,
+                total: categories.count,
+                color: .orange
+            )
+            
+            if hasValidationErrors {
+                StatusIndicator(
+                    title: "Errors",
+                    count: validationErrors.count,
+                    total: categories.count,
+                    color: .red
+                )
+            }
+        }
+        .padding()
+    }
+}
+
+// MARK: - CategoryMappingView Extension
 
 extension CategoryMappingView {
+    // MARK: - Error Handling Methods
+    
     /// Handle specific errors during category operations
     private func handleCategoryError(_ error: Error, context: String) {
         let appError = AppError.from(error)
@@ -398,21 +649,17 @@ extension CategoryMappingView {
         
         return context
     }
-}
 
-// MARK: - Accessibility
-
-extension CategoryMappingView {
+    // MARK: - Accessibility
+    
     /// Add accessibility improvements
     private func setupAccessibility() {
         // This would be called in onAppear if needed
         // Add VoiceOver hints and labels for better accessibility
     }
-}
 
-// MARK: - Analytics and Logging
-
-extension CategoryMappingView {
+    // MARK: - Analytics and Logging
+    
     /// Log important user actions for analytics
     private func logUserAction(_ action: String, category: String? = nil) {
         var logMessage = "CategoryMapping: \(action)"
@@ -443,11 +690,9 @@ extension CategoryMappingView {
         print("📊 CategoryMapping completed with stats: \(stats)")
         #endif
     }
-}
 
-// MARK: - Performance Optimizations
-
-extension CategoryMappingView {
+    // MARK: - Performance Optimizations
+    
     /// Optimize category data calculations
     private func optimizedCategoriesWithCounts() -> [(category: String, count: Int, totalAmount: Double)] {
         // Cache this calculation if it becomes expensive
@@ -466,202 +711,10 @@ extension CategoryMappingView {
     }
 }
 
-// MARK: - Preview Provider
+// MARK: - CategoryMappingView View Components Extension
 
-#if DEBUG
-struct CategoryMappingView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            // Normal case with existing categories
-            CategoryMappingView(
-                categories: ["Groceries", "Entertainment", "Transportation", "Dining Out"],
-                importedData: [
-                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 50.0, category: "Groceries", note: "Weekly shopping"),
-                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: "Movie tickets"),
-                    CSVImport.PurchaseImportData(date: "2024-01-03", amount: 25.0, category: "Transportation", note: "Gas"),
-                    CSVImport.PurchaseImportData(date: "2024-01-04", amount: 45.0, category: "Dining Out", note: "Restaurant")
-                ],
-                onComplete: { mappings in
-                    print("Preview: Completed with mappings: \(mappings)")
-                }
-            )
-            .environmentObject(BudgetManager.shared)
-            .environmentObject(ThemeManager.shared)
-            .environmentObject(ErrorHandler.shared)
-            .previewDisplayName("With Existing Categories")
-            
-            // No existing categories case
-            CategoryMappingView(
-                categories: ["New Category 1", "New Category 2"],
-                importedData: [
-                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 100.0, category: "New Category 1", note: nil),
-                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 75.0, category: "New Category 2", note: nil)
-                ],
-                onComplete: { _ in }
-            )
-            .environmentObject(BudgetManager.shared)
-            .environmentObject(ThemeManager.shared)
-            .environmentObject(ErrorHandler.shared)
-            .previewDisplayName("No Existing Categories")
-            
-            // Dark mode
-            CategoryMappingView(
-                categories: ["Groceries", "Entertainment"],
-                importedData: [
-                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 50.0, category: "Groceries", note: nil),
-                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: nil)
-                ],
-                onComplete: { _ in }
-            )
-            .environmentObject(BudgetManager.shared)
-            .environmentObject(ThemeManager.shared)
-            .environmentObject(ErrorHandler.shared)
-            .preferredColorScheme(.dark)
-            .previewDisplayName("Dark Mode")
-            
-            // Large dataset
-            CategoryMappingView(
-                categories: Set((1...10).map { "Category \($0)" }),
-                importedData: (1...50).map { index in
-                    CSVImport.PurchaseImportData(
-                        date: "2024-01-\(String(format: "%02d", (index % 28) + 1))",
-                        amount: Double.random(in: 10...200),
-                        category: "Category \((index % 10) + 1)",
-                        note: "Transaction \(index)"
-                    )
-                },
-                onComplete: { _ in }
-            )
-            .environmentObject(BudgetManager.shared)
-            .environmentObject(ThemeManager.shared)
-            .environmentObject(ErrorHandler.shared)
-            .previewDisplayName("Large Dataset")
-        }
-    }
-}
-
-// MARK: - Mock Data for Previews
-
-extension BudgetManager {
-    static func createMockForPreviews() -> BudgetManager {
-        let manager = BudgetManager.shared
-        // In a real implementation, you might want to inject test data
-        return manager
-    }
-}
-
-extension ThemeManager {
-    static func createMockForPreviews() -> ThemeManager {
-        return ThemeManager.shared
-    }
-}
-
-extension ErrorHandler {
-    static func createMockForPreviews() -> ErrorHandler {
-        return ErrorHandler.shared
-    }
-}
-#endif
-
-// MARK: - Testing Support
-
-#if DEBUG
 extension CategoryMappingView {
-    /// Create test instance with mock data
-    static func createTestInstance() -> CategoryMappingView {
-        return CategoryMappingView(
-            categories: ["Test Category 1", "Test Category 2"],
-            importedData: [
-                CSVImport.PurchaseImportData(date: "2024-01-01", amount: 100.0, category: "Test Category 1", note: "Test"),
-                CSVImport.PurchaseImportData(date: "2024-01-02", amount: 50.0, category: "Test Category 2", note: "Test")
-            ],
-            onComplete: { mappings in
-                print("Test: Completed with \(mappings.count) mappings")
-            }
-        )
-    }
-    
-    /// Simulate error states for testing
-    func simulateErrorState() {
-        validationErrors = [
-            "Test Category": "Test validation error",
-            "Another Category": "Another test error"
-        ]
-    }
-    
-    /// Simulate processing state for testing
-    func simulateProcessingState() {
-        isProcessing = true
-        showingProgressView = true
-        progressMessage = "Test processing..."
-        completionPercentage = 0.5
-    }
-    
-    /// Get current state for testing validation
-    func getCurrentStateForTesting() -> (
-        mappedCount: Int,
-        unmappedCount: Int,
-        errorCount: Int,
-        canProceed: Bool,
-        isProcessing: Bool
-    ) {
-        return (
-            mappedCount: mappedCategories.count,
-            unmappedCount: unmappedCategories.count,
-            errorCount: validationErrors.count,
-            canProceed: canProceed,
-            isProcessing: isProcessing
-        )
-    }
-}
-#endif}
-            
-            // Status indicators
-            HStack(spacing: 16) {
-                StatusIndicator(
-                    title: "Mapped",
-                    count: mappedCategories.count,
-                    total: categories.count,
-                    color: .green
-                )
-                
-                StatusIndicator(
-                    title: "Remaining",
-                    count: unmappedCategories.count,
-                    total: categories.count,
-                    color: .orange
-                )
-                
-                if hasValidationErrors {
-                    StatusIndicator(
-                        title: "Errors",
-                        count: validationErrors.count,
-                        total: categories.count,
-                        color: .red
-                    )
-                }
-            }
-            
-            if !canProceed && !isProcessing {
-                HStack {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundColor(.orange)
-                    Text(getBlockingMessage())
-                        .font(.caption)
-                        .foregroundColor(.orange)
-                    Spacer()
-                }
-            }
-        }
-        .padding()
-        .background(Color(.systemBackground))
-        .overlay(
-            Rectangle()
-                .frame(height: 1)
-                .foregroundColor(Color(.separator)),
-            alignment: .bottom
-        )
-    }
+    // MARK: - View Components
     
     private var importSummarySection: some View {
         Section {
@@ -708,7 +761,7 @@ extension CategoryMappingView {
     }
     
     private var unmappedCategoriesSection: some View {
-        Section(header: SectionHeader(title: "Unmapped Categories", systemImage: "questionmark.circle")) {
+        Section(header: CategoryMappingSectionHeader(title: "Unmapped Categories", systemImage: "questionmark.circle")) {
             ForEach(unmappedCategories, id: \.self) { category in
                 UnmappedCategoryRow(
                     category: category,
@@ -728,7 +781,7 @@ extension CategoryMappingView {
     }
     
     private var mappedCategoriesSection: some View {
-        Section(header: SectionHeader(title: "Mapped Categories", systemImage: "checkmark.circle")) {
+        Section(header: CategoryMappingSectionHeader(title: "Mapped Categories", systemImage: "checkmark.circle")) {
             ForEach(mappedCategories, id: \.self) { originalCategory in
                 if let mappedCategory = categoryMappings[originalCategory] {
                     MappedCategoryRow(
@@ -746,7 +799,7 @@ extension CategoryMappingView {
     }
     
     private var validationErrorsSection: some View {
-        Section(header: SectionHeader(title: "Validation Errors", systemImage: "exclamationmark.triangle.fill")) {
+        Section(header: CategoryMappingSectionHeader(title: "Validation Errors", systemImage: "exclamationmark.triangle.fill")) {
             ForEach(Array(validationErrors.keys).sorted(), id: \.self) { category in
                 if let error = validationErrors[category] {
                     ValidationErrorRow(
@@ -1133,209 +1186,146 @@ extension CategoryMappingView {
     }
 }
 
-// MARK: - Supporting Views
+// MARK: - Preview Provider
 
-struct StatusIndicator: View {
-    let title: String
-    let count: Int
-    let total: Int
-    let color: Color
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            Text("\(count)")
-                .font(.title2)
-                .fontWeight(.bold)
-                .foregroundColor(color)
+#if DEBUG
+struct CategoryMappingView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            // Normal case with existing categories
+            CategoryMappingView(
+                categories: ["Groceries", "Entertainment", "Transportation", "Dining Out"],
+                importedData: [
+                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 50.0, category: "Groceries", note: "Weekly shopping"),
+                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: "Movie tickets"),
+                    CSVImport.PurchaseImportData(date: "2024-01-03", amount: 25.0, category: "Transportation", note: "Gas"),
+                    CSVImport.PurchaseImportData(date: "2024-01-04", amount: 45.0, category: "Dining Out", note: "Restaurant")
+                ],
+                onComplete: { mappings in
+                    print("Preview: Completed with mappings: \(mappings)")
+                }
+            )
+            .environmentObject(BudgetManager.shared)
+            .environmentObject(ThemeManager.shared)
+            .environmentObject(ErrorHandler.shared)
+            .previewDisplayName("With Existing Categories")
             
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // No existing categories case
+            CategoryMappingView(
+                categories: ["New Category 1", "New Category 2"],
+                importedData: [
+                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 100.0, category: "New Category 1", note: nil),
+                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 75.0, category: "New Category 2", note: nil)
+                ],
+                onComplete: { _ in }
+            )
+            .environmentObject(BudgetManager.shared)
+            .environmentObject(ThemeManager.shared)
+            .environmentObject(ErrorHandler.shared)
+            .previewDisplayName("No Existing Categories")
             
-            if total > 0 {
-                ProgressView(value: Double(count), total: Double(total))
-                    .progressViewStyle(LinearProgressViewStyle())
-                    .scaleEffect(0.8)
-                    .tint(color)
-            }
+            // Dark mode
+            CategoryMappingView(
+                categories: ["Groceries", "Entertainment"],
+                importedData: [
+                    CSVImport.PurchaseImportData(date: "2024-01-01", amount: 50.0, category: "Groceries", note: nil),
+                    CSVImport.PurchaseImportData(date: "2024-01-02", amount: 30.0, category: "Entertainment", note: nil)
+                ],
+                onComplete: { _ in }
+            )
+            .environmentObject(BudgetManager.shared)
+            .environmentObject(ThemeManager.shared)
+            .environmentObject(ErrorHandler.shared)
+            .preferredColorScheme(.dark)
+            .previewDisplayName("Dark Mode")
+            
+            // Large dataset
+            CategoryMappingView(
+                categories: Set((1...10).map { "Category \($0)" }),
+                importedData: (1...50).map { index in
+                    CSVImport.PurchaseImportData(
+                        date: "2024-01-\(String(format: "%02d", (index % 28) + 1))",
+                        amount: Double.random(in: 10...200),
+                        category: "Category \((index % 10) + 1)",
+                        note: "Transaction \(index)"
+                    )
+                },
+                onComplete: { _ in }
+            )
+            .environmentObject(BudgetManager.shared)
+            .environmentObject(ThemeManager.shared)
+            .environmentObject(ErrorHandler.shared)
+            .previewDisplayName("Large Dataset")
         }
-        .frame(maxWidth: .infinity)
     }
 }
 
-struct SectionHeader: View {
-    let title: String
-    let systemImage: String
-    
-    var body: some View {
-        HStack {
-            Image(systemName: systemImage)
-                .foregroundColor(.blue)
-            Text(title)
-        }
+// MARK: - Mock Data for Previews
+
+extension BudgetManager {
+    static func createMockForPreviews() -> BudgetManager {
+        let manager = BudgetManager.shared
+        // In a real implementation, you might want to inject test data
+        return manager
+    }
+}
+#endif
+
+extension ThemeManager {
+    static func createMockForPreviews() -> ThemeManager {
+        return ThemeManager.shared
     }
 }
 
-struct CategorySummaryCard: View {
-    let category: String
-    let count: Int
-    let amount: Double
-    let isProcessed: Bool
-    let hasError: Bool
-    let themeColor: Color
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(category)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                
-                Text("\(count) transactions")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+// MARK: - Testing Support
+
+#if DEBUG
+extension CategoryMappingView {
+    /// Create test instance with mock data
+    static func createTestInstance() -> CategoryMappingView {
+        return CategoryMappingView(
+            categories: ["Test Category 1", "Test Category 2"],
+            importedData: [
+                CSVImport.PurchaseImportData(date: "2024-01-01", amount: 100.0, category: "Test Category 1", note: "Test"),
+                CSVImport.PurchaseImportData(date: "2024-01-02", amount: 50.0, category: "Test Category 2", note: "Test")
+            ],
+            onComplete: { mappings in
+                print("Test: Completed with \(mappings.count) mappings")
             }
-            
-            Spacer()
-            
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(amount.asCurrency)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                
-                statusIndicator
-            }
-        }
-        .padding(.vertical, 4)
-        .padding(.horizontal, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(.secondarySystemBackground))
         )
     }
     
-    @ViewBuilder
-    private var statusIndicator: some View {
-        if hasError {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.red)
-                .font(.caption2)
-        } else if isProcessed {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundColor(.green)
-                .font(.caption2)
-        } else {
-            Image(systemName: "circle")
-                .foregroundColor(.gray)
-                .font(.caption2)
-        }
+    /// Simulate error states for testing
+    func simulateErrorState() {
+        validationErrors = [
+            "Test Category": "Test validation error",
+            "Another Category": "Another test error"
+        ]
+    }
+    
+    /// Simulate processing state for testing
+    func simulateProcessingState() {
+        isProcessing = true
+        showingProgressView = true
+        progressMessage = "Test processing..."
+        completionPercentage = 0.5
+    }
+    
+    /// Get current state for testing validation
+    func getCurrentStateForTesting() -> (
+        mappedCount: Int,
+        unmappedCount: Int,
+        errorCount: Int,
+        canProceed: Bool,
+        isProcessing: Bool
+    ) {
+        return (
+            mappedCount: mappedCategories.count,
+            unmappedCount: unmappedCategories.count,
+            errorCount: validationErrors.count,
+            canProceed: canProceed,
+            isProcessing: isProcessing
+        )
     }
 }
-
-struct UnmappedCategoryRow: View {
-    let category: String
-    let categoryData: (category: String, count: Int, totalAmount: Double)?
-    let existingCategories: [String]
-    let onMap: (String) -> Void
-    let onCreateNew: () -> Void
-    let validationError: String?
-    let themeColor: Color
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(category)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                    
-                    if let data = categoryData {
-                        Text("\(data.count) transactions • \(data.totalAmount.asCurrency)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                
-                Spacer()
-                
-                if !existingCategories.isEmpty {
-                    Menu {
-                        ForEach(existingCategories, id: \.self) { existingCategory in
-                            Button(existingCategory) {
-                                onMap(existingCategory)
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            Text("Map to Existing")
-                                .font(.subheadline)
-                            Image(systemName: "chevron.down")
-                                .font(.caption)
-                        }
-                        .foregroundColor(themeColor)
-                    }
-                }
-            }
-            
-            HStack {
-                Button("Create New Category") {
-                    onCreateNew()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                
-                Spacer()
-            }
-            
-            if let error = validationError {
-                InlineErrorView(
-                    error: AppError.validation(message: error),
-                    onDismiss: nil,
-                    onRetry: nil
-                )
-            }
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-struct MappedCategoryRow: View {
-    let originalCategory: String
-    let mappedCategory: String
-    let categoryData: (category: String, count: Int, totalAmount: Double)?
-    let onUnmap: () -> Void
-    let themeColor: Color
-    
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                if originalCategory != mappedCategory {
-                    Text(originalCategory)
-                        .font(.subheadline)
-                        .strikethrough()
-                        .foregroundColor(.secondary)
-                    
-                    HStack {
-                        Image(systemName: "arrow.right")
-                            .foregroundColor(themeColor)
-                            .font(.caption)
-                        Text(mappedCategory)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(themeColor)
-                    }
-                } else {
-                    Text(mappedCategory)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                }
-                
-                if let data = categoryData {
-                    Text("\(data.count) transactions • \(data.totalAmount.asCurrency)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-            
-            Spacer()
+#endif

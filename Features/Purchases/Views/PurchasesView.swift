@@ -680,7 +680,7 @@ private struct FilterOptionsView: View {
 
 // MARK: - Enhanced Transaction Row View
 
-private struct TransactionRowView: View {
+private struct PurchasesTransactionRowView: View {
     let entry: BudgetEntry
     let onTap: () -> Void
     let onDelete: () -> Void

@@ -220,18 +220,6 @@ public struct SemanticColors {
     var textTertiary: Color { Color(.tertiaryLabel) }
 }
 
-// MARK: - Color Extension
-
-extension Color {
-    init(_ components: ColorComponents) {
-        self.init(
-            red: components.red,
-            green: components.green,
-            blue: components.blue,
-            opacity: components.opacity
-        )
-    }
-}
 
 // MARK: - Testing Support
 

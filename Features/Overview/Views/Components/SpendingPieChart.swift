@@ -108,7 +108,7 @@ struct SpendingPieChart: View {
         }
     }
     
-    private struct SliceInfo: Identifiable {
+    struct SliceInfo: Identifiable {
         let id = UUID()
         let data: SpendingData
         let startAngle: Angle

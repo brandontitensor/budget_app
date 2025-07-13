@@ -38,7 +38,7 @@ struct WelcomePopupView: View {
     @AccessibilityFocusState private var focusedField: FormField?
     
     // MARK: - Types
-    private enum OnboardingStep: Int, CaseIterable {
+    enum OnboardingStep: Int, CaseIterable {
         case welcome = 0
         case personalization = 1
         case preferences = 2
@@ -451,7 +451,7 @@ struct WelcomePopupView: View {
     private var backgroundMaterial: some View {
         Group {
             if #available(iOS 15.0, *) {
-                .regularMaterial
+                Color.clear.background(.regularMaterial)
             } else {
                 colorScheme == .dark
                     ? Color(.systemGray6)
@@ -997,7 +997,7 @@ extension WelcomePopupView {
         print("📊 Onboarding: User completed onboarding")
         
         // Track completion with user preferences
-        let preferences = [
+        let preferences: [String: Any] = [
             "notifications_enabled": enableNotifications,
             "haptic_feedback_enabled": enableHapticFeedback,
             "selected_currency": selectedCurrency,

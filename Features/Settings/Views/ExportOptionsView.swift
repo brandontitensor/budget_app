@@ -37,7 +37,7 @@ struct ExportOptionsView: View {
     @State private var exportConfiguration: CSVExport.ExportConfiguration?
     
     // MARK: - Types
-    private struct ExportPreview {
+    struct ExportPreview {
         let recordCount: Int
         let estimatedSize: String
         let dateRange: String

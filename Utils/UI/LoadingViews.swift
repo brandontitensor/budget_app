@@ -12,12 +12,14 @@ import SwiftUI
 // MARK: - Loading State Views
 
 /// Comprehensive loading state components for the app
-public struct LoadingViews {
-    
-    // MARK: - Basic Loading View
-    
-    /// Simple loading indicator with text
-    public struct BasicLoadingView: View {
+public enum LoadingViews {
+    // This enum serves as a namespace for loading views
+}
+
+// MARK: - Basic Loading View
+
+/// Simple loading indicator with text
+public struct BasicLoadingView: View {
         let message: String
         let showProgress: Bool
         @State private var rotation: Double = 0
@@ -49,12 +51,12 @@ public struct LoadingViews {
             }
             .padding()
         }
-    }
-    
-    // MARK: - Full Screen Loading
-    
-    /// Full screen loading overlay
-    public struct FullScreenLoadingView: View {
+}
+
+// MARK: - Full Screen Loading
+
+/// Full screen loading overlay
+public struct FullScreenLoadingView: View {
         let title: String
         let subtitle: String?
         let progress: Double?
@@ -157,12 +159,12 @@ public struct LoadingViews {
                     .foregroundColor(.secondary)
             }
         }
-    }
-    
-    // MARK: - Skeleton Loading
-    
-    /// Skeleton loading placeholder
-    public struct SkeletonView: View {
+}
+
+// MARK: - Skeleton Loading
+
+/// Skeleton loading placeholder
+public struct SkeletonView: View {
         let height: CGFloat
         let cornerRadius: CGFloat
         @State private var shimmerOffset: CGFloat = -200
@@ -198,12 +200,12 @@ public struct LoadingViews {
                     shimmerOffset = 200
                 }
         }
-    }
-    
-    // MARK: - List Loading
-    
-    /// Loading placeholder for list items
-    public struct ListLoadingView: View {
+}
+
+// MARK: - List Loading
+
+/// Loading placeholder for list items
+public struct ListLoadingView: View {
         let itemCount: Int
         let itemHeight: CGFloat
         
@@ -221,10 +223,10 @@ public struct LoadingViews {
             }
             .padding()
         }
-    }
-    
-    /// Individual list item skeleton
-    public struct ListItemSkeleton: View {
+}
+
+/// Individual list item skeleton
+public struct ListItemSkeleton: View {
         let height: CGFloat
         
         public init(height: CGFloat = 60) {
@@ -260,12 +262,12 @@ public struct LoadingViews {
                     .fill(Color(.systemBackground))
             )
         }
-    }
-    
-    // MARK: - Card Loading
-    
-    /// Loading placeholder for card views
-    public struct CardLoadingView: View {
+}
+
+// MARK: - Card Loading
+
+/// Loading placeholder for card views
+public struct CardLoadingView: View {
         let showHeader: Bool
         let showFooter: Bool
         
@@ -320,12 +322,12 @@ public struct LoadingViews {
                     .fill(Color(.secondarySystemBackground))
             )
         }
-    }
-    
-    // MARK: - Chart Loading
-    
-    /// Loading placeholder for charts
-    public struct ChartLoadingView: View {
+}
+
+// MARK: - Chart Loading
+
+/// Loading placeholder for charts
+public struct ChartLoadingView: View {
         let chartType: ChartType
         @State private var animationPhase: CGFloat = 0
         
@@ -408,4 +410,35 @@ public struct LoadingViews {
                     let height: CGFloat = 150
                     
                     path.move(to: CGPoint(x: 0, y: height * 0.7))
-                    path.addLine(to: CGPoint(x
+                    path.addLine(to: CGPoint(x: width * 0.3, y: height * 0.4))
+                    path.addLine(to: CGPoint(x: width * 0.6, y: height * 0.8))
+                    path.addLine(to: CGPoint(x: width, y: height * 0.3))
+                }
+                .stroke(Color.blue.opacity(0.3), lineWidth: 2)
+                .frame(width: 280, height: 150)
+            }
+        }
+        
+        private var barChartPlaceholder: some View {
+            HStack(alignment: .bottom, spacing: 8) {
+                ForEach(0..<6, id: \.self) { index in
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.blue.opacity(0.3))
+                        .frame(width: 30, height: CGFloat.random(in: 30...120))
+                }
+            }
+            .frame(height: 150)
+        }
+        
+        private var pieChartPlaceholder: some View {
+            ZStack {
+                Circle()
+                    .fill(Color.blue.opacity(0.3))
+                    .frame(width: 120, height: 120)
+                
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 60, height: 60)
+            }
+        }
+}

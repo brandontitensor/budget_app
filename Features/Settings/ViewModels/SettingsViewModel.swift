@@ -128,10 +128,10 @@ public final class SettingsViewModel: ObservableObject {
         public let id = UUID()
         public let field: String
         public let message: String
-        public let severity: AppError.ErrorSeverity
+        public let severity: ErrorSeverity
         public let suggestion: String?
         
-        public init(field: String, message: String, severity: AppError.ErrorSeverity = .warning, suggestion: String? = nil) {
+        public init(field: String, message: String, severity: ErrorSeverity = .warning, suggestion: String? = nil) {
             self.field = field
             self.message = message
             self.severity = severity

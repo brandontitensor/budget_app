@@ -52,7 +52,7 @@ public enum CSVExport {
             self.encoding = encoding
         }
         
-        static let `default` = ExportConfiguration()
+        public static let `default` = ExportConfiguration()
     }
     
     // MARK: - Export Result
