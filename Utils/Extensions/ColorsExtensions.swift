@@ -163,8 +163,8 @@ public extension Color {
         )
     }
     
-    /// Initialize color with RGB values (0-255) and validation
-    init(r: Int, g: Int, b: Int, opacity: Double = 1) throws {
+    /// Initialize color with RGB values (0-255) with validation
+    static func withValidatedRGB(r: Int, g: Int, b: Int, opacity: Double = 1) throws -> Color {
         guard (0...255).contains(r) else {
             throw ColorError.invalidComponent("Red value must be between 0 and 255")
         }
@@ -178,7 +178,7 @@ public extension Color {
             throw ColorError.invalidComponent("Opacity must be between 0.0 and 1.0")
         }
         
-        self.init(
+        return Color(
             red: Double(r) / 255.0,
             green: Double(g) / 255.0,
             blue: Double(b) / 255.0,
@@ -219,8 +219,8 @@ public extension Color {
         )
     }
     
-    /// Initialize color with HSB values and validation
-    init(hue: Double, saturation: Double, brightness: Double, opacity: Double = 1.0) throws {
+    /// Create color with HSB values with validation
+    static func withValidatedHSB(hue: Double, saturation: Double, brightness: Double, opacity: Double = 1.0) throws -> Color {
         guard (0.0...1.0).contains(hue) else {
             throw ColorError.invalidComponent("Hue must be between 0.0 and 1.0")
         }
@@ -234,7 +234,7 @@ public extension Color {
             throw ColorError.invalidComponent("Opacity must be between 0.0 and 1.0")
         }
         
-        self.init(hue: hue, saturation: saturation, brightness: brightness, opacity: opacity)
+        return Color(hue: hue, saturation: saturation, brightness: brightness, opacity: opacity)
     }
     
     // MARK: - Color Properties

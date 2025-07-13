@@ -646,12 +646,12 @@ public struct ErrorViews {
             .gesture(
                 DragGesture()
                     .onChanged { value in
-                        if value.translation.height < 0 {
+                        if value.translation.y < 0 {
                             dragOffset = value.translation
                         }
                     }
                     .onEnded { value in
-                        if value.translation.height < -50 {
+                        if value.translation.y < -50 {
                             dismissToast()
                         } else {
                             withAnimation(.spring()) {
