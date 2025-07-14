@@ -665,18 +665,31 @@ struct BudgetView: View {
         let result = await AsyncErrorHandler.execute(
             context: "Adding budget category"
         ) {
+            // Add to the selected month
             try await budgetManager.addCategory(
-                newCategoryName,
+                name: newCategoryName,
                 amount: newCategoryAmount,
                 month: selectedMonth,
-                year: selectedYear,
-                includeFutureMonths: includeFutureMonths
+                year: selectedYear
             )
+            
+            // If includeFutureMonths is true, add to future months as well
+            if includeFutureMonths {
+                for month in (selectedMonth + 1)...12 {
+                    try await budgetManager.updateCategoryAmount(
+                        category: newCategoryName,
+                        amount: newCategoryAmount,
+                        month: month,
+                        year: selectedYear
+                    )
+                }
+            }
             
             return true
         }
         
         if result != nil {
+            // Update local state
             if includeFutureMonths {
                 for month in selectedMonth...12 {
                     monthlyBudgets[month, default: [:]][newCategoryName] = newCategoryAmount
@@ -737,11 +750,14 @@ struct BudgetView: View {
         ) {
             // Update each month's budgets
             for (month, budgets) in monthlyBudgets {
-                try await budgetManager.updateMonthlyBudgets(
-                    budgets,
-                    for: month,
-                    year: selectedYear
-                )
+                for (category, amount) in budgets {
+                    try await budgetManager.updateCategoryAmount(
+                        category: category,
+                        amount: amount,
+                        month: month,
+                        year: selectedYear
+                    )
+                }
             }
             
             return true

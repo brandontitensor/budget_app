@@ -351,7 +351,7 @@ public extension Locale {
     
     /// Get currency code for locale
     var safeCurrencyCode: String {
-        return self.currencyCode ?? "USD"
+        return self.currency?.identifier ?? "USD"
     }
     
     /// Format currency with this locale

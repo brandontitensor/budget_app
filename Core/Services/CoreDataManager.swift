@@ -788,7 +788,15 @@ extension CoreDataManager {
     /// Save multiple budget entries
     public func saveBudgetEntries(_ entries: [BudgetEntry]) async throws {
         return try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            backgroundContext.perform {
+            backgroundContext.perform { [weak self] in
+                guard let self = self else {
+                    continuation.resume(throwing: AppError.dataSave(underlying: NSError(
+                        domain: "CoreDataManager",
+                        code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "CoreDataManager was deallocated"]
+                    )))
+                    return
+                }
                 do {
                     // First, clear existing entries to avoid duplicates
                     let fetchRequest: NSFetchRequest<BudgetEntryMO> = BudgetEntryMO.fetchRequest()
@@ -834,7 +842,7 @@ extension CoreDataManager {
     /// Save multiple monthly budgets
     public func saveMonthlyBudgets(_ budgets: [MonthlyBudget]) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            backgroundContext.perform {
+            backgroundContext.performAndWait {
                 do {
                     // Clear existing monthly budgets to avoid duplicates
                     let fetchRequest: NSFetchRequest<MonthlyBudgetMO> = MonthlyBudgetMO.fetchRequest()
@@ -845,18 +853,15 @@ extension CoreDataManager {
                     }
                     
                     // Convert and save new budgets
-                    // Note: The MonthlyBudget struct has a categories dictionary, but MonthlyBudgetMO 
-                    // has individual category/amount pairs. We need to flatten the structure.
+                    // Each MonthlyBudget represents a single category/amount pair
                     for budget in budgets {
-                        for (category, amount) in budget.categories {
-                            let managedObject = MonthlyBudgetMO(context: self.backgroundContext)
-                            managedObject.id = budget.id
-                            managedObject.month = Int16(budget.month)
-                            managedObject.year = Int16(budget.year)
-                            managedObject.category = category
-                            managedObject.amount = amount
-                            managedObject.isHistorical = false // Default value
-                        }
+                        let managedObject = MonthlyBudgetMO(context: self.backgroundContext)
+                        managedObject.id = budget.id
+                        managedObject.month = Int16(budget.month)
+                        managedObject.year = Int16(budget.year)
+                        managedObject.category = budget.category
+                        managedObject.amount = budget.amount
+                        managedObject.isHistorical = budget.isHistorical
                     }
                     
                     try self.backgroundContext.save()

@@ -626,8 +626,9 @@ public extension Color {
 public extension Color {
     /// Initialize from named color with fallback
     init(_ name: String, fallback: Color = .gray) {
-        if let color = Color(name) as Color? {
-            self = color
+        // Use UIColor to check if the named color exists, then create SwiftUI Color
+        if UIColor(named: name) != nil {
+            self = Color(name, bundle: nil)
         } else {
             self = fallback
         }

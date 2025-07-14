@@ -229,38 +229,29 @@ public final class BudgetViewModel: ObservableObject {
         viewState = .loading
         currentOperation = .loadBudgets
         
-        do {
-            // Load budget data from manager
-            let budgets = budgetManager.monthlyBudgets
-            
-            // Convert to our format
-            var monthlyBudgetsDict: [Int: [String: Double]] = [:]
-            for budget in budgets {
-                if monthlyBudgetsDict[budget.month] == nil {
-                    monthlyBudgetsDict[budget.month] = [:]
-                }
-                monthlyBudgetsDict[budget.month]?[budget.category] = budget.amount
+        // Load budget data from manager
+        let budgets = budgetManager.monthlyBudgets
+        
+        // Convert to our format
+        var monthlyBudgetsDict: [Int: [String: Double]] = [:]
+        for budget in budgets {
+            if monthlyBudgetsDict[budget.month] == nil {
+                monthlyBudgetsDict[budget.month] = [:]
             }
-            
-            monthlyBudgets = monthlyBudgetsDict
-            
-            // Update analytics
-            calculateBudgetSummary()
-            calculateBudgetAnalytics()
-            
-            viewState = monthlyBudgets.isEmpty ? .empty : .loaded
-            currentOperation = nil
-            
-            recordMetric("loadBudgets", duration: Date().timeIntervalSince(startTime))
-            print("✅ BudgetViewModel: Budgets loaded successfully")
-            
-        } catch {
-            let appError = AppError.from(error)
-            viewState = .error(appError)
-            currentOperation = nil
-            errorHandler.handle(appError, context: "Loading budgets")
-            recordMetric("loadBudgets", duration: Date().timeIntervalSince(startTime), success: false)
+            monthlyBudgetsDict[budget.month]?[budget.category] = budget.amount
         }
+        
+        monthlyBudgets = monthlyBudgetsDict
+        
+        // Update analytics
+        calculateBudgetSummary()
+        calculateBudgetAnalytics()
+        
+        viewState = monthlyBudgets.isEmpty ? .empty : .loaded
+        currentOperation = nil
+        
+        recordMetric("loadBudgets", duration: Date().timeIntervalSince(startTime))
+        print("✅ BudgetViewModel: Budgets loaded successfully")
     }
     
     public func refreshBudgets() async {
@@ -292,14 +283,13 @@ public final class BudgetViewModel: ObservableObject {
             monthlyBudgets[selectedMonth]?[name] = amount
             
             // Save to budget manager
-            let monthlyBudget = MonthlyBudget(
+            let monthlyBudget = try MonthlyBudget(
                 id: UUID(),
-                month: selectedMonth,
-                year: selectedYear,
                 category: name,
                 amount: amount,
-                createdDate: Date(),
-                lastModified: Date()
+                month: selectedMonth,
+                year: selectedYear
+                // Remove the extra arguments: createdDate and lastModified
             )
             
             try await budgetManager.addMonthlyBudget(monthlyBudget)
@@ -344,9 +334,9 @@ public final class BudgetViewModel: ObservableObject {
             // Update in budget manager
             try await budgetManager.updateCategoryAmount(
                 category: name,
+                amount: newAmount,
                 month: selectedMonth,
-                year: selectedYear,
-                amount: newAmount
+                year: selectedYear
             )
             
             hasUnsavedChanges = true
@@ -495,7 +485,7 @@ public final class BudgetViewModel: ObservableObject {
         }
         
         // Project end of month spending (simplified)
-        let currentMonthProgress = Calendar.current.component(.day, from: Date()) / 30.0
+        let currentMonthProgress = Double(Calendar.current.component(.day, from: Date())) / 30.0
         let projectedEndOfMonthSpending = currentMonthProgress > 0 ? (budgetSummary?.totalSpent ?? 0) / currentMonthProgress : 0
         
         budgetAnalytics = BudgetAnalytics(
@@ -517,25 +507,25 @@ public final class BudgetViewModel: ObservableObject {
     private func validateCategory(name: String, amount: Double) -> ValidationResult {
         // Validate name
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .invalid(.validation(message: "Category name cannot be empty"))
+            return .invalid(.custom(message: "Category name cannot be empty"))
         }
         
         guard name.count <= 50 else {
-            return .invalid(.validation(message: "Category name must be 50 characters or less"))
+            return .invalid(.custom(message: "Category name must be 50 characters or less"))
         }
         
         // Check for duplicate category in current month
         if monthlyBudgets[selectedMonth]?.keys.contains(name) == true {
-            return .invalid(.validation(message: "Category already exists for this month"))
+            return .invalid(.custom(message: "Category already exists for this month"))
         }
         
         // Validate amount
         guard amount >= 0 else {
-            return .invalid(.validation(message: "Amount must be non-negative"))
+            return .invalid(.custom(message: "Amount must be non-negative"))
         }
         
         guard amount <= 999999.99 else {
-            return .invalid(.validation(message: "Amount cannot exceed $999,999.99"))
+            return .invalid(.custom(message: "Amount cannot exceed $999,999.99"))
         }
         
         return .valid

@@ -9,6 +9,7 @@ import SwiftUI
 import Foundation
 import Combine
 import UIKit
+import WidgetKit
 
 /// Monitors and manages application state transitions with data coordination
 @MainActor
@@ -152,15 +153,15 @@ public final class AppStateMonitor: ObservableObject {
     public func performBackgroundTasks() async {
         print("🔄 AppStateMonitor: Starting background tasks")
         
-        // Start backgroundTask<Void, Never>to ensure completion
-        backgroundTaskIdentifier = await UIApplication.shared.beginBackgroundTask { [weak self] in
-           Task<Void, Never>{ @MainActor [weak self] in
+        // Start background task to ensure completion
+        backgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask { [weak self] in
+            Task { @MainActor [weak self] in
                 self?.endBackgroundTask()
             }
         }
         
         defer {
-           Task<Void, Never>{ @MainActor [weak self] in
+            Task { @MainActor [weak self] in
                 self?.endBackgroundTask()
             }
         }
@@ -267,9 +268,15 @@ public final class AppStateMonitor: ObservableObject {
     private func refreshAppData() async {
         guard let budgetManager = budgetManager else { return }
         
-        await budgetManager.refreshData()
-        markDataRefreshed()
-        print("🔄 AppStateMonitor: App data refreshed")
+        do {
+            try await budgetManager.refreshData()
+            markDataRefreshed()
+            print("🔄 AppStateMonitor: App data refreshed")
+        } catch {
+            print("❌ AppStateMonitor: Failed to refresh app data - \(error)")
+            // Optionally mark data as stale if refresh fails
+            markDataAsStale()
+        }
     }
     
     private func performDataSave() async {
