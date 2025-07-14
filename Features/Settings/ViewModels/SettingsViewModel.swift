@@ -370,7 +370,7 @@ public final class SettingsViewModel: ObservableObject {
     /// Prepare and show export options
     public func prepareDataExport() {
         showingExportOptions = true
-        validateExportPreconditions()
+        try validateExportPreconditions()
     }
     
     /// Perform data export with progress tracking

@@ -101,6 +101,7 @@ public final class PurchasesViewModel: ObservableObject {
     
     public enum OperationType {
         case loading
+        case refreshing
         case adding
         case updating(BudgetEntry)
         case deleting(BudgetEntry)
@@ -180,14 +181,14 @@ public final class PurchasesViewModel: ObservableObject {
     /// Load initial data
     public func loadData() async {
         await performOperation(.loading) {
-            try await loadPurchasesData()
+            try await self.loadPurchasesData()
         }
     }
     
     /// Refresh data from source
     public func refreshData() async {
         await performOperation(.refreshing) {
-            try await loadPurchasesData(forceRefresh: true)
+            try await self.loadPurchasesData(forceRefresh: true)
         }
     }
     
@@ -206,27 +207,27 @@ public final class PurchasesViewModel: ObservableObject {
                 note: note
             )
             
-            try await budgetManager.addEntry(entry)
-            await loadPurchasesData()
+            try await self.budgetManager.addEntry(entry)
+             try await self.loadPurchasesData()
         }
     }
     
     /// Update an existing purchase
     public func updatePurchase(_ entry: BudgetEntry) async throws {
         await performOperation(.updating(entry)) {
-            try await budgetManager.updateEntry(entry)
-            await loadPurchasesData()
+            try await self.budgetManager.updateEntry(entry)
+           try await self.loadPurchasesData()
         }
     }
     
     /// Delete a purchase
     public func deletePurchase(_ entry: BudgetEntry) async throws {
         await performOperation(.deleting(entry)) {
-            try await budgetManager.deleteEntry(entry)
+            try await self.budgetManager.deleteEntry(entry)
             
             // Update local state immediately for better UX
-            allEntries.removeAll { $0.id == entry.id }
-            await applyFiltersAndSort()
+            self.allEntries.removeAll { $0.id == entry.id }
+            await self.applyFiltersAndSort()
         }
     }
     
@@ -277,7 +278,7 @@ public final class PurchasesViewModel: ObservableObject {
     /// Export current filtered data
     public func exportData(configuration: CSVExport.ExportConfiguration) async throws -> CSVExport.ExportResult {
         return try await performOperationWithResult(.exporting) {
-            return try await CSVExport.exportBudgetEntries(filteredEntries, configuration: configuration)
+            return try await CSVExport.exportBudgetEntries(self.filteredEntries, configuration: configuration)
         }
     }
     
@@ -330,14 +331,15 @@ public final class PurchasesViewModel: ObservableObject {
         
         // Monitor error handler for global errors
         errorHandler.$currentError
-            .compactMap { $0 }
+            .compactMap { (error: AppError?) -> AppError? in
+                return error
+            }
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] error in
-                // Only handle errors related to purchases
-                if error.context?.contains("purchase") == true {
-                   Task<Void, Never>{ [weak self] in
-                        await self?.handleError(error)
-                    }
+            .sink { [weak self] (error: AppError) in
+                // Handle all errors from error handler
+                // Remove the context check since AppError doesn't have context property
+               Task<Void, Never>{ [weak self] in
+                    await self?.handleError(error)
                 }
             }
             .store(in: &cancellables)
@@ -355,7 +357,11 @@ public final class PurchasesViewModel: ObservableObject {
         // Only reload if we're not currently loading
         guard !loadingState.isLoading else { return }
         
-        await loadPurchasesData()
+        do {
+            try await loadPurchasesData()
+        } catch {
+            await handleError(AppError.from(error))
+        }
     }
     
     private func performOperation<T>(_ operationType: OperationType, operation: @escaping () async throws -> T) async {
@@ -366,7 +372,7 @@ public final class PurchasesViewModel: ObservableObject {
         switch operationType {
         case .loading:
             loadingState = .loading
-        case .refreshing:
+        case .refreshing:  // ← This case now exists
             loadingState = .refreshing
         default:
             break
@@ -418,10 +424,9 @@ public final class PurchasesViewModel: ObservableObject {
     private func loadPurchasesData(forceRefresh: Bool = false) async throws {
         let startTime = Date()
         
-        // Load entries from budget manager
+        // Load entries from budget manager - fix the method call
         let entries = try await budgetManager.getEntries(
-            sortedBy: .date,
-            ascending: false
+            for: .thisMonth  // or whatever TimePeriod you want, not .date
         )
         
         // Update local state
@@ -728,12 +733,18 @@ extension PurchasesViewModel {
     /// Get spending trends
     public func getSpendingTrends() -> [String: Double] {
         let calendar = Calendar.current
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "MMM yyyy"  // e.g., "Jan 2024"
+        
         let grouped = Dictionary(grouping: filteredEntries) { entry in
             calendar.dateInterval(of: .month, for: entry.date)?.start ?? entry.date
         }
         
-        return grouped.mapValues { entries in
-            entries.reduce(0) { $0 + $1.amount }
+        return grouped.reduce(into: [String: Double]()) { result, item in
+            let (date, entries) = item
+            let stringKey = dateFormatter.string(from: date)
+            let totalAmount = entries.reduce(0) { $0 + $1.amount }
+            result[stringKey] = totalAmount
         }
     }
     

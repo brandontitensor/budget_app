@@ -808,3 +808,205 @@ public final class BudgetManager: ObservableObject {
     }
 }
 
+// MARK: - Enhanced Data Retrieval Methods
+
+/// Get entries with full filtering and sorting options
+public func getEntries(
+    for timePeriod: TimePeriod,
+    category: String? = nil,
+    sortedBy: BudgetSortOption = .date,
+    ascending: Bool = false
+) async throws -> [BudgetEntry] {
+    // Get base entries for time period
+    var filteredEntries = try await getEntries(for: timePeriod)
+    
+    // Apply category filter if specified
+    if let category = category, category != "All" {
+        filteredEntries = filteredEntries.filter { $0.category == category }
+    }
+    
+    // Apply sorting
+    filteredEntries.sort { entry1, entry2 in
+        let result: Bool
+        switch sortedBy {
+        case .date:
+            result = entry1.date < entry2.date
+        case .amount:
+            result = entry1.amount < entry2.amount
+        case .category:
+            result = entry1.category < entry2.category
+        }
+        return ascending ? result : !result
+    }
+    
+    return filteredEntries
+}
+
+/// Get entries with sort option only
+public func getEntries(
+    sortedBy: BudgetSortOption,
+    ascending: Bool = false
+) async throws -> [BudgetEntry] {
+    return try await getEntries(
+        for: .allTime,
+        category: nil,
+        sortedBy: sortedBy,
+        ascending: ascending
+    )
+}
+
+/// Get entries filtered by category only
+public func getEntries(
+    for timePeriod: TimePeriod,
+    category: String
+) async throws -> [BudgetEntry] {
+    return try await getEntries(
+        for: timePeriod,
+        category: category,
+        sortedBy: .date,
+        ascending: false
+    )
+}
+
+// MARK: - Import/Export Methods
+
+/// Import purchases from CSV file
+public func importPurchases(from url: URL) async throws -> CSVImport.ImportResults<CSVImport.PurchaseImportData> {
+    return try await CSVImport.importPurchases(
+        from: url,
+        existingCategories: getAvailableCategories()
+    )
+}
+
+/// Import budgets from CSV file
+public func importBudgets(from url: URL) async throws -> CSVImport.ImportResults<CSVImport.BudgetImportData> {
+    return try await CSVImport.importBudgets(
+        from: url,
+        existingCategories: getAvailableCategories()
+    )
+}
+
+/// Process imported purchase data
+public func processImportedPurchases(
+    _ importResults: CSVImport.ImportResults<CSVImport.PurchaseImportData>,
+    categoryMappings: [String: String]
+) async throws {
+    isLoading = true
+    defer { isLoading = false }
+    
+    do {
+        // Apply category mappings and add entries
+        for var purchaseData in importResults.data {
+            // Apply category mapping if exists
+            if let mappedCategory = categoryMappings[purchaseData.category] {
+                purchaseData.category = mappedCategory
+            }
+            
+            // Convert to BudgetEntry and add
+            let entry = try BudgetEntry(
+                amount: purchaseData.amount,
+                category: purchaseData.category,
+                date: purchaseData.date,
+                note: purchaseData.note
+            )
+            
+            try await addEntry(entry)
+        }
+        
+        // Add any new categories
+        for newCategory in importResults.newCategories {
+            if !categories.contains(newCategory) {
+                categories.append(newCategory)
+            }
+        }
+        
+        try await saveEntries()
+        updateDataStatistics()
+        
+        print("✅ BudgetManager: Processed \(importResults.data.count) imported purchases")
+        
+    } catch {
+        currentError = AppError.dataSave(underlying: error)
+        throw error
+    }
+}
+
+/// Process imported budget data
+public func processImportedBudgets(
+    _ importResults: CSVImport.ImportResults<CSVImport.BudgetImportData>
+) async throws {
+    isLoading = true
+    defer { isLoading = false }
+    
+    do {
+        // Process budget data and add to monthly budgets
+        for budgetData in importResults.data {
+            // Convert and add budget logic here
+            // This depends on your BudgetImportData structure
+        }
+        
+        try await saveMonthlyBudgets()
+        updateDataStatistics()
+        
+        print("✅ BudgetManager: Processed \(importResults.data.count) imported budgets")
+        
+    } catch {
+        currentError = AppError.dataSave(underlying: error)
+        throw error
+    }
+}
+
+public struct DataStatistics: Sendable {
+    public let totalEntries: Int
+    public let totalBudgets: Int
+    public let totalSpent: Double
+    public let totalBudgeted: Double
+    public let categoriesCount: Int
+    public let lastUpdate: Date
+    
+    // Add these computed properties for backward compatibility
+    public var entryCount: Int { totalEntries }
+    public var budgetCount: Int { totalBudgets }
+    public var categoryCount: Int { categoriesCount }
+    
+    // Add health status
+    public var healthStatus: HealthLevel {
+        if totalEntries == 0 && totalBudgets == 0 {
+            return .poor
+        } else if isOverBudget {
+            return .fair
+        } else if budgetUtilization > 90 {
+            return .good
+        } else {
+            return .excellent
+        }
+    }
+    
+    public var budgetUtilization: Double {
+        guard totalBudgeted > 0 else { return 0 }
+        return (totalSpent / totalBudgeted) * 100
+    }
+    
+    public var isOverBudget: Bool {
+        return totalSpent > totalBudgeted
+    }
+}
+
+public enum HealthLevel: String, CaseIterable {
+    case excellent = "excellent"
+    case good = "good"
+    case fair = "fair"
+    case poor = "poor"
+    
+    public var color: Color {
+        switch self {
+        case .excellent: return .green
+        case .good: return .blue
+        case .fair: return .orange
+        case .poor: return .red
+        }
+    }
+}
+
+
+

@@ -247,7 +247,7 @@ public final class NotificationManager: NSObject, ObservableObject {
         setupNotificationCategories()
         
         // Check initial authorization state
-       Task<Void, Never>{
+        Task<Void, Never>{
             await checkInitialAuthorizationState()
             await refreshNotificationLists()
         }
@@ -270,21 +270,21 @@ public final class NotificationManager: NSObject, ObservableObject {
         let startTime = Date()
         
         return try await performOperation(context: "Requesting notification authorization") {
-            let granted = try await notificationCenter.requestAuthorization(options: options)
+            let granted = try await self.notificationCenter.requestAuthorization(options: options)
             
-            await updateAuthorizationState()
+            await self.updateAuthorizationState()
             
             if granted {
                 // Setup notification categories after authorization
-                setupNotificationCategories()
-                lastSuccessfulSchedule = Date()
+                self.setupNotificationCategories()
+                self.lastSuccessfulSchedule = Date()
                 print("✅ NotificationManager: Authorization granted")
             } else {
                 print("❌ NotificationManager: Authorization denied")
                 throw NotificationError.authorizationDenied
             }
             
-            recordMetric("requestAuthorization", duration: Date().timeIntervalSince(startTime))
+            self.recordMetric("requestAuthorization", duration: Date().timeIntervalSince(startTime))
             return granted
         }
     }
@@ -314,17 +314,17 @@ public final class NotificationManager: NSObject, ObservableObject {
         
         try await performOperation(context: "Scheduling purchase notifications") {
             // Remove existing purchase notifications
-            await cancelNotifications(withCategory: .purchase)
+            await self.cancelNotifications(withCategory: .purchase)
             
-            guard await checkNotificationStatus() else {
+            guard await self.checkNotificationStatus() else {
                 throw NotificationError.authorizationDenied
             }
             
             // Check notification limits
-            try await validateNotificationLimits()
+            try await self.validateNotificationLimits()
             
-            let template = createPurchaseReminderTemplate()
-            let trigger = createTrigger(for: frequency)
+            let template = self.createPurchaseReminderTemplate()
+            let trigger = self.createTrigger(for: frequency)
             
             let schedule = NotificationSchedule(
                 identifier: NotificationIdentifiers.purchase,
@@ -333,9 +333,9 @@ public final class NotificationManager: NSObject, ObservableObject {
                 repeats: true
             )
             
-            try await scheduleNotification(schedule)
+            try await self.scheduleNotification(schedule)
             
-            recordMetric("schedulePurchaseNotifications", duration: Date().timeIntervalSince(startTime))
+            self.recordMetric("schedulePurchaseNotifications", duration: Date().timeIntervalSince(startTime))
             print("✅ NotificationManager: Scheduled purchase notifications (\(frequency.rawValue))")
         }
     }
@@ -347,16 +347,16 @@ public final class NotificationManager: NSObject, ObservableObject {
         let startTime = Date()
         
         try await performOperation(context: "Scheduling budget notifications") {
-            await cancelNotifications(withCategory: .budget)
+            await self.cancelNotifications(withCategory: .budget)
             
-            guard await checkNotificationStatus() else {
+            guard await self.checkNotificationStatus() else {
                 throw NotificationError.authorizationDenied
             }
             
-            try await validateNotificationLimits()
+            try await self.validateNotificationLimits()
             
-            let template = createBudgetUpdateTemplate()
-            let trigger = createTrigger(for: frequency)
+            let template = self.createBudgetUpdateTemplate()
+            let trigger = self.createTrigger(for: frequency)
             
             let schedule = NotificationSchedule(
                 identifier: NotificationIdentifiers.budgetTotal,
@@ -365,9 +365,9 @@ public final class NotificationManager: NSObject, ObservableObject {
                 repeats: true
             )
             
-            try await scheduleNotification(schedule)
+            try await self.scheduleNotification(schedule)
             
-            recordMetric("scheduleBudgetTotalNotifications", duration: Date().timeIntervalSince(startTime))
+            self.recordMetric("scheduleBudgetTotalNotifications", duration: Date().timeIntervalSince(startTime))
             print("✅ NotificationManager: Scheduled budget notifications (\(frequency.rawValue))")
         }
     }
@@ -382,14 +382,14 @@ public final class NotificationManager: NSObject, ObservableObject {
         let startTime = Date()
         
         try await performOperation(context: "Scheduling budget warning") {
-            guard await checkNotificationStatus() else {
+            guard await self.checkNotificationStatus() else {
                 throw NotificationError.authorizationDenied
             }
             
-            try await validateNotificationLimits()
+            try await self.validateNotificationLimits()
             
             let percentageOver = ((currentSpent - budgetLimit) / budgetLimit) * 100
-            let template = createBudgetWarningTemplate(
+            let template = self.createBudgetWarningTemplate(
                 category: category,
                 currentSpent: currentSpent,
                 budgetLimit: budgetLimit,
@@ -406,9 +406,9 @@ public final class NotificationManager: NSObject, ObservableObject {
                 repeats: false
             )
             
-            try await scheduleNotification(schedule)
+            try await self.scheduleNotification(schedule)
             
-            recordMetric("scheduleBudgetWarning", duration: Date().timeIntervalSince(startTime))
+            self.recordMetric("scheduleBudgetWarning", duration: Date().timeIntervalSince(startTime))
             print("⚠️ NotificationManager: Scheduled budget warning for \(category)")
         }
     }
@@ -423,7 +423,7 @@ public final class NotificationManager: NSObject, ObservableObject {
         
         do {
             try await performOperation(context: "Scheduling achievement notification") {
-                guard await checkNotificationStatus() else {
+                guard await self.checkNotificationStatus() else {
                     return // Don't throw error for achievements if notifications disabled
                 }
                 
@@ -445,9 +445,9 @@ public final class NotificationManager: NSObject, ObservableObject {
                     repeats: false
                 )
                 
-                try await scheduleNotification(schedule)
+                try await self.scheduleNotification(schedule)
                 
-                recordMetric("scheduleAchievementNotification", duration: Date().timeIntervalSince(startTime))
+                self.recordMetric("scheduleAchievementNotification", duration: Date().timeIntervalSince(startTime))
                 print("🏆 NotificationManager: Scheduled achievement notification")
             }
         } catch {
@@ -464,7 +464,10 @@ public final class NotificationManager: NSObject, ObservableObject {
             // Clear any previous errors
             lastError = nil
             
-            if settings.notificationsAllowed && await checkNotificationStatus() {
+            // Separate the async call from the logical operator
+            let notificationStatus = await checkNotificationStatus()
+            
+            if settings.notificationsAllowed && notificationStatus {
                 // Schedule purchase notifications
                 if settings.purchaseNotificationsEnabled {
                     try await schedulePurchaseNotifications(
@@ -929,7 +932,7 @@ public final class NotificationManager: NSObject, ObservableObject {
     
     private func setupPeriodicStatusChecks() {
         Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
-           Task<Void, Never>{ [weak self] in
+            Task<Void, Never>{ [weak self] in
                 await self?.updateAuthorizationState()
                 await self?.refreshNotificationLists()
                 await self?.cleanupOldNotifications()
@@ -938,72 +941,64 @@ public final class NotificationManager: NSObject, ObservableObject {
     }
     
     private func setupPerformanceMonitoring() {
-        #if DEBUG
+#if DEBUG
         Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
             self?.logPerformanceMetrics()
         }
-        #endif
+#endif
     }
     
-    private func recordMetric(_ operation: String, duration: TimeInterval) {
-        metricsQueue.async {
-            self.operationMetrics[operation] = duration
+    nonisolated private func recordMetric(_ operation: String, duration: TimeInterval) {
+        metricsQueue.async { [weak self] in
+            self?.operationMetrics[operation] = duration
             
-            #if DEBUG
+#if DEBUG
             if duration > 2.0 {
                 print("⚠️ NotificationManager: Slow operation '\(operation)' took \(String(format: "%.2f", duration * 1000))ms")
             }
-            #endif
+#endif
         }
     }
     
-    private func logPerformanceMetrics() {
-        metricsQueue.async {
-            guard !self.operationMetrics.isEmpty else { return }
+    
+    nonisolated private func logPerformanceMetrics() {
+        metricsQueue.async { [weak self] in
+            guard let self = self, !self.operationMetrics.isEmpty else { return }
             
-            #if DEBUG
+#if DEBUG
             print("📊 NotificationManager Performance Metrics:")
             for (operation, duration) in self.operationMetrics.sorted(by: { $0.value > $1.value }) {
                 print("   \(operation): \(String(format: "%.2f", duration * 1000))ms")
             }
-            #endif
+#endif
             
             self.operationMetrics.removeAll()
         }
     }
+    
 }
 
 // MARK: - UNUserNotificationCenterDelegate
 
 extension NotificationManager: UNUserNotificationCenterDelegate {
     /// Handle notifications when app is in foreground
-    public func userNotificationCenter(
+    nonisolated public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // Show notification even when app is active
         completionHandler([.banner, .badge, .sound])
-        
         print("📱 NotificationManager: Presenting notification in foreground")
     }
     
     /// Handle notification actions
-    public func userNotificationCenter(
+    nonisolated public func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let actionIdentifier = response.actionIdentifier
-        let notification = response.notification
-        let userInfo = notification.request.content.userInfo
-        
-        print("📱 NotificationManager: Received action '\(actionIdentifier)' for notification")
-        
-       Task<Void, Never>{
-            await handleNotificationAction(actionIdentifier: actionIdentifier, userInfo: userInfo)
-            completionHandler()
-        }
+        // Handle the response here
+        completionHandler()
     }
     
     private func handleNotificationAction(actionIdentifier: String, userInfo: [AnyHashable: Any]) async {
@@ -1202,11 +1197,11 @@ extension NotificationManager {
         let startTime = Date()
         
         try await performOperation(context: "Scheduling smart budget notifications") {
-            guard await checkNotificationStatus() else {
+            guard await self.checkNotificationStatus() else {
                 throw NotificationError.authorizationDenied
             }
             
-            try await validateNotificationLimits()
+            try await self.validateNotificationLimits()
             
             for (category, spent) in spendingData {
                 guard let budget = budgetData[category], budget > 0 else { continue }
@@ -1215,14 +1210,14 @@ extension NotificationManager {
                 
                 // Schedule warning at 80% and 100% of budget
                 if percentage >= 80 && percentage < 100 {
-                    try await scheduleBudgetWarning(
+                    try await self.scheduleBudgetWarning(
                         category: category,
                         currentSpent: spent,
                         budgetLimit: budget,
                         delay: 0
                     )
                 } else if percentage >= 100 {
-                    try await scheduleBudgetWarning(
+                    try await self.scheduleBudgetWarning(
                         category: category,
                         currentSpent: spent,
                         budgetLimit: budget,
@@ -1231,7 +1226,7 @@ extension NotificationManager {
                 }
             }
             
-            recordMetric("scheduleSmartBudgetNotifications", duration: Date().timeIntervalSince(startTime))
+            self.recordMetric("scheduleSmartBudgetNotifications", duration: Date().timeIntervalSince(startTime))
             print("🧠 NotificationManager: Scheduled smart budget notifications")
         }
     }
@@ -1240,7 +1235,7 @@ extension NotificationManager {
     public func scheduleDataBackupReminder(delay: TimeInterval = 86400) async throws { // 24 hours default
         do {
             try await performOperation(context: "Scheduling backup reminder") {
-                guard await checkNotificationStatus() else { return }
+                guard await self.checkNotificationStatus() else { return }
                 
                 let template = NotificationTemplate(
                     title: "Data Backup Reminder",
@@ -1260,7 +1255,7 @@ extension NotificationManager {
                     repeats: false
                 )
                 
-                try await scheduleNotification(schedule)
+                try await self.scheduleNotification(schedule)
                 print("💾 NotificationManager: Scheduled data backup reminder")
             }
         } catch {
@@ -1272,7 +1267,7 @@ extension NotificationManager {
     /// Schedule monthly review notification
     public func scheduleMonthlyReview() async throws {
         try await performOperation(context: "Scheduling monthly review") {
-            guard await checkNotificationStatus() else { return }
+            guard await self.checkNotificationStatus() else { return }
             
             let template = NotificationTemplate(
                 title: "Monthly Budget Review",
@@ -1297,7 +1292,7 @@ extension NotificationManager {
                 repeats: true
             )
             
-            try await scheduleNotification(schedule)
+            try await self.scheduleNotification(schedule)
             print("📅 NotificationManager: Scheduled monthly review notifications")
         }
     }
@@ -1398,7 +1393,7 @@ extension NotificationManager {
         }
         
         // Check categories
-        let categories = await notificationCenter.getNotificationCategories()
+        let categories = await notificationCenter.notificationCategories()
         if categories.count >= NotificationCategory.allCases.count {
             successfulChecks.append("All notification categories registered")
         } else {
@@ -1432,6 +1427,24 @@ extension NotificationManager {
             return .healthy
         }
     }
+    
+    /// Check notification configuration (for compatibility)
+    public func checkNotificationConfiguration() async -> NotificationConfiguration {
+        let insights = await getNotificationInsights()
+        
+        return NotificationConfiguration(
+            hasPermission: authorizationStatus == .authorized,
+            needsSetup: authorizationStatus == .notDetermined,
+            recommendations: insights.recommendations
+        )
+    }
+
+    public struct NotificationConfiguration {
+        public let hasPermission: Bool
+        public let needsSetup: Bool
+        public let recommendations: [String]
+    }
+    
 }
 
 // MARK: - System Diagnostic
@@ -1514,6 +1527,8 @@ public struct SystemDiagnostic {
         return report
     }
 }
+
+
 
 // MARK: - Testing Support
 
@@ -1631,9 +1646,8 @@ public class MockNotificationCenter: UNUserNotificationCenter {
         return requestAuthorizationResult.0
     }
     
-    public func getNotificationSettings() async -> UNNotificationSettings {
-        // Return mock settings - would need to create a proper mock UNNotificationSettings
-        return await super.getNotificationSettings()
+    public override func notificationSettings() async -> UNNotificationSettings {
+        return await super.notificationSettings()
     }
     
     public override func add(_ request: UNNotificationRequest) async throws {

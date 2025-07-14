@@ -8,6 +8,8 @@
 import Foundation
 import Combine
 import UserNotifications
+import UIKit
+
 
 /// Manages the app's user settings and preferences with proper state management, validation, and error handling
 @MainActor
@@ -1207,7 +1209,10 @@ extension SettingsManager {
         formatter.currencyCode = defaultCurrency
         formatter.maximumFractionDigits = showDecimalPlaces ? 2 : 0
         
-        let roundedAmount = roundToNearestCent ? amount.rounded(.toNearestOrAwayFromZero * 100) / 100 : amount
+        let roundedAmount = roundToNearestCent ?
+            (amount * 100).rounded(.toNearestOrAwayFromZero) / 100 :
+            amount
+            
         return formatter.string(from: NSNumber(value: roundedAmount)) ?? "\(amount)"
     }
     
