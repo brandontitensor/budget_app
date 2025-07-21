@@ -1252,7 +1252,7 @@ extension WelcomePopupView {
 
 extension WelcomePopupView {
     private var dynamicTypeSize: DynamicTypeSize {
-        UITraitCollection.current.preferredContentSizeCategory.dynamicTypeSize
+        DynamicTypeSize(UITraitCollection.current.preferredContentSizeCategory) ?? .medium
     }
     
     private var isLargeContentSize: Bool {

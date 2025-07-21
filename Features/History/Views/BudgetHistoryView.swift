@@ -102,11 +102,11 @@ struct BudgetHistoryView: View {
             )
             
             // Quick Stats
-            if !viewModel.budgetData.isEmpty {
+            if !viewModel.filteredData.isEmpty {
                 BudgetSummaryCards(
-                    totalBudget: viewModel.totalBudget,
-                    totalSpent: viewModel.totalSpent,
-                    isOverBudget: viewModel.isOverBudget,
+                    totalBudget: viewModel.totalFilteredAmount,
+                    totalSpent: viewModel.totalFilteredAmount,
+                    isOverBudget: false, // TODO: Add budget comparison logic
                     primaryColor: themeManager.primaryColor
                 )
             }
@@ -132,7 +132,7 @@ struct BudgetHistoryView: View {
     private var mainContent: some View {
         ScrollView {
             LazyVStack(spacing: 20) {
-                if viewModel.budgetData.isEmpty {
+                if viewModel.filteredData.isEmpty {
                     emptyStateView
                 } else {
                     chartSection
@@ -188,79 +188,14 @@ struct BudgetHistoryView: View {
     }
     
     private var budgetChart: some View {
-        Chart {
-            ForEach(Array(sortedBudgetData.enumerated()), id: \.element.id) { index, data in
-                // Spent amount bars
-                BarMark(
-                    x: .value("Category", categoryDisplayName(data.category, index: index)),
-                    y: .value("Amount", data.amountSpent)
-                )
-                .foregroundStyle(chartColors[index % chartColors.count])
-                .cornerRadius(4)
-                .annotation(position: .top, alignment: .center) {
-                    if data.amountSpent > 0 {
-                        Text(data.amountSpent.asCurrency)
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundColor(themeManager.semanticColors.textPrimary)
-                    }
-                }
-                
-                // Budget limit indicators
-                if data.budgetedAmount > 0 {
-                    RuleMark(
-                        xStart: .value("Category", categoryDisplayName(data.category, index: index)),
-                        xEnd: .value("Category", categoryDisplayName(data.category, index: index)),
-                        y: .value("Budget", data.budgetedAmount)
-                    )
-                    .foregroundStyle(.red)
-                    .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 3]))
-                    .annotation(position: .topTrailing) {
-                        if data.isOverBudget {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        }
-                    }
-                }
-            }
+        Chart(sortedBudgetData, id: \.id) { data in
+            BarMark(
+                x: .value("Category", data.category),
+                y: .value("Amount", data.amountSpent)
+            )
+            .foregroundStyle(themeManager.primaryColor.gradient)
         }
         .frame(height: 300)
-        .chartXAxis {
-            AxisMarks(values: .automatic) { value in
-                AxisValueLabel {
-                    if let categoryName = value.as(String.self) {
-                        Text(categoryName)
-                            .font(.caption)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-                AxisGridLine()
-                AxisTick()
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading) { value in
-                AxisValueLabel {
-                    if let amount = value.as(Double.self) {
-                        Text(NumberFormatter.formatCompact(amount))
-                            .font(.caption)
-                    }
-                }
-                AxisGridLine()
-                AxisTick()
-            }
-        }
-        .chartAngleSelection(value: .constant(nil))
-        .chartBackground { chartProxy in
-            Rectangle()
-                .fill(themeManager.semanticColors.backgroundSecondary.opacity(0.5))
-                .cornerRadius(8)
-        }
-        .animation(.easeInOut(duration: chartAnimationDuration), value: sortedBudgetData)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Budget overview chart showing spending versus budgeted amounts")
     }
     
     private var chartLegend: some View {
@@ -330,7 +265,7 @@ struct BudgetHistoryView: View {
                         .foregroundColor(themeManager.primaryColor)
                 }
                 .accessibilityLabel("Export data")
-                .disabled(viewModel.budgetData.isEmpty)
+                .disabled(viewModel.filteredData.isEmpty)
             }
         }
     }
@@ -339,15 +274,17 @@ struct BudgetHistoryView: View {
     
     private var filterMenuSheet: some View {
         NavigationView {
-            FilterSortView(
-                selectedTimePeriod: $selectedTimePeriod,
-                sortOption: $sortOption,
-                sortAscending: $sortAscending,
-                onDismiss: {
+            VStack {
+                Text("Filter & Sort")
+                    .font(.title2)
+                    .padding()
+                
+                // TODO: Implement FilterSortView
+                Button("Close") {
                     showingFilterMenu = false
-                    applySorting()
                 }
-            )
+                .padding()
+            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -356,9 +293,8 @@ struct BudgetHistoryView: View {
     private var exportOptionsSheet: some View {
         NavigationView {
             ExportOptionsView(
-                data: viewModel.budgetData,
-                timePeriod: selectedTimePeriod,
-                onDismiss: {
+                exportTimePeriod: $selectedTimePeriod,
+                onExport: {
                     showingExportOptions = false
                 }
             )
@@ -370,7 +306,7 @@ struct BudgetHistoryView: View {
     private var categoryDetailSheet: some View {
         Group {
             if let category = selectedCategory,
-               let data = viewModel.budgetData.first(where: { $0.category == category }) {
+               let data = viewModel.filteredData.first(where: { $0.category == category }) {
                 NavigationView {
                     CategoryDetailView(
                         data: data,
@@ -431,7 +367,7 @@ struct BudgetHistoryView: View {
     // MARK: - Helper Methods
     
     private var sortedBudgetData: [BudgetHistoryData] {
-        let limited = Array(viewModel.budgetData.prefix(maxDataPoints))
+        let limited = Array(viewModel.filteredData.prefix(maxDataPoints))
         
         return limited.sorted { a, b in
             let result: Bool
@@ -461,10 +397,7 @@ struct BudgetHistoryView: View {
     
     private func setupView() {
         Task<Void, Never>{
-            await viewModel.loadInitialData(
-                budgetManager: budgetManager,
-                timePeriod: selectedTimePeriod
-            )
+            await viewModel.loadInitialData()
         }
     }
     

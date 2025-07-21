@@ -223,7 +223,7 @@ struct ImportOptionsView: View {
     private var quickStartSection: some View {
         Section(
             header: sectionHeader("Quick Start", systemImage: "bolt.fill"),
-            footer: Text("Choose what type of data you want to importData.")
+            footer: Text("Choose what type of data you want to import.")
         ) {
             ImportOptionButton(
                 type: .autoDetect,
@@ -374,11 +374,11 @@ struct ImportOptionsView: View {
             footer: Text("Your recent import attempts and their results.")
         ) {
             ForEach(recentImports) { importItem in
-                RecentImportRow(import: importItem) {
+                RecentImportRow(importData: importItem, onRetry: {
                     // Handle re-import
                     selectedImportType = importItem.type
                     handleImport(importItem.type)
-                }
+                })
                 .environmentObject(themeManager)
             }
         }
@@ -431,7 +431,7 @@ struct ImportOptionsView: View {
                 
                 Section(
                     header: Text("Validation Settings"),
-                    footer: Text("Control how strictly data is validated during importData.")
+                    footer: Text("Control how strictly data is validated during import.")
                 ) {
                     Toggle("Validate Duplicates", isOn: createBinding(for: \.validateDuplicates))
                     Toggle("Skip Invalid Rows", isOn: createBinding(for: \.skipInvalidRows))
@@ -708,7 +708,7 @@ struct FormatInfoRow: View {
                     
                     Text(type.expectedFormat)
                         .font(.caption)
-                        .fontFamily(.monospaced)
+                        .monospaced()
                         .padding(8)
                         .background(Color(.systemGray6))
                         .cornerRadius(6)
@@ -721,7 +721,7 @@ struct FormatInfoRow: View {
                         
                         Text(type.sampleData)
                             .font(.caption)
-                            .fontFamily(.monospaced)
+                            .monospaced()
                             .padding(8)
                             .background(Color(.systemGray6))
                             .cornerRadius(6)

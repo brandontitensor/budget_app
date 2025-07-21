@@ -8,6 +8,7 @@
 import Foundation
 import Combine
 import WidgetKit
+import SwiftUI
 
 /// Central coordinator for budget-related operations with enhanced state management
 @MainActor
@@ -69,6 +70,11 @@ public final class BudgetManager: ObservableObject {
         public let categoriesCount: Int
         public let lastUpdate: Date
         
+        // Backward compatibility properties
+        public var entryCount: Int { totalEntries }
+        public var budgetCount: Int { totalBudgets }
+        public var categoryCount: Int { categoriesCount }
+        
         public var budgetUtilization: Double {
             guard totalBudgeted > 0 else { return 0 }
             return (totalSpent / totalBudgeted) * 100
@@ -76,6 +82,35 @@ public final class BudgetManager: ObservableObject {
         
         public var isOverBudget: Bool {
             return totalSpent > totalBudgeted
+        }
+        
+        // Health status assessment
+        public var healthStatus: HealthLevel {
+            if totalEntries == 0 && totalBudgets == 0 {
+                return .poor
+            } else if isOverBudget {
+                return .fair
+            } else if budgetUtilization > 90 {
+                return .good
+            } else {
+                return .excellent
+            }
+        }
+    }
+    
+    public enum HealthLevel: String, CaseIterable {
+        case excellent = "excellent"
+        case good = "good"
+        case fair = "fair"
+        case poor = "poor"
+        
+        public var color: Color {
+            switch self {
+            case .excellent: return .green
+            case .good: return .blue
+            case .fair: return .orange
+            case .poor: return .red
+            }
         }
     }
     
@@ -245,14 +280,11 @@ public final class BudgetManager: ObservableObject {
                 throw BudgetManagerError.validationFailed("Category already exists for this month")
             }
             
-            // Add category to monthly budget
-            let monthKey = "\(year)-\(String(format: "%02d", month))"
-            
             // Find or create monthly budget
             if let index = monthlyBudgets.firstIndex(where: { $0.month == month && $0.year == year }) {
                 monthlyBudgets[index].categories[name] = amount
             } else {
-                let newBudget = MonthlyBudget(
+                let newBudget = try MonthlyBudget(
                     id: UUID(),
                     month: month,
                     year: year,
@@ -489,17 +521,13 @@ public final class BudgetManager: ObservableObject {
             categoryBreakdowns.append(breakdown)
         }
         
-        // Get recent transactions (last 10)
-        let recentTransactions = Array(currentMonthEntries.sorted { $0.date > $1.date }.prefix(10))
-        
         return BudgetOverviewData(
             totalBudgeted: totalBudgeted,
             totalSpent: totalSpent,
             categoryCount: currentBudget.categories.count,
             transactionCount: currentMonthEntries.count,
             timeframe: .thisMonth,
-            categoryBreakdowns: categoryBreakdowns,
-            recentTransactions: recentTransactions
+            categoryBreakdowns: categoryBreakdowns
         )
     }
     
@@ -568,8 +596,8 @@ public final class BudgetManager: ObservableObject {
     public func performBackgroundSave() async throws {
         let result = await AsyncErrorHandler.execute(
             context: "Background save operation"
-        ) {
-            try await saveCurrentState()
+        ) { [self] in
+            try await self.saveCurrentState()
             return true
         }
         
@@ -582,9 +610,9 @@ public final class BudgetManager: ObservableObject {
     public func validateDataIntegrity() async -> Bool {
         let result = await AsyncErrorHandler.execute(
             context: "Data integrity validation"
-        ) {
+        ) { [self] in
             // Validate entries
-            for entry in entries {
+            for entry in self.entries {
                 guard entry.amount > 0,
                       !entry.category.isEmpty,
                       entry.date <= Date() else {
@@ -594,7 +622,7 @@ public final class BudgetManager: ObservableObject {
             }
             
             // Validate monthly budgets
-            for budget in monthlyBudgets {
+            for budget in self.monthlyBudgets {
                 guard budget.month >= 1 && budget.month <= 12,
                       budget.year >= 2020 && budget.year <= 2030,
                       !budget.categories.isEmpty else {
@@ -626,20 +654,50 @@ public final class BudgetManager: ObservableObject {
         
         let filteredEntries = entries.filter { entry in
             switch timePeriod {
+            case .today:
+                return calendar.isDate(entry.date, inSameDayAs: now)
+            case .yesterday:
+                let yesterday = calendar.date(byAdding: .day, value: -1, to: now) ?? now
+                return calendar.isDate(entry.date, inSameDayAs: yesterday)
             case .thisWeek:
                 return calendar.isDate(entry.date, equalTo: now, toGranularity: .weekOfYear)
+            case .lastWeek:
+                let lastWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: now) ?? now
+                return calendar.isDate(entry.date, equalTo: lastWeek, toGranularity: .weekOfYear)
             case .thisMonth:
                 return calendar.isDate(entry.date, equalTo: now, toGranularity: .month)
-            case .thisYear:
-                return calendar.isDate(entry.date, equalTo: now, toGranularity: .year)
             case .lastMonth:
                 let lastMonth = calendar.date(byAdding: .month, value: -1, to: now) ?? now
                 return calendar.isDate(entry.date, equalTo: lastMonth, toGranularity: .month)
+            case .thisQuarter:
+                let startOfQuarter = calendar.dateInterval(of: .quarter, for: now)?.start ?? now
+                return entry.date >= startOfQuarter
+            case .lastQuarter:
+                let startOfCurrentQuarter = calendar.dateInterval(of: .quarter, for: now)?.start ?? now
+                let startOfLastQuarter = calendar.date(byAdding: .month, value: -3, to: startOfCurrentQuarter) ?? now
+                let endOfLastQuarter = calendar.date(byAdding: .day, value: -1, to: startOfCurrentQuarter) ?? now
+                return entry.date >= startOfLastQuarter && entry.date <= endOfLastQuarter
+            case .thisYear:
+                return calendar.isDate(entry.date, equalTo: now, toGranularity: .year)
             case .lastYear:
                 let lastYear = calendar.date(byAdding: .year, value: -1, to: now) ?? now
                 return calendar.isDate(entry.date, equalTo: lastYear, toGranularity: .year)
+            case .last7Days:
+                let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: now) ?? now
+                return entry.date >= sevenDaysAgo
+            case .last30Days:
+                let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
+                return entry.date >= thirtyDaysAgo
+            case .last90Days:
+                let ninetyDaysAgo = calendar.date(byAdding: .day, value: -90, to: now) ?? now
+                return entry.date >= ninetyDaysAgo
+            case .last12Months:
+                let twelveMonthsAgo = calendar.date(byAdding: .month, value: -12, to: now) ?? now
+                return entry.date >= twelveMonthsAgo
             case .allTime:
                 return true
+            case .custom(let startDate, let endDate):
+                return entry.date >= startDate && entry.date <= endDate
             }
         }
         
@@ -708,7 +766,7 @@ public final class BudgetManager: ObservableObject {
                 monthlyBudgets[index].categories[category] = amount
             } else {
                 // Create new budget for this month
-                let newBudget = MonthlyBudget(
+                let newBudget = try MonthlyBudget(
                     id: UUID(),
                     month: month,
                     year: year,
@@ -806,204 +864,157 @@ public final class BudgetManager: ObservableObject {
         
         print("✅ BudgetManager: Cache invalidated for testing")
     }
-}
-
-// MARK: - Enhanced Data Retrieval Methods
-
-/// Get entries with full filtering and sorting options
-public func getEntries(
-    for timePeriod: TimePeriod,
-    category: String? = nil,
-    sortedBy: BudgetSortOption = .date,
-    ascending: Bool = false
-) async throws -> [BudgetEntry] {
-    // Get base entries for time period
-    var filteredEntries = try await getEntries(for: timePeriod)
     
-    // Apply category filter if specified
-    if let category = category, category != "All" {
-        filteredEntries = filteredEntries.filter { $0.category == category }
-    }
+    // MARK: - Enhanced Data Retrieval Methods
     
-    // Apply sorting
-    filteredEntries.sort { entry1, entry2 in
-        let result: Bool
-        switch sortedBy {
-        case .date:
-            result = entry1.date < entry2.date
-        case .amount:
-            result = entry1.amount < entry2.amount
-        case .category:
-            result = entry1.category < entry2.category
+    /// Get entries with full filtering and sorting options
+    public func getEntries(
+        for timePeriod: TimePeriod,
+        category: String? = nil,
+        sortedBy: BudgetSortOption = .date,
+        ascending: Bool = false
+    ) async throws -> [BudgetEntry] {
+        // Get base entries for time period
+        var filteredEntries = try await getEntries(for: timePeriod)
+        
+        // Apply category filter if specified
+        if let category = category, category != "All" {
+            filteredEntries = filteredEntries.filter { $0.category == category }
         }
-        return ascending ? result : !result
+        
+        // Apply sorting
+        filteredEntries.sort { entry1, entry2 in
+            let result: Bool
+            switch sortedBy {
+            case .date:
+                result = entry1.date < entry2.date
+            case .amount:
+                result = entry1.amount < entry2.amount
+            case .category:
+                result = entry1.category < entry2.category
+            }
+            return ascending ? result : !result
+        }
+        
+        return filteredEntries
     }
     
-    return filteredEntries
-}
-
-/// Get entries with sort option only
-public func getEntries(
-    sortedBy: BudgetSortOption,
-    ascending: Bool = false
-) async throws -> [BudgetEntry] {
-    return try await getEntries(
-        for: .allTime,
-        category: nil,
-        sortedBy: sortedBy,
-        ascending: ascending
-    )
-}
-
-/// Get entries filtered by category only
-public func getEntries(
-    for timePeriod: TimePeriod,
-    category: String
-) async throws -> [BudgetEntry] {
-    return try await getEntries(
-        for: timePeriod,
-        category: category,
-        sortedBy: .date,
-        ascending: false
-    )
-}
-
-// MARK: - Import/Export Methods
-
-/// Import purchases from CSV file
-public func importPurchases(from url: URL) async throws -> CSVImport.ImportResults<CSVImport.PurchaseImportData> {
-    return try await CSVImport.importPurchases(
-        from: url,
-        existingCategories: getAvailableCategories()
-    )
-}
-
-/// Import budgets from CSV file
-public func importBudgets(from url: URL) async throws -> CSVImport.ImportResults<CSVImport.BudgetImportData> {
-    return try await CSVImport.importBudgets(
-        from: url,
-        existingCategories: getAvailableCategories()
-    )
-}
-
-/// Process imported purchase data
-public func processImportedPurchases(
-    _ importResults: CSVImport.ImportResults<CSVImport.PurchaseImportData>,
-    categoryMappings: [String: String]
-) async throws {
-    isLoading = true
-    defer { isLoading = false }
+    /// Get entries with sort option only
+    public func getEntries(
+        sortedBy: BudgetSortOption,
+        ascending: Bool = false
+    ) async throws -> [BudgetEntry] {
+        return try await getEntries(
+            for: .allTime,
+            category: nil,
+            sortedBy: sortedBy,
+            ascending: ascending
+        )
+    }
     
-    do {
-        // Apply category mappings and add entries
-        for var purchaseData in importResults.data {
-            // Apply category mapping if exists
-            if let mappedCategory = categoryMappings[purchaseData.category] {
-                purchaseData.category = mappedCategory
+    /// Get entries filtered by category only
+    public func getEntries(
+        for timePeriod: TimePeriod,
+        category: String
+    ) async throws -> [BudgetEntry] {
+        return try await getEntries(
+            for: timePeriod,
+            category: category,
+            sortedBy: .date,
+            ascending: false
+        )
+    }
+    
+    // MARK: - Import/Export Methods
+    
+    /// Import purchases from CSV file
+    public func importPurchases(from url: URL) async throws -> CSVImport.ImportResults<CSVImport.PurchaseImportData> {
+        return try await CSVImport.importPurchases(
+            from: url,
+            existingCategories: getAvailableCategories()
+        )
+    }
+    
+    /// Import budgets from CSV file
+    public func importBudgets(from url: URL) async throws -> CSVImport.ImportResults<CSVImport.BudgetImportData> {
+        return try await CSVImport.importBudgets(
+            from: url,
+            existingCategories: getAvailableCategories()
+        )
+    }
+    
+    /// Process imported purchase data
+    public func processImportedPurchases(
+        _ importResults: CSVImport.ImportResults<CSVImport.PurchaseImportData>,
+        categoryMappings: [String: String]
+    ) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            // Apply category mappings and add entries
+            for purchaseData in importResults.data {
+                // Apply category mapping if exists
+                let finalCategory = categoryMappings[purchaseData.category] ?? purchaseData.category
+                
+                // Parse date from string
+                let dateFormatter = DateFormatter()
+                dateFormatter.dateFormat = "yyyy-MM-dd" // Adjust format as needed
+                guard let parsedDate = dateFormatter.date(from: purchaseData.date) else {
+                    throw BudgetManagerError.validationFailed("Invalid date format: \(purchaseData.date)")
+                }
+                
+                // Convert to BudgetEntry and add
+                let entry = try BudgetEntry(
+                    amount: purchaseData.amount,
+                    category: finalCategory,
+                    date: parsedDate,
+                    note: purchaseData.note
+                )
+                
+                try await addEntry(entry)
             }
             
-            // Convert to BudgetEntry and add
-            let entry = try BudgetEntry(
-                amount: purchaseData.amount,
-                category: purchaseData.category,
-                date: purchaseData.date,
-                note: purchaseData.note
-            )
-            
-            try await addEntry(entry)
-        }
-        
-        // Add any new categories
-        for newCategory in importResults.newCategories {
-            if !categories.contains(newCategory) {
-                categories.append(newCategory)
+            // Add any new categories
+            for newCategory in importResults.newCategories {
+                if !categories.contains(newCategory) {
+                    categories.append(newCategory)
+                }
             }
-        }
-        
-        try await saveEntries()
-        updateDataStatistics()
-        
-        print("✅ BudgetManager: Processed \(importResults.data.count) imported purchases")
-        
-    } catch {
-        currentError = AppError.dataSave(underlying: error)
-        throw error
-    }
-}
-
-/// Process imported budget data
-public func processImportedBudgets(
-    _ importResults: CSVImport.ImportResults<CSVImport.BudgetImportData>
-) async throws {
-    isLoading = true
-    defer { isLoading = false }
-    
-    do {
-        // Process budget data and add to monthly budgets
-        for budgetData in importResults.data {
-            // Convert and add budget logic here
-            // This depends on your BudgetImportData structure
-        }
-        
-        try await saveMonthlyBudgets()
-        updateDataStatistics()
-        
-        print("✅ BudgetManager: Processed \(importResults.data.count) imported budgets")
-        
-    } catch {
-        currentError = AppError.dataSave(underlying: error)
-        throw error
-    }
-}
-
-public struct DataStatistics: Sendable {
-    public let totalEntries: Int
-    public let totalBudgets: Int
-    public let totalSpent: Double
-    public let totalBudgeted: Double
-    public let categoriesCount: Int
-    public let lastUpdate: Date
-    
-    // Add these computed properties for backward compatibility
-    public var entryCount: Int { totalEntries }
-    public var budgetCount: Int { totalBudgets }
-    public var categoryCount: Int { categoriesCount }
-    
-    // Add health status
-    public var healthStatus: HealthLevel {
-        if totalEntries == 0 && totalBudgets == 0 {
-            return .poor
-        } else if isOverBudget {
-            return .fair
-        } else if budgetUtilization > 90 {
-            return .good
-        } else {
-            return .excellent
+            
+            try await saveEntries()
+            updateDataStatistics()
+            
+            print("✅ BudgetManager: Processed \(importResults.data.count) imported purchases")
+            
+        } catch {
+            currentError = AppError.dataSave(underlying: error)
+            throw error
         }
     }
     
-    public var budgetUtilization: Double {
-        guard totalBudgeted > 0 else { return 0 }
-        return (totalSpent / totalBudgeted) * 100
-    }
-    
-    public var isOverBudget: Bool {
-        return totalSpent > totalBudgeted
-    }
-}
-
-public enum HealthLevel: String, CaseIterable {
-    case excellent = "excellent"
-    case good = "good"
-    case fair = "fair"
-    case poor = "poor"
-    
-    public var color: Color {
-        switch self {
-        case .excellent: return .green
-        case .good: return .blue
-        case .fair: return .orange
-        case .poor: return .red
+    /// Process imported budget data
+    public func processImportedBudgets(
+        _ importResults: CSVImport.ImportResults<CSVImport.BudgetImportData>
+    ) async throws {
+        isLoading = true
+        defer { isLoading = false }
+        
+        do {
+            // Process budget data and add to monthly budgets
+            for _ in importResults.data {
+                // TODO: Convert and add budget logic here
+                // This depends on your BudgetImportData structure
+            }
+            
+            try await saveMonthlyBudgets()
+            updateDataStatistics()
+            
+            print("✅ BudgetManager: Processed \(importResults.data.count) imported budgets")
+            
+        } catch {
+            currentError = AppError.dataSave(underlying: error)
+            throw error
         }
     }
 }

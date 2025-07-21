@@ -25,7 +25,7 @@ public enum CSVExport {
     }
     
     // MARK: - Export Configuration
-    public struct ExportConfiguration {
+    public struct ExportConfiguration: Sendable {
         let timePeriod: TimePeriod
         let exportType: ExportType
         let includeCurrency: Bool
@@ -160,7 +160,7 @@ public enum CSVExport {
     private static func performExport<T>(
         data: T,
         configuration: ExportConfiguration,
-        exportFunction: (T, ExportConfiguration) throws -> String
+        exportFunction: @escaping (T, ExportConfiguration) throws -> String
     ) async throws -> ExportResult {
         return try await withCheckedThrowingContinuation { continuation in
             queue.async {

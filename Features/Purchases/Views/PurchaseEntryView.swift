@@ -81,19 +81,23 @@ struct PurchaseEntryView: View {
     
     // MARK: - Body
     
+    private var contentView: some View {
+        ZStack {
+            // Background
+            Color(.systemGroupedBackground)
+                .ignoresSafeArea()
+            
+            if isSubmitting {
+                submittingOverlay
+            } else {
+                mainContent
+            }
+        }
+    }
+    
     var body: some View {
         NavigationView {
-            ZStack {
-                // Background
-                Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
-                
-                if isSubmitting {
-                    submittingOverlay
-                } else {
-                    mainContent
-                }
-            }
+            contentView
             .navigationTitle("Add Purchase")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -156,12 +160,142 @@ struct PurchaseEntryView: View {
         }
     }
     
+    // MARK: - View Components
+    
+    private var submittingOverlay: some View {
+        VStack(spacing: 20) {
+            ProgressView()
+                .scaleEffect(1.5)
+                .progressViewStyle(CircularProgressViewStyle(tint: themeManager.primaryColor))
+            
+            Text("Adding Purchase...")
+                .font(.headline)
+                .foregroundColor(.primary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+    }
+    
+    private var mainContent: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                // Amount input section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Amount")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    TextField("0.00", text: $amount)
+                        .textFieldStyle(.roundedBorder)
+                        .keyboardType(.decimalPad)
+                        .focused($isAmountFocused)
+                }
+                
+                // Category selection section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Category")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    TextField("Select category", text: $selectedCategory)
+                        .textFieldStyle(.roundedBorder)
+                }
+                
+                // Date selection section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Date")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    DatePicker("Purchase Date", selection: $selectedDate, displayedComponents: [.date])
+                        .datePickerStyle(.compact)
+                }
+                
+                // Note section
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Note (Optional)")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    TextField("Add a note...", text: $note, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(3...6)
+                        .focused($isNoteFocused)
+                }
+                
+                Spacer()
+            }
+            .padding()
+        }
+    }
+    
     // MARK: - Helper Methods
     
     private func addNewCategory() {
-        // Implementation would go here
-        budgetManager.addCategory(newCategoryName, amount: 0)
+        let currentMonth = Calendar.current.component(.month, from: Date())
+        let currentYear = Calendar.current.component(.year, from: Date())
+        
+        Task<Void, Never>{
+            try? await budgetManager.addCategory(
+                name: newCategoryName,
+                amount: 0,
+                month: currentMonth,
+                year: currentYear
+            )
+        }
         newCategoryName = ""
         showingNewCategoryAlert = false
+    }
+    
+    private func handleCancelAction() {
+        if shouldShowDiscardAlert {
+            showingDiscardAlert = true
+        } else {
+            dismiss()
+        }
+    }
+    
+    private func submitPurchase() async {
+        guard isFormValid else { return }
+        
+        await MainActor.run {
+            isSubmitting = true
+            hasUnsavedChanges = false
+            validationErrors.removeAll()
+        }
+        
+        do {
+            guard let amountValue = Double(amount) else {
+                throw AppError.validation(message: "Invalid amount entered")
+            }
+            
+            let entry = try BudgetEntry(
+                amount: amountValue,
+                category: selectedCategory,
+                date: selectedDate,
+                note: note.isEmpty ? nil : note
+            )
+            
+            try await budgetManager.addEntry(entry)
+            
+            await MainActor.run {
+                successFeedback.notificationOccurred(.success)
+                dismiss()
+            }
+            
+        } catch {
+            await MainActor.run {
+                submissionError = AppError.from(error)
+                showingErrorDetails = true
+                retryCount += 1
+                isSubmitting = false
+                errorFeedback.notificationOccurred(.error)
+            }
+        }
+    }
+    
+    private func clearSubmissionError() {
+        submissionError = nil
+        showingErrorDetails = false
     }
 }

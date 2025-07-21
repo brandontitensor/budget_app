@@ -677,7 +677,7 @@ extension CategoryMappingView {
     
     /// Log mapping completion statistics
     private func logMappingCompletion() {
-        let stats = [
+        let stats: [String: Any] = [
             "totalCategories": categories.count,
             "mappedToExisting": categoryMappings.values.filter { existingCategories.contains($0) }.count,
             "newCategoriesCreated": categoryMappings.values.filter { !existingCategories.contains($0) }.count,
@@ -1023,11 +1023,10 @@ extension CategoryMappingView {
             
             // Create the category
             try await budgetManager.addCategory(
-                category,
+                name: category,
                 amount: newCategoryAmount,
                 month: currentMonth,
-                year: currentYear,
-                includeFutureMonths: includeFutureMonths
+                year: currentYear
             )
             
             completionPercentage = 0.8
@@ -1166,7 +1165,7 @@ extension CategoryMappingView {
     private func refreshData() async {
         // Refresh available categories from budget manager
         // This could be useful if categories were added externally
-        await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
     }
     
     private func retryFailedOperations() async {

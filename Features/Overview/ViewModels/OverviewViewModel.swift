@@ -274,10 +274,10 @@ public final class OverviewViewModel: ObservableObject {
         
         do {
             // Load all data concurrently
-            async let summaryTask<Void, Never>= loadBudgetSummary()
-            async let transactionsTask<Void, Never>= loadRecentTransactions()
-            async let spendingTask<Void, Never>= loadSpendingData()
-            async let categoriesTask<Void, Never>= loadCategoryBreakdown()
+            async let summaryTask = loadBudgetSummary()
+            async let transactionsTask = loadRecentTransactions()
+            async let spendingTask = loadSpendingData()
+            async let categoriesTask = loadCategoryBreakdown()
             
             let _ = try await (summaryTask, transactionsTask, spendingTask, categoriesTask)
             
@@ -306,10 +306,10 @@ public final class OverviewViewModel: ObservableObject {
         
         do {
             // Load all data concurrently
-            async let summaryTask<Void, Never>= loadBudgetSummary()
-            async let transactionsTask<Void, Never>= loadRecentTransactions()
-            async let spendingTask<Void, Never>= loadSpendingData()
-            async let categoriesTask<Void, Never>= loadCategoryBreakdown()
+            async let summaryTask = loadBudgetSummary()
+            async let transactionsTask = loadRecentTransactions()
+            async let spendingTask = loadSpendingData()
+            async let categoriesTask = loadCategoryBreakdown()
             
             let _ = try await (summaryTask, transactionsTask, spendingTask, categoriesTask)
             
@@ -342,10 +342,10 @@ public final class OverviewViewModel: ObservableObject {
         
         do {
             // Load data for the new timeframe
-            async let summaryTask<Void, Never>= loadBudgetSummary()
-            async let transactionsTask<Void, Never>= loadRecentTransactions()
-            async let spendingTask<Void, Never>= loadSpendingData()
-            async let categoriesTask<Void, Never>= loadCategoryBreakdown()
+            async let summaryTask = loadBudgetSummary()
+            async let transactionsTask = loadRecentTransactions()
+            async let spendingTask = loadSpendingData()
+            async let categoriesTask = loadCategoryBreakdown()
             
             let _ = try await (summaryTask, transactionsTask, spendingTask, categoriesTask)
             
@@ -439,8 +439,8 @@ public final class OverviewViewModel: ObservableObject {
             context: "Loading budget summary",
             errorTransform: { .dataLoad(underlying: $0) }
         ) {
-            let entries = try await budgetManager.getEntries(
-                for: selectedTimeframe,
+            let entries = try await self.budgetManager.getEntries(
+                for: self.selectedTimeframe,
                 sortedBy: .date,
                 ascending: false
             )
@@ -450,7 +450,7 @@ public final class OverviewViewModel: ObservableObject {
             let currentMonth = calendar.component(.month, from: now)
             let currentYear = calendar.component(.year, from: now)
             
-            let budgets = budgetManager.getMonthlyBudgets(for: currentMonth, year: currentYear)
+            let budgets = self.budgetManager.getMonthlyBudgets(for: currentMonth, year: currentYear)
             
             let totalBudgeted = budgets.reduce(0) { $0 + $1.amount }
             let totalSpent = entries.reduce(0) { $0 + $1.amount }
@@ -460,7 +460,7 @@ public final class OverviewViewModel: ObservableObject {
                 totalSpent: totalSpent,
                 categoryCount: budgets.count,
                 transactionCount: entries.count,
-                timeframe: selectedTimeframe
+                timeframe: self.selectedTimeframe
             )
         }
         
@@ -479,12 +479,12 @@ public final class OverviewViewModel: ObservableObject {
         let result = await AsyncErrorHandler.execute(
             context: "Loading recent transactions"
         ) {
-            let entries = try await budgetManager.getEntries(
-                for: selectedTimeframe,
+            let entries = try await self.budgetManager.getEntries(
+                for: self.selectedTimeframe,
                 sortedBy: .date,
                 ascending: false
             )
-            return Array(entries.prefix(maxRecentTransactions))
+            return Array(entries.prefix(self.maxRecentTransactions))
         }
         
         await MainActor.run {
@@ -502,11 +502,11 @@ public final class OverviewViewModel: ObservableObject {
         let result = await AsyncErrorHandler.execute(
             context: "Loading spending data"
         ) {
-            let entries = try await budgetManager.getEntries(for: selectedTimeframe)
+            let entries = try await self.budgetManager.getEntries(for: self.selectedTimeframe)
             let groupedEntries = Dictionary(grouping: entries) { $0.category }
             let totalSpent = entries.reduce(0) { $0 + $1.amount }
             
-            return groupedEntries.compactMap { category, categoryEntries in
+            return groupedEntries.compactMap { (category: String, categoryEntries: [BudgetEntry]) in
                 let amount = categoryEntries.reduce(0) { $0 + $1.amount }
                 let percentage = totalSpent > 0 ? (amount / totalSpent) * 100 : 0
                 
@@ -516,10 +516,10 @@ public final class OverviewViewModel: ObservableObject {
                     category: category,
                     amount: amount,
                     percentage: percentage,
-                    color: themeManager.colorForCategory(category)
+                    color: self.themeManager.colorForCategory(category)
                 )
             }
-            .sorted { $0.amount > $1.amount }
+            .sorted { (lhs: SpendingData, rhs: SpendingData) in lhs.amount > rhs.amount }
         }
         
         await MainActor.run {
@@ -537,13 +537,13 @@ public final class OverviewViewModel: ObservableObject {
         let result = await AsyncErrorHandler.execute(
             context: "Loading category breakdown"
         ) {
-            let entries = try await budgetManager.getEntries(for: selectedTimeframe)
+            let entries = try await self.budgetManager.getEntries(for: self.selectedTimeframe)
             let calendar = Calendar.current
             let now = Date()
             let currentMonth = calendar.component(.month, from: now)
             let currentYear = calendar.component(.year, from: now)
             
-            let budgets = budgetManager.getMonthlyBudgets(for: currentMonth, year: currentYear)
+            let budgets = self.budgetManager.getMonthlyBudgets(for: currentMonth, year: currentYear)
             
             let spentByCategory = Dictionary(grouping: entries) { $0.category }
                 .mapValues { categoryEntries in
@@ -564,7 +564,7 @@ public final class OverviewViewModel: ObservableObject {
                     spent: spent,
                     budgeted: budget.amount,
                     percentage: percentage,
-                    color: themeManager.colorForCategory(budget.category),
+                    color: self.themeManager.colorForCategory(budget.category),
                     transactionCount: transactionCount
                 )
             }

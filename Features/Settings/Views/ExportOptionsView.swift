@@ -133,7 +133,7 @@ struct ExportOptionsView: View {
             
             Text("Analyzing your data and preparing the export configuration.")
                 .font(.caption)
-                .foregroundColor(.tertiary)
+                .foregroundColor(Color.secondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -463,7 +463,7 @@ struct ExportOptionsView: View {
                                     if preview.categories.count > 5 {
                                         Text("and \(preview.categories.count - 5) more...")
                                             .font(.caption2)
-                                            .foregroundColor(.tertiary)
+                                            .foregroundColor(Color.secondary)
                                     }
                                 }
                             }
@@ -670,7 +670,7 @@ struct ExportOptionsView: View {
             }
             
             let estimatedSize = estimateFileSize(recordCount: relevantData.count)
-            let dateRange = exportTimePeriod.formattedDateRange(style: .abbreviated)
+            let dateRange = exportTimePeriod.formattedDateRange(style: .short)
             
             // Generate sample data
             let sampleData = generateSampleData(for: selectedExportType, from: relevantData)

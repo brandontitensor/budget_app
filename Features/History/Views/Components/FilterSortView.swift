@@ -118,7 +118,7 @@ class FilterSortViewModel: ObservableObject {
             warnings.append("Trends may not be visible in compact view")
         }
         
-        return ValidationResult(isValid: isValid, warnings: warnings)
+        return isValid ? .valid : .invalid(.custom(message: warnings.joined(separator: ", ")))
     }
     
     /// Export current configuration

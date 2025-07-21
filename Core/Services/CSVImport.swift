@@ -40,15 +40,15 @@ public enum CSVImport {
     
     // MARK: - Import Configuration
     public struct ImportConfiguration {
-        let importType: ImportType
-        let validateDuplicates: Bool
-        let skipInvalidRows: Bool
-        let maxFileSize: Int64
-        let maxRowCount: Int
-        let dateFormats: [String]
-        let encoding: String.Encoding
-        let delimiter: String
-        let strictValidation: Bool
+        var importType: ImportType
+        var validateDuplicates: Bool
+        var skipInvalidRows: Bool
+        var maxFileSize: Int64
+        var maxRowCount: Int
+        var dateFormats: [String]
+        var encoding: String.Encoding
+        var delimiter: String
+        var strictValidation: Bool
         
         public init(
             importType: ImportType = .autoDetect,

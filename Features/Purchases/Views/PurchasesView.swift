@@ -233,7 +233,7 @@ struct PurchasesView: View {
             if retryCount > 0 {
                 Text("Retry attempt \(retryCount) of \(maxRetries)")
                     .font(.caption)
-                    .foregroundColor(.tertiary)
+                    .foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -347,18 +347,11 @@ struct PurchasesView: View {
             
             // Purchases
             ForEach(displayedEntries) { entry in
-                TransactionRowView(
-                    entry: entry,
-                    onTap: {
+                TransactionRowView(entry: entry)
+                    .onTapGesture {
                         selectedEntry = entry
                         showingUpdatePurchase = true
-                    },
-                    onDelete: {
-                       Task<Void, Never>{
-                            await deletePurchase(entry)
-                        }
                     }
-                )
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
             }
@@ -400,8 +393,10 @@ struct PurchasesView: View {
     private var exportOptionsSheet: some View {
         NavigationView {
             ExportOptionsView(
-                entries: displayedEntries,
-                timePeriod: selectedTimePeriod
+                exportTimePeriod: $selectedTimePeriod,
+                onExport: {
+                    showingExportOptions = false
+                }
             )
             .navigationTitle("Export Purchases")
             .navigationBarTitleDisplayMode(.inline)
@@ -466,7 +461,7 @@ struct PurchasesView: View {
             let allEntries = try await budgetManager.getEntries(
                 for: selectedTimePeriod,
                 category: selectedCategory == "All" ? nil : selectedCategory,
-                sortedBy: sortOption,
+                sortedBy: BudgetManager.BudgetSortOption(rawValue: sortOption.rawValue) ?? .date,
                 ascending: sortAscending
             )
             
@@ -517,10 +512,15 @@ struct PurchasesView: View {
         try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
         
         // Reload data from budget manager
-        budgetManager.loadData()
-        
-        // Re-filter entries
-        await filterEntries()
+        do {
+            try await budgetManager.loadData()
+            
+            // Re-filter entries
+            await filterEntries()
+        } catch {
+            // Handle error silently for refresh operation
+            print("Error refreshing data: \(error)")
+        }
         
         await MainActor.run {
             isRefreshing = false
@@ -715,7 +715,7 @@ private struct PurchasesTransactionRowView: View {
                     
                     Text(entry.formattedDate)
                         .font(.caption)
-                        .foregroundColor(.tertiary)
+                        .foregroundColor(.secondary)
                 }
                 
                 Spacer()

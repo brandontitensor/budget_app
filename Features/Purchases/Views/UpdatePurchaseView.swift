@@ -321,7 +321,7 @@ struct UpdatePurchaseView: View {
                     
                     Text(entry.formattedDate)
                         .font(.caption)
-                        .foregroundColor(.tertiary)
+                        .foregroundColor(Color.secondary)
                 }
                 
                 Spacer()

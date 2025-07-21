@@ -10,19 +10,15 @@ import Foundation
 public struct MonthlyBudget: Identifiable, Codable, Equatable {
     // MARK: - Properties
     public let id: UUID
-    private let _category: String
-    private let _amount: Decimal
     private let _month: Int
     private let _year: Int
     private let _isHistorical: Bool
+    private var _categories: [String: Double]
     
     // MARK: - Public Interface
-    public var category: String {
-        _category.isEmpty ? "Uncategorized" : _category
-    }
-    
-    public var amount: Double {
-        (try? _amount.asDouble()) ?? 0.0
+    public var categories: [String: Double] {
+        get { _categories }
+        set { _categories = newValue }
     }
     
     public var month: Int {
@@ -35,6 +31,15 @@ public struct MonthlyBudget: Identifiable, Codable, Equatable {
     
     public var isHistorical: Bool {
         _isHistorical
+    }
+    
+    // MARK: - Computed Properties for Backward Compatibility
+    public var category: String {
+        _categories.keys.first ?? "Uncategorized"
+    }
+    
+    public var amount: Double {
+        _categories.values.reduce(0, +)
     }
     
     // MARK: - Validation
@@ -65,6 +70,30 @@ public struct MonthlyBudget: Identifiable, Codable, Equatable {
     }
     
     // MARK: - Initialization
+    
+    /// Initialize with categories dictionary
+    public init(
+        id: UUID = UUID(),
+        month: Int,
+        year: Int,
+        categories: [String: Double] = [:],
+        isHistorical: Bool = false
+    ) throws {
+        try Self.validate(
+            categories: categories,
+            month: month,
+            year: year,
+            isHistorical: isHistorical
+        )
+        
+        self.id = id
+        self._month = month
+        self._year = year
+        self._categories = categories
+        self._isHistorical = isHistorical
+    }
+    
+    /// Initialize with single category (backward compatibility)
     public init(
         id: UUID = UUID(),
         category: String,
@@ -73,40 +102,36 @@ public struct MonthlyBudget: Identifiable, Codable, Equatable {
         year: Int,
         isHistorical: Bool = false
     ) throws {
-        try Self.validate(
-            category: category,
-            amount: amount,
+        let cleanCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
+        try self.init(
+            id: id,
             month: month,
             year: year,
+            categories: [cleanCategory: amount],
             isHistorical: isHistorical
         )
-        
-        self.id = id
-        self._category = category.trimmingCharacters(in: .whitespacesAndNewlines)
-        self._amount = Decimal(amount)
-        self._month = month
-        self._year = year
-        self._isHistorical = isHistorical
     }
     
     // MARK: - Validation Methods
     private static func validate(
-        category: String,
-        amount: Double,
+        categories: [String: Double],
         month: Int,
         year: Int,
         isHistorical: Bool
     ) throws {
-        guard !category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw ValidationError.invalidCategory
-        }
-        
-        guard amount >= 0 else {
-            throw ValidationError.negativeAmount
-        }
-        
-        guard amount <= AppConstants.Validation.maximumTransactionAmount else {
-            throw ValidationError.amountTooLarge
+        // Validate categories
+        for (categoryName, amount) in categories {
+            guard !categoryName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ValidationError.invalidCategory
+            }
+            
+            guard amount >= 0 else {
+                throw ValidationError.negativeAmount
+            }
+            
+            guard amount <= AppConstants.Validation.maximumTransactionAmount else {
+                throw ValidationError.amountTooLarge
+            }
         }
         
         guard (1...12).contains(month) else {
@@ -175,13 +200,38 @@ extension MonthlyBudget: Comparable {
     }
 }
 
-// MARK: - Decimal Extension
-private extension Decimal {
-    func asDouble() throws -> Double {
-        if let double = NSDecimalNumber(decimal: self).doubleValue as Double? {
-            return double
+// MARK: - Helper Methods for Categories
+extension MonthlyBudget {
+    /// Add or update a category in this budget
+    public mutating func setCategory(_ name: String, amount: Double) throws {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ValidationError.invalidCategory
         }
-        throw MonthlyBudget.ValidationError.negativeAmount
+        
+        guard amount >= 0 else {
+            throw ValidationError.negativeAmount
+        }
+        
+        guard amount <= AppConstants.Validation.maximumTransactionAmount else {
+            throw ValidationError.amountTooLarge
+        }
+        
+        _categories[name.trimmingCharacters(in: .whitespacesAndNewlines)] = amount
+    }
+    
+    /// Remove a category from this budget
+    public mutating func removeCategory(_ name: String) {
+        _categories.removeValue(forKey: name)
+    }
+    
+    /// Get amount for a specific category
+    public func amountForCategory(_ name: String) -> Double {
+        return _categories[name] ?? 0.0
+    }
+    
+    /// Check if this budget has a specific category
+    public func hasCategory(_ name: String) -> Bool {
+        return _categories[name] != nil
     }
 }
 
@@ -214,12 +264,29 @@ extension MonthlyBudget {
     static func mockArray(count: Int) -> [MonthlyBudget] {
         (0..<count).map { index in
             try! MonthlyBudget(
-                category: "Category \(index + 1)",
-                amount: Double((index + 1) * 1000),
                 month: (index % 12) + 1,
-                year: Calendar.current.component(.year, from: Date())
+                year: Calendar.current.component(.year, from: Date()),
+                categories: ["Category \(index + 1)": Double((index + 1) * 1000)]
             )
         }
+    }
+    
+    /// Create a multi-category test budget
+    static func mockMultiCategory(
+        month: Int = Calendar.current.component(.month, from: Date()),
+        year: Int = Calendar.current.component(.year, from: Date())
+    ) -> MonthlyBudget {
+        try! MonthlyBudget(
+            month: month,
+            year: year,
+            categories: [
+                "Housing": 2000.0,
+                "Food": 800.0,
+                "Transportation": 500.0,
+                "Entertainment": 300.0,
+                "Utilities": 200.0
+            ]
+        )
     }
 }
 #endif

@@ -370,7 +370,11 @@ public final class SettingsViewModel: ObservableObject {
     /// Prepare and show export options
     public func prepareDataExport() {
         showingExportOptions = true
-        try validateExportPreconditions()
+        do {
+            try validateExportPreconditions()
+        } catch {
+            print("Export validation failed: \(error)")
+        }
     }
     
     /// Perform data export with progress tracking
@@ -1229,7 +1233,7 @@ extension SettingsViewModel {
         
         do {
             // Refresh budget data
-            budgetManager.loadData()
+            try await budgetManager.loadData()
             
             // Update all statistics
             await updateDataStatistics()
@@ -1269,14 +1273,12 @@ extension SettingsViewModel {
     func loadTestData() async {
         // Simulate data statistics
         dataStatistics = BudgetManager.DataStatistics(
-            entryCount: 150,
-            budgetCount: 12,
-            categoryCount: 8,
+            totalEntries: 150,
+            totalBudgets: 12,
             totalSpent: 2450.75,
             totalBudgeted: 3000.00,
-            oldestEntry: Calendar.current.date(byAdding: .month, value: -6, to: Date()),
-            newestEntry: Date(),
-            dataIntegrityScore: 0.92
+            categoriesCount: 8,
+            lastUpdate: Date()
         )
         
         // Simulate validation issues

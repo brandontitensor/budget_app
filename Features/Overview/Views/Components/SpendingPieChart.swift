@@ -95,8 +95,9 @@ struct SpendingPieChart: View {
             if data.isEmpty || totalAmount == 0 {
                 self.diversityIndex = 0
             } else {
+                let totalAmountForCalculation = totalAmount
                 let entropy = data.reduce(0.0) { result, item in
-                    let proportion = item.amount / totalAmount
+                    let proportion = item.amount / totalAmountForCalculation
                     return proportion > 0 ? result - (proportion * log2(proportion)) : result
                 }
                 self.diversityIndex = entropy
@@ -142,8 +143,8 @@ struct SpendingPieChart: View {
             let labelRadius = radius * 0.85
             let angle = midAngle.radians
             return CGPoint(
-                x: cos(angle) * labelRadius,
-                y: sin(angle) * labelRadius
+                x: Foundation.cos(angle) * labelRadius,
+                y: Foundation.sin(angle) * labelRadius
             )
         }
     }
@@ -410,21 +411,7 @@ struct SpendingPieChart: View {
                         sliceInfo.data.color
                             .opacity(sliceOpacity(for: sliceInfo))
                     )
-                    .scaleEffect(sliceInfo.scale)
                     .opacity(sliceVisibility(for: sliceInfo))
-                    .animation(
-                        .spring(response: 0.8, dampingFraction: 0.8)
-                            .delay(sliceInfo.animationDelay),
-                        value: animationProgress
-                    )
-                    .animation(
-                        .easeInOut(duration: hoverAnimationDuration),
-                        value: sliceInfo.isHovered
-                    )
-                    .animation(
-                        .spring(response: 0.6, dampingFraction: 0.7),
-                        value: sliceInfo.isSelected
-                    )
                 }
                 .frame(width: size * 0.9, height: size * 0.9)
                 .chartBackground { proxy in
@@ -1826,8 +1813,8 @@ private struct ChartMath {
             let angle = slice.midAngle.radians
             let labelRadius = radius * 1.2
             return CGPoint(
-                x: cos(angle) * labelRadius,
-                y: sin(angle) * labelRadius
+                x: Foundation.cos(angle) * labelRadius,
+                y: Foundation.sin(angle) * labelRadius
             )
         }
     }

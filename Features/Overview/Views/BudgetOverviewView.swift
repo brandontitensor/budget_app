@@ -88,7 +88,7 @@ struct BudgetOverviewView: View {
         }
     }
     
-    struct BudgetSummaryData {
+    struct BudgetSummaryData: Equatable {
         let totalBudgeted: Double
         let totalSpent: Double
         let remainingBudget: Double
@@ -263,7 +263,7 @@ struct BudgetOverviewView: View {
                 .font(.subheadline)
                 .foregroundColor(themeManager.semanticColors.textSecondary)
             
-            if let lastRefresh = lastRefreshDate.timeIntervalSinceNow, lastRefresh > -refreshThreshold {
+            if lastRefreshDate.timeIntervalSinceNow > -refreshThreshold {
                 Text("Updated \(RelativeDateTimeFormatter().localizedString(for: lastRefreshDate, relativeTo: Date()))")
                     .font(.caption)
                     .foregroundColor(themeManager.semanticColors.textTertiary)
@@ -294,32 +294,32 @@ struct BudgetOverviewView: View {
         }
     }
     
+    @ViewBuilder
     private var budgetSummarySection: some View {
-        Group {
-            if loadingStates.isSummaryLoading {
-                BudgetSummaryCardSkeleton()
-            } else if let error = errorStates.summaryError {
-                ErrorCard(
-                    error: error,
-                    onRetry: {
-                        Task<Void, Never>{
-                            await loadBudgetSummary()
-                        }
+        if loadingStates.isSummaryLoading {
+            BudgetSummaryCardSkeleton()
+        } else if let error = errorStates.summaryError {
+            ErrorCard(
+                error: error,
+                onRetry: {
+                    Task<Void, Never>{
+                        await loadBudgetSummary()
                     }
-                )
-            } else if let summary = budgetSummary {
-                BudgetSummaryCard(
-                    summary: summary,
-                    themeColor: themeManager.primaryColor
-                )
-                .onTapGesture {
-                    showingDetailView = true
                 }
-            } else {
-                EmptyBudgetCard()
+            )
+        } else if let summary = budgetSummary {
+            BudgetSummaryCard(
+                budgeted: summary.totalBudgeted,
+                spent: summary.totalSpent,
+                primaryColor: themeManager.primaryColor
+            )
+            .onTapGesture {
+                showingDetailView = true
             }
+            .animation(.easeInOut(duration: 0.3), value: budgetSummary)
+        } else {
+            EmptyBudgetCard()
         }
-        .animation(.easeInOut(duration: 0.3), value: budgetSummary)
     }
     
     private var spendingChartSection: some View {
@@ -327,7 +327,8 @@ struct BudgetOverviewView: View {
             SectionHeader(
                 title: "Spending by Category",
                 subtitle: selectedTimeframe.rawValue,
-                systemImage: "chart.pie.fill"
+                icon: "chart.pie.fill",
+                color: themeManager.primaryColor
             )
             
             if loadingStates.isSpendingDataLoading {
@@ -355,7 +356,7 @@ struct BudgetOverviewView: View {
         .background(themeManager.semanticColors.backgroundSecondary)
         .cornerRadius(AppConstants.UI.cornerRadius)
         .shadow(
-            color: .black.opacity(AppConstants.UI.defaultShadowOpacity),
+            color: .black.opacity(Double(AppConstants.UI.defaultShadowOpacity)),
             radius: AppConstants.UI.defaultShadowRadius,
             x: 0,
             y: 2
@@ -367,7 +368,8 @@ struct BudgetOverviewView: View {
             SectionHeader(
                 title: "Category Breakdown",
                 subtitle: "\(categoryBreakdown.count) categories",
-                systemImage: "list.bullet.rectangle"
+                icon: "list.bullet.rectangle",
+                color: themeManager.primaryColor
             )
             
             if categoryBreakdown.isEmpty {
@@ -399,7 +401,8 @@ struct BudgetOverviewView: View {
             SectionHeader(
                 title: "Recent Transactions",
                 subtitle: "\(recentTransactions.count) transactions",
-                systemImage: "clock.fill"
+                icon: "clock.fill",
+                color: themeManager.primaryColor
             )
             
             if loadingStates.isTransactionsLoading {
@@ -459,7 +462,8 @@ struct BudgetOverviewView: View {
             SectionHeader(
                 title: "Quick Actions",
                 subtitle: "Common tasks",
-                systemImage: "bolt.fill"
+                icon: "bolt.fill",
+                color: themeManager.primaryColor
             )
             
             LazyVGrid(columns: [
@@ -635,15 +639,12 @@ struct BudgetOverviewView: View {
         }
         
         // Load all data concurrently
-        async let summaryTask = loadBudgetSummary()
-        async let transactionsTask = loadRecentTransactions()
-        async let spendingTask = loadSpendingData()
-        async let categoryTask = loadCategoryBreakdown()
-        
-        await summaryTask
-        await transactionsTask
-        await spendingTask
-        await categoryTask
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await self.loadBudgetSummary() }
+            group.addTask { await self.loadRecentTransactions() }
+            group.addTask { await self.loadSpendingData() }
+            group.addTask { await self.loadCategoryBreakdown() }
+        }
         
         await MainActor.run {
             loadingStates.isLoading = false
@@ -771,7 +772,7 @@ struct BudgetOverviewView: View {
                     color: themeManager.colorForCategory(category)
                 )
             }
-            .sorted { $0.amount > $1.amount }
+            .sorted { (lhs: SpendingData, rhs: SpendingData) in lhs.amount > rhs.amount }
         }
         
         await MainActor.run {
@@ -1071,7 +1072,7 @@ private struct OverviewBudgetSummaryCard: View {
         .background(themeManager.semanticColors.backgroundSecondary)
         .cornerRadius(AppConstants.UI.cornerRadius)
         .shadow(
-            color: .black.opacity(AppConstants.UI.defaultShadowOpacity),
+            color: .black.opacity(Double(AppConstants.UI.defaultShadowOpacity)),
             radius: AppConstants.UI.defaultShadowRadius,
             x: 0,
             y: 2
